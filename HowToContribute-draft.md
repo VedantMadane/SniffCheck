@@ -20,7 +20,7 @@ merged without waiting on back-and-forth.
 - Fork the repo and always branch from the latest `main`. Never commit to
   `main` directly.
 - One topic per branch. Name it after the change, short and descriptive:
-  `fix-flasher-erase-order`, `docs-x4-pinout`.
+  `fix-flasher-erase-order`, `docs-cluster-pinout`.
 - Keep PRs small and focused. If a change grows into two concerns, split
   it into two PRs.
 - Rebase on `main` before opening the PR so it merges clean.
@@ -56,8 +56,8 @@ The flasher is static files at the repo root (`index.html`, `flash.js`,
    `python3 -m http.server 8000`
 2. Open http://localhost:8000 in Chrome or Edge. Web Serial does not exist
    in Firefox and only works on `localhost` or `https` pages.
-3. Test against real hardware: a LilyGO T-Dongle C5 for the SniffCheck
-   targets, or an Xteink X4 (ESP32-C3) for the Dog Park target. Flasher
+3. Test against real hardware: a LilyGO T-Dongle C5 for the SniffCheck and
+   Dog Park cluster C5 targets, or a LilyGO T-Dongle-S3 for the S3 node. Flasher
    changes must be exercised on a real board before the PR goes up —
    this code erases people's devices.
 

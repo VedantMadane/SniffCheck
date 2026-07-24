@@ -65,6 +65,11 @@ that the firmware matches the chip (C5 vs S3) before writing, so a wrong pick is
 refused rather than bricked. If a board isn't detected, hold **BOOT** while replugging
 to force download mode.
 
+The **arm** firmware ships with the on-device vendor/device-type database built in, so
+scanned devices resolve to real vendor names and categories out of the box — no separate
+database flash step. (If you build the arm from source, `flash_all.sh` writes that
+database to each arm automatically; see below.)
+
 To build from source instead, see [`cluster/README.md`](./cluster/README.md).
 
 ---

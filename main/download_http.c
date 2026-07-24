@@ -24,9 +24,27 @@
 
 static const char *TAG = "sc_dlhttp";
 
+#ifndef SC_CLUSTER_HEAD
+#define SC_CLUSTER_HEAD 0
+#endif
+
 static httpd_handle_t s_server = NULL;
 
 #define STREAM_LINE_MAX 4200
+
+static void *serve_buf_alloc(size_t sz)
+{
+    void *p = heap_caps_malloc(sz, MALLOC_CAP_SPIRAM);
+    if (!p) p = heap_caps_malloc(sz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    return p;
+}
+
+static void *serve_buf_calloc(size_t sz)
+{
+    void *p = heap_caps_calloc(1, sz, MALLOC_CAP_SPIRAM);
+    if (!p) p = heap_caps_calloc(1, sz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    return p;
+}
 
 extern const char _binary_capture_viewer_html_start[];
 extern const unsigned char _binary_webap_logo_png_start[];
@@ -35,6 +53,10 @@ extern const unsigned char _binary_webap_favicon_png_start[];
 extern const unsigned char _binary_webap_favicon_png_end[];
 extern const unsigned char _binary_webap_pup_png_start[];
 extern const unsigned char _binary_webap_pup_png_end[];
+#if SC_CLUSTER_HEAD
+extern const unsigned char _binary_epup_sprites_png_start[];
+extern const unsigned char _binary_epup_sprites_png_end[];
+#endif
 
 #define ISLAND_MARKER "<!--SC_DATA_ISLAND-->"
 
@@ -86,19 +108,23 @@ static esp_err_t send_chunk_escaped(httpd_req_t *req, const char *p, size_t len)
     return ESP_OK;
 }
 
-static esp_err_t stream_ring(httpd_req_t *req, bool escaped, size_t *count_out)
+static esp_err_t stream_ring(httpd_req_t *req, bool escaped, size_t skip, size_t *count_out)
 {
-    char *buf = heap_caps_malloc(STREAM_LINE_MAX + 1, MALLOC_CAP_SPIRAM);
+    char *buf = serve_buf_alloc(STREAM_LINE_MAX + 1);
     if (!buf) return ESP_ERR_NO_MEM;
 
     capture_ring_reader_t r;
     capture_ring_reader_open(&r);
 
-    size_t emitted = 0;
+    size_t seen = 0, emitted = 0;
     esp_err_t err = ESP_OK;
     for (;;) {
         size_t len = capture_ring_reader_next(&r, buf, STREAM_LINE_MAX);
         if (len == 0) break;
+        if (seen++ < skip) {
+            if (seen % 64 == 0) vTaskDelay(1);
+            continue;
+        }
         buf[len++] = '\n';
         err = escaped ? send_chunk_escaped(req, buf, len)
                       : httpd_resp_send_chunk(req, buf, len);
@@ -110,10 +136,45 @@ static esp_err_t stream_ring(httpd_req_t *req, bool escaped, size_t *count_out)
     return err;
 }
 
+__attribute__((weak)) void  *sc_durable_open(void)                        { return NULL; }
+__attribute__((weak)) size_t sc_durable_next(void *h, char *b, size_t n)  { (void)h; (void)b; (void)n; return 0; }
+__attribute__((weak)) void   sc_durable_close(void *h)                    { (void)h; }
+
+static esp_err_t stream_records(httpd_req_t *req, bool escaped, size_t skip, size_t *count_out)
+{
+    void *dh = sc_durable_open();
+    if (!dh) return stream_ring(req, escaped, skip, count_out);
+    (void)skip;
+
+    char *buf = serve_buf_alloc(STREAM_LINE_MAX + 1);
+    if (!buf) { sc_durable_close(dh); return ESP_ERR_NO_MEM; }
+
+    size_t emitted = 0;
+    esp_err_t err = ESP_OK;
+    for (;;) {
+        size_t len = sc_durable_next(dh, buf, STREAM_LINE_MAX);
+        if (len == 0) break;
+        buf[len++] = '\n';
+        err = escaped ? send_chunk_escaped(req, buf, len)
+                      : httpd_resp_send_chunk(req, buf, len);
+        if (err != ESP_OK) { err = ESP_FAIL; break; }
+        if (++emitted % 32 == 0) vTaskDelay(1);
+    }
+    heap_caps_free(buf);
+    sc_durable_close(dh);
+    if (count_out) *count_out = emitted;
+    return err;
+}
+
 static const char DASH_HTML[] =
 "<!DOCTYPE html><html><head><meta charset=utf-8>"
 "<meta name=viewport content=\"width=device-width,initial-scale=1\">"
-"<title>SniffCheck</title><link rel=icon type=\"image/png\" href=\"/favicon.ico\"><style>"
+"<title>SniffCheck</title><link rel=icon type=\"image/png\" href=\"/favicon.ico\">"
+"<link rel=\"apple-touch-icon\" href=\"/favicon.ico\">"
+"<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">"
+"<meta name=\"apple-mobile-web-app-title\" content=\"SniffCheck\">"
+"<meta name=\"mobile-web-app-capable\" content=\"yes\">"
+"<meta name=\"theme-color\" content=\"#ffd93b\"><style>"
 
 ":root{--bg:#ffd93b;--panel:#fff7d6;--ink:#3f2a14;--line:#3f2a14;--muted:#7a5a34;"
 "--sh:#3f2a14;--accent:#ff8a1e;--pname:#e0701a;--safe:#2fa85a;--trk:#fff;"
@@ -133,14 +194,17 @@ static const char DASH_HTML[] =
 "#rem{font-size:20px;font-weight:900;color:var(--safe)}"
 "a.b,button{display:block;width:100%;box-sizing:border-box;margin:6px 0;"
 "padding:9px;border:2px solid var(--line);border-radius:9px;font-size:15px;font-weight:800;"
-"text-align:center;text-decoration:none;color:#181206;cursor:pointer;"
+"text-align:center;text-decoration:none;background:var(--accent);color:var(--onacc);cursor:pointer;"
 "box-shadow:3px 3px 0 var(--sh)}"
 "a.b:active,button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}"
-".rep{background:#ffcf4a}.dl{background:#45c07a}.ext{background:#ffdd8a}"
-".cl{background:#ef8a22}.off{background:#d63838;color:#fff}"
+".rep{background:var(--accent);color:var(--onacc)}"
+".dl{background:var(--safe);color:var(--onacc)}"
+".ext{background:var(--pname);color:var(--onacc)}"
+".cl,.off{background:var(--panel);color:var(--accent)}"
 "button[data-armed]{outline:3px solid var(--line);outline-offset:2px}"
-"h2{font-size:13px;margin:12px 0 4px;color:var(--ink);font-weight:900;"
+"h2{font-size:13px;margin:12px 0 4px;color:var(--hdr,var(--ink));font-weight:900;"
 "text-transform:uppercase;letter-spacing:.6px}"
+"b,strong{color:var(--bold,inherit)}i,em{color:var(--ital,inherit)}"
 ".set label{display:flex;justify-content:space-between;align-items:center;"
 "gap:10px;margin:8px 0;font-size:14px}"
 ".set select{font:15px system-ui;padding:8px;border-radius:8px;font-weight:700;"
@@ -189,6 +253,14 @@ static const char DASH_HTML[] =
 "body.dark #themebtn .moon{display:inline}"
 
 "#pupimg{display:block;height:120px;width:auto;margin:2px auto 6px}"
+#if SC_CLUSTER_HEAD
+"#pgwrap{margin:2px 0 6px}"
+"#pgcanvas{display:block;width:100%;max-width:360px;margin:0 auto;background:var(--panel);"
+"border:3px solid var(--line);border-radius:12px;image-rendering:pixelated;cursor:pointer}"
+".pgbar{display:flex;justify-content:space-between;max-width:360px;margin:6px auto 4px;"
+"font-weight:800;color:var(--muted);font-size:13px}"
+"#pgbtn{width:100%}"
+#endif
 "#splash{position:fixed;inset:0;background:var(--bg);display:flex;z-index:20;"
 "align-items:center;justify-content:center;transition:opacity .45s}"
 "#splash img{width:68%;max-width:300px;height:auto;"
@@ -210,35 +282,73 @@ static const char DASH_HTML[] =
 "#rcbtn.ready{cursor:pointer;background:var(--safe);color:#0c2a16}"
 "#rcbtn.ready:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}"
 
+"body{font-family:var(--font,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif)}"
+".m{color:var(--hdr,var(--accent))}"
+"h2{color:var(--hdr,var(--accent))}"
+".ex{color:var(--muted)}"
+"strong,b{color:var(--bold,var(--accent))}"
+"em,i{color:var(--ital,var(--pname))}"
+"#card span{color:var(--pname);font-weight:800}"
+"#card #rem{color:var(--safe)}"
+"#card #cli{color:var(--accent)}"
+".set label>.lb{display:inline-flex;align-items:center;gap:8px;font-weight:700}"
+".set .si{width:18px;height:18px;color:var(--accent);flex:none}"
+"#customwrap{border:2px dashed var(--line);border-radius:10px;padding:6px 10px;margin:2px 0 8px}"
+"#customwrap label{margin:6px 0}"
+"#customwrap .chd{font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.5px;"
+"margin:10px 0 2px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted)}"
+"#customwrap .chd:first-child{border-top:0;padding-top:0;margin-top:2px}"
+"#customwrap input[type=color]{width:46px;height:28px;padding:0;border:2px solid var(--line);"
+"border-radius:6px;background:var(--panel);cursor:pointer}"
+"#customwrap input[type=file]{font-size:12px;max-width:172px}"
+"body.hasbg::before{content:'';position:fixed;inset:0;z-index:-1;background-image:var(--bgimg);"
+"background-size:cover;background-position:center;background-attachment:fixed}"
 "</style></head><body>"
 
 "<script>var TH={'sniffcheck':[0],'sniffcheck-dark':[1],"
-"'dracula':[1,'#282a36','#343746','#f8f8f2','#bd93f9','#9ba3cf','#191a21','#ff79c6','#bd93f9','#50fa7b','#191a21','#282a36'],"
-"'nord':[1,'#2e3440','#3b4252','#eceff4','#88c0d0','#a9b6c9','#232831','#88c0d0','#81a1c1','#a3be8c','#232831','#2e3440'],"
-"'gruvbox-dark':[1,'#282828','#32302f','#ebdbb2','#d79921','#a89984','#1d2021','#fabd2f','#fe8019','#b8bb26','#1d2021','#282828'],"
-"'solarized-light':[0,'#fdf6e3','#eee8d5','#073642','#586e75','#657b83','#93a1a1','#b58900','#cb4b16','#859900','#ffffff','#fdf6e3'],"
-"'tokyo-night':[1,'#1a1b26','#24283b','#c0caf5','#7aa2f7','#9aa5ce','#0f101a','#7aa2f7','#bb9af7','#9ece6a','#0f101a','#1a1b26'],"
-"'monokai':[1,'#272822','#34352d','#f8f8f2','#e6db74','#a59f85','#1b1c17','#fd971f','#e6db74','#a6e22e','#1b1c17','#272822'],"
-"'catppuccin-mocha':[1,'#1e1e2e','#313244','#cdd6f4','#cba6f7','#a6adc8','#11111b','#89b4fa','#cba6f7','#a6e3a1','#11111b','#1e1e2e'],"
-"'catppuccin-latte':[0,'#eff1f5','#e6e9ef','#4c4f69','#8839ef','#6c6f85','#bcc0cc','#1e66f5','#8839ef','#40a02b','#ffffff','#eff1f5'],"
-"'one-dark':[1,'#282c34','#2c313a','#abb2bf','#61afef','#7f848e','#1b1e24','#61afef','#c678dd','#98c379','#1b1e24','#282c34'],"
-"'github-light':[0,'#ffffff','#f6f8fa','#1f2328','#0969da','#656d76','#d0d7de','#0969da','#8250df','#1a7f37','#ffffff','#ffffff'],"
-"'ayu-mirage':[1,'#1f2430','#232834','#cbccc6','#ffcc66','#8a9199','#171b24','#ffcc66','#73d0ff','#a6cc70','#171b24','#1f2430'],"
-"'everforest-dark':[1,'#2d353b','#343f44','#d3c6aa','#a7c080','#9da9a0','#232a2e','#a7c080','#7fbbb3','#a7c080','#232a2e','#2d353b'],"
-"'synthwave-84':[1,'#262335','#2a2139','#f0eff1','#ff7edb','#b6b1c8','#171520','#ff7edb','#36f9f6','#72f1b8','#171520','#262335']};"
+"'hacker-green':[1,'#000000','#0a140a','#39ff14','#1f5f1f','#2fae2f','#000000','#39ff14','#7dff5a','#39ff14','#001a00','#001100'],"
+"'hacker-red':[1,'#0a0000','#180404','#ff5a5a','#5a1414','#b02a2a','#000000','#ff1a1a','#ff8080','#ff4d4d','#200000','#200000'],"
+"'midnight-blue':[1,'#0a1428','#12203c','#cfe0ff','#2a4a7a','#8aa6d0','#04070f','#4a90ff','#7db4ff','#5ec98a','#0a1a33','#04122a'],"
+"'neon-purple':[1,'#140a24','#221238','#ede0ff','#4a2a7a','#b79ad6','#0a0416','#b14aff','#d18cff','#7dffb0','#1a0a33','#12042a']};"
 "var THV=['bg','panel','ink','line','muted','sh','accent','pname','safe','trk','onacc'],"
 "curth='sniffcheck';"
-"function applyth(id){if(!TH[id])id='sniffcheck';var t=TH[id],"
+"function applyth(id){if(id==='custom'){applycustom();return}"
+"if(!TH[id])id='sniffcheck';var t=TH[id],"
 "s=document.body.style,i;"
 "for(i=0;i<THV.length;i++){if(t[i+1])s.setProperty('--'+THV[i],t[i+1]);"
 "else s.removeProperty('--'+THV[i])}"
+"s.removeProperty('--bold');s.removeProperty('--ital');s.removeProperty('--hdr');s.removeProperty('--bgimg');"
+"['caution','avoid','wifi','ble','track','drone'].forEach(function(k){s.removeProperty('--'+k)});"
+"document.body.classList.remove('hasbg');"
 "document.body.classList.toggle('dark',!!t[0]);curth=id;"
 "var e=document.getElementById('thm');if(e)e.value=id}"
-"function setthm(id){applyth(id);"
+"function customGet(){try{var c=JSON.parse(localStorage.getItem('sc-custom'));if(c&&c.v)return c}catch(e){}"
+"return {d:document.body.classList.contains('dark')?1:0,v:{},img:''}}"
+"function customSet(c){try{localStorage.setItem('sc-custom',JSON.stringify(c))}catch(e){}}"
+"function applycustom(){var c=customGet(),s=document.body.style,i,"
+"keys=['bg','panel','ink','line','accent','pname','onacc','sh','bold','ital','hdr','muted',"
+"'safe','caution','avoid','wifi','ble','track','drone'];"
+"for(i=0;i<THV.length;i++)s.removeProperty('--'+THV[i]);"
+"document.body.classList.toggle('dark',!!c.d);"
+"for(i=0;i<keys.length;i++){if(c.v[keys[i]])s.setProperty('--'+keys[i],c.v[keys[i]]);"
+"else s.removeProperty('--'+keys[i])}"
+"if(c.img){s.setProperty('--bgimg','url('+c.img+')');document.body.classList.add('hasbg')}"
+"else{s.removeProperty('--bgimg');document.body.classList.remove('hasbg')}"
+"curth='custom';var e=document.getElementById('thm');if(e)e.value='custom'}"
+"function setthm(id){applyth(id);if(window.custSync)custSync();"
 "try{localStorage.setItem('sc-theme',curth)}catch(e){}}"
 "try{var t0=localStorage.getItem('sc-theme');"
 "applyth(t0==='dark'?'sniffcheck-dark':t0==='light'?'sniffcheck':t0||'sniffcheck')}"
 "catch(e){}</script>"
+"<svg width=0 height=0 style=position:absolute aria-hidden=true><defs>"
+"<symbol id=ic-mode viewBox=\"0 0 24 24\"><g fill=none stroke=currentColor stroke-width=2 stroke-linecap=round><path d=\"M4 8h10\"/><path d=\"M4 16h6\"/></g><g fill=currentColor><circle cx=18 cy=8 r=2.6/><circle cx=14 cy=16 r=2.6/></g></symbol>"
+"<symbol id=ic-bri viewBox=\"0 0 24 24\"><circle cx=12 cy=12 r=4.4 fill=currentColor/><g stroke=currentColor stroke-width=2 stroke-linecap=round><path d=\"M12 2v3\"/><path d=\"M12 19v3\"/><path d=\"M2 12h3\"/><path d=\"M19 12h3\"/><path d=\"M4.6 4.6l2 2\"/><path d=\"M17.4 17.4l2 2\"/><path d=\"M19.4 4.6l-2 2\"/><path d=\"M6.6 17.4l-2 2\"/></g></symbol>"
+"<symbol id=ic-led viewBox=\"0 0 24 24\"><path d=\"M12 3a6 6 0 0 0-3 11.2V17h6v-2.8A6 6 0 0 0 12 3Z\" fill=currentColor/><rect x=9 y=18 width=6 height=2.4 rx=1.2 fill=currentColor/></symbol>"
+"<symbol id=ic-tmo viewBox=\"0 0 24 24\"><circle cx=12 cy=13 r=8 fill=none stroke=currentColor stroke-width=2/><path d=\"M12 9v4l3 2\" fill=none stroke=currentColor stroke-width=2 stroke-linecap=round/><path d=\"M9 2h6\" stroke=currentColor stroke-width=2 stroke-linecap=round/></symbol>"
+"<symbol id=ic-palette viewBox=\"0 0 24 24\"><path d=\"M12 3a9 9 0 1 0 0 18c1.7 0 2-1.2 1.2-2.1-.8-.9-.5-2.1.9-2.1H17a4 4 0 0 0 4-4c0-4.9-4-7.7-9-7.7Z\" fill=none stroke=currentColor stroke-width=1.8/><g fill=currentColor><circle cx=8 cy=11 r=1.2/><circle cx=12 cy=8 r=1.2/><circle cx=16 cy=11 r=1.2/></g></symbol>"
+"<symbol id=ic-font viewBox=\"0 0 24 24\"><path d=\"M5 19 10 5h2l5 14h-2.2l-1.3-3.8H8.5L7.2 19Zm4.1-5.6h4.2L11.2 7.4Z\" fill=currentColor/></symbol>"
+"<symbol id=ic-tabs viewBox=\"0 0 24 24\"><g fill=currentColor><rect x=3 y=3 width=7.5 height=7.5 rx=1.6/><rect x=13.5 y=3 width=7.5 height=7.5 rx=1.6/><rect x=3 y=13.5 width=7.5 height=7.5 rx=1.6/><rect x=13.5 y=13.5 width=7.5 height=7.5 rx=1.6/></g></symbol>"
+"</defs></svg>"
 "<div id=splash><img alt=\"SniffCheck\" src=\"/logo.png\"></div>"
 "<script>setTimeout(function(){var s=document.getElementById('splash');"
 "if(s){s.classList.add('hide');setTimeout(function(){s.style.display='none'},450)}},1200);</script>"
@@ -257,7 +367,6 @@ static const char DASH_HTML[] =
 "<div id=nav>"
 "<button id=nv-home class=act onclick=\"nav('home')\">Home</button>"
 "<button id=nv-pup onclick=\"nav('pup')\">Pup</button>"
-"<button id=nv-byos onclick=\"nav('byos')\">BYOS</button>"
 "<button id=nv-settings onclick=\"nav('settings')\">Settings</button>"
 "</div>"
 
@@ -274,13 +383,17 @@ static const char DASH_HTML[] =
 "<a class=\"b rep\" href=\"/report.html\">View report</a>"
 "<a class=\"b rep\" href=\"/report.html?dl=1\">Save report (.html)</a>"
 "<a class=\"b dl\" href=\"/api/captures/live.jsonl\">Download data (.jsonl)</a>"
+"<button class=dl onclick=\"savesd(this)\">Save to SD card</button>"
+"<div class=ex id=sdex>Writes the capture to a microSD card in the master T-Dongle.</div>"
 "<h2>Session</h2>"
 "<button class=ext onclick=\"post('/api/download/extend')\">Keep awake +15 min</button>"
-"<button class=rep onclick=\"armscan(this)\">Start new scan</button>"
-"<div class=ex>A new scan uses the Wi-Fi radio, so this page disconnects. Re-open the SniffCheck AP on the device after the scan to see the new results.</div>"
 "<button class=off onclick=\"arm(this,'/api/download/disable')\">Close AP</button>"
 "<div class=dz><h2>Danger zone</h2>"
 "<button class=cl onclick=\"arm(this,'/api/captures/clear-volatile')\">Clear capture</button>"
+#if SC_CLUSTER_HEAD
+"<button class=cl onclick=\"arm(this,'/api/cluster/brain/reset')\">Reset brain</button>"
+"<div class=ex>Wipes the ePup brain's entire learned model and remembered environments, then restarts it. This cannot be undone.</div>"
+#endif
 "</div>"
 "</div>"
 
@@ -297,6 +410,15 @@ static const char DASH_HTML[] =
 "<button class=ext onclick=\"ppost('/api/pup/treat')\">Give treat</button>"
 "<button class=ext onclick=\"prename()\">Rename</button>"
 "<div class=ex>XP comes from real scans and walks. Petting and treats are just for fun.</div>"
+#if SC_CLUSTER_HEAD
+"<h2>Fetch Runner</h2>"
+"<div id=pgwrap>"
+"<canvas id=pgcanvas width=360 height=200></canvas>"
+"<div class=pgbar><span id=pgscore>0</span><span id=pgbest>best &ndash;</span></div>"
+"<button class=dl id=pgbtn onclick=\"pgTap()\">Jump</button>"
+"<div class=ex>Tap Jump (or press Space) to hop over the low blocks &mdash; but stay grounded when a block hangs from the top. Playing counts as time with your pup, and your best score is saved to it.</div>"
+"</div>"
+#endif
 "<h2>Sniff Walk</h2>"
 "<div class=wc id=wcard2></div>"
 "<button class=dl onclick=\"armwalk(this)\">Start Sniff Walk</button>"
@@ -304,61 +426,76 @@ static const char DASH_HTML[] =
 "<button class=off onclick=\"armpup(this)\">Reset Pup</button>"
 "</div>"
 
-"<div class=view id=v-byos>"
-"<h2>Bring Your Own Scan</h2>"
-"<div class=ex>Accepted file types:</div>"
-"<ul class=bytypes>"
-"<li>Biscuit JSON / JSONL</li><li>Wigle CSV / JSON</li>"
-"<li>Kismet JSON / JSONL</li><li>Wardriver CSV / TXT / LOG with MAC addresses</li>"
-"</ul>"
-"<input id=byfile type=file multiple style=display:none accept=\".json,.jsonl,.csv,.txt,.log\">"
-"<button class=ext onclick=\"bypick()\">Upload external scan(s)</button>"
-"<div id=byname>No file selected.</div>"
-"<button class=dl onclick=\"byparse()\">Carve</button>"
-
-"<div id=bystat></div>"
-"<a class=\"b dl\" id=bydl style=display:none download=sniffcheck-byos-devices.txt>Download carved device list</a>"
-"<button class=rep id=bysc onclick=\"bysniff()\" disabled>SniffCheck</button>"
-"<div class=ex>SniffCheck sends only the deduped device list to this device, then re-decodes each record against on-device eui.db so the upload lands in the report split into Wi-Fi and BLE. Active RF-only checks are unavailable for imported data.</div>"
-"</div>"
-
 "<div class=view id=v-settings>"
 "<div class=set>"
 "<h2>Settings</h2>"
-"<label>Mode<select id=mode onchange=\"sset('/api/settings/mode',{mode:this.value})\">"
+#if !SC_CLUSTER_HEAD
+"<label><span class=lb><svg class=si><use href=\"#ic-mode\"/></svg>Mode</span><select id=mode onchange=\"sset('/api/settings/mode',{mode:this.value})\">"
 "<option value=lite>Lite</option><option value=adv>Adv</option></select></label>"
 "<div class=ex>Lite is a quick glance verdict. Adv is the full audit with drill-down. Applies on the next scan.</div>"
-"<label>Brightness<select id=bri onchange=\"sset('/api/settings/brightness',{pct:+this.value})\">"
+"<label><span class=lb><svg class=si><use href=\"#ic-bri\"/></svg>Brightness</span><select id=bri onchange=\"sset('/api/settings/brightness',{pct:+this.value})\">"
 "<option value=25>25%</option><option value=50>50%</option>"
 "<option value=75>75%</option><option value=100>100%</option></select></label>"
 "<div class=ex>Screen backlight level.</div>"
-"<label>LED<select id=led onchange=\"sset('/api/settings/led',{enabled:this.value=='1'})\">"
+"<label><span class=lb><svg class=si><use href=\"#ic-led\"/></svg>LED</span><select id=led onchange=\"sset('/api/settings/led',{enabled:this.value=='1'})\">"
 "<option value=1>On</option><option value=0>Off</option></select></label>"
 "<div class=ex>Status light on the dongle.</div>"
-"<label>AP timeout<select id=tmo onchange=\"sset('/api/settings/download-timeout',{minutes:+this.value})\">"
+"<label><span class=lb><svg class=si><use href=\"#ic-tmo\"/></svg>AP timeout</span><select id=tmo onchange=\"sset('/api/settings/download-timeout',{minutes:+this.value})\">"
 "<option value=15>15 min</option><option value=30>30 min</option>"
 "<option value=60>60 min</option></select></label>"
 "<div class=ex>How long the SniffCheck AP stays open.</div>"
+#endif
 
-"<label>Theme<select id=thm onchange=\"setthm(this.value)\">"
+"<label><span class=lb><svg class=si><use href=\"#ic-font\"/></svg>Font</span><select id=fnt onchange=\"setfont(this.value)\">"
+"<option value=system>System</option>"
+"<option value=rounded>Rounded</option>"
+"<option value=serif>Serif</option>"
+"<option value=mono>Monospace</option>"
+"<option value=condensed>Condensed</option>"
+"<option value=comic>Comic</option></select></label>"
+"<div class=ex>Page font, saved in this browser.</div>"
+"<label><span class=lb><svg class=si><use href=\"#ic-palette\"/></svg>Theme</span><select id=thm onchange=\"setthm(this.value)\">"
 "<option value=sniffcheck>SniffCheck Yellow</option>"
 "<option value=sniffcheck-dark>SniffCheck Dark</option>"
-"<option value=dracula>Dracula</option>"
-"<option value=nord>Nord</option>"
-"<option value=gruvbox-dark>Gruvbox Dark</option>"
-"<option value=solarized-light>Solarized Light</option>"
-"<option value=tokyo-night>Tokyo Night</option>"
-"<option value=monokai>Monokai</option>"
-"<option value=catppuccin-mocha>Catppuccin Mocha</option>"
-"<option value=catppuccin-latte>Catppuccin Latte</option>"
-"<option value=one-dark>One Dark</option>"
-"<option value=github-light>GitHub Light</option>"
-"<option value=ayu-mirage>Ayu Mirage</option>"
-"<option value=everforest-dark>Everforest Dark</option>"
-"<option value=synthwave-84>Synthwave '84</option></select></label>"
+"<option value=hacker-green>Hacker &mdash; Neon Green</option>"
+"<option value=hacker-red>Hacker &mdash; Blood Red</option>"
+"<option value=midnight-blue>Midnight Blue</option>"
+"<option value=neon-purple>Neon Purple</option>"
+"<option value=custom>Custom&hellip;</option></select></label>"
 "<div class=ex>WebUI colors, saved in this browser and shared with the report page.</div>"
+"<div id=customwrap style=display:none>"
+"<div class=chd>Core</div>"
+"<label><span class=lb>Background</span><input type=color id=cc-bg oninput=\"cust('bg',this.value)\"></label>"
+"<label><span class=lb>Panels</span><input type=color id=cc-panel oninput=\"cust('panel',this.value)\"></label>"
+"<label><span class=lb>Body text</span><input type=color id=cc-ink oninput=\"cust('ink',this.value)\"></label>"
+"<label><span class=lb>Headings</span><input type=color id=cc-hdr oninput=\"cust('hdr',this.value)\"></label>"
+"<label><span class=lb>Descriptions</span><input type=color id=cc-muted oninput=\"cust('muted',this.value)\"></label>"
+"<label><span class=lb>Borders</span><input type=color id=cc-line oninput=\"cust('line',this.value)\"></label>"
+"<div class=chd>Accent</div>"
+"<label><span class=lb>Highlight</span><input type=color id=cc-accent oninput=\"cust('accent',this.value)\"></label>"
+"<label><span class=lb>Links / secondary</span><input type=color id=cc-pname oninput=\"cust('pname',this.value)\"></label>"
+"<label><span class=lb>Button text</span><input type=color id=cc-onacc oninput=\"cust('onacc',this.value)\"></label>"
+"<label><span class=lb>Shadow</span><input type=color id=cc-sh oninput=\"cust('sh',this.value)\"></label>"
+"<div class=chd>Text style</div>"
+"<label><span class=lb>Bold text</span><input type=color id=cc-bold oninput=\"cust('bold',this.value)\"></label>"
+"<label><span class=lb>Italic text</span><input type=color id=cc-ital oninput=\"cust('ital',this.value)\"></label>"
+"<div class=chd>Status</div>"
+"<label><span class=lb>Success</span><input type=color id=cc-safe oninput=\"cust('safe',this.value)\"></label>"
+"<label><span class=lb>Caution</span><input type=color id=cc-caution oninput=\"cust('caution',this.value)\"></label>"
+"<label><span class=lb>Danger</span><input type=color id=cc-avoid oninput=\"cust('avoid',this.value)\"></label>"
+"<div class=chd>Device (report page)</div>"
+"<label><span class=lb>Wi-Fi</span><input type=color id=cc-wifi oninput=\"cust('wifi',this.value)\"></label>"
+"<label><span class=lb>BLE</span><input type=color id=cc-ble oninput=\"cust('ble',this.value)\"></label>"
+"<label><span class=lb>Tracker</span><input type=color id=cc-track oninput=\"cust('track',this.value)\"></label>"
+"<label><span class=lb>Drone</span><input type=color id=cc-drone oninput=\"cust('drone',this.value)\"></label>"
+"<div class=chd>Base</div>"
+"<label><span class=lb>Dark base</span><input type=checkbox id=cc-dark onchange=\"custDark(this.checked)\"></label>"
+"<label><span class=lb>Background image</span><input type=file id=cc-img accept=image/* onchange=\"custImg(this)\"></label>"
+"<button class=off onclick=\"custClearImg()\">Remove background image</button>"
+"<div class=ex>Custom colors, fonts and background are saved in this browser.</div>"
+"</div>"
 
-"<div class=hot><span class=hotlbl>Quick tabs</span>"
+"<div class=hot><span class=hotlbl><svg class=si style=\"color:var(--accent);vertical-align:-3px\"><use href=\"#ic-tabs\"/></svg> Quick tabs</span>"
 "<label class=hotck><input type=checkbox value=s-wifi onchange=\"savehot()\">Wi-Fi</label>"
 "<label class=hotck><input type=checkbox value=s-ble onchange=\"savehot()\">BLE</label>"
 "<label class=hotck><input type=checkbox value=s-clusters onchange=\"savehot()\">Clusters</label>"
@@ -388,9 +525,11 @@ static const char DASH_HTML[] =
 "refresh();setInterval(refresh,5000);"
 "setInterval(function(){if(rem>0){rem--;el('rem').textContent=fmt(rem)}},1000);"
 "function post(u){fetch(u,{method:'POST'}).then(refresh)}"
-"function applyset(j){if(!j)return;el('mode').value=j.advisor_mode;"
-"el('bri').value=j.brightness_pct;el('led').value=j.led_enabled?'1':'0';"
-"el('tmo').value=j.download_timeout_min}"
+"function applyset(j){if(!j)return;var e;"
+"if(e=el('mode'))e.value=j.advisor_mode;"
+"if(e=el('bri'))e.value=j.brightness_pct;"
+"if(e=el('led'))e.value=j.led_enabled?'1':'0';"
+"if(e=el('tmo'))e.value=j.download_timeout_min}"
 "function loadset(){fetch('/api/settings').then(function(r){return r.json()})"
 ".then(applyset).catch(function(){})}"
 "function sset(u,b){fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},"
@@ -413,7 +552,8 @@ static const char DASH_HTML[] =
 "el('pxp').textContent=j.xp+' / '+j.xp_next+' xp';"
 "el('pbarf').style.width=(j.xp_next?Math.min(100,Math.round(j.xp/j.xp_next*100)):0)+'%';"
 "el('pscan').textContent=j.lifetime_scans+' scans \\u00b7 +'+j.last_scan_xp+' last';"
-"el('ppt').textContent=j.pets+' pets \\u00b7 '+j.treats+' treats'}"
+"el('ppt').textContent=j.pets+' pets \\u00b7 '+j.treats+' treats';"
+"if(window.pgOnStatus)pgOnStatus(j)}"
 "function loadpup(){fetch('/api/pup/status').then(function(r){return r.json()})"
 ".then(applypup).catch(function(){})}"
 "function ppost(u){fetch(u,{method:'POST'}).then(function(r){return r.json()})"
@@ -426,6 +566,47 @@ static const char DASH_HTML[] =
 "disarm(b);ppost('/api/pup/reset');return}"
 "b.setAttribute('data-armed','1');b.setAttribute('data-l',b.textContent);"
 "b.textContent='tap again to reset';tm['pr']=setTimeout(function(){disarm(b)},3000)}"
+#if SC_CLUSTER_HEAD
+"var pgBest=0;"
+"function pgOnStatus(j){pgBest=j.high_score||0;var b=el('pgbest');if(b)b.textContent='best '+pgBest;}"
+"(function(){var cv=el('pgcanvas');if(!cv)return;var cx=cv.getContext('2d');"
+"var W=cv.width,H=cv.height,GY=H-24,SZ=48,G=0.6,JMP=-8.4;"
+"var sheet=new Image(),sheetOk=false;sheet.onload=function(){sheetOk=true};"
+"sheet.src='/epup_sprites.png';"
+"var st='idle',score=0,spd=2.4,py=GY,vy=0,obs=[],frame=0,acc=0,spawn=60;"
+"function reset(){score=0;spd=2.4;py=GY;vy=0;obs=[];frame=0;acc=0;spawn=60;st='run';}"
+"function over(){st='over';var s=Math.floor(score);"
+"fetch('/api/pup/play',{method:'POST',headers:{'Content-Type':'application/json'},"
+"body:JSON.stringify({score:s})}).then(function(r){return r.json()}).then(applypup).catch(function(){});}"
+"window.pgTap=function(){if(st==='run'){if(py>=GY-0.5)vy=JMP;}else reset();};"
+"cv.addEventListener('pointerdown',function(e){e.preventDefault();pgTap();});"
+"document.addEventListener('keydown',function(e){if(e.code==='Space'||e.key===' '){"
+"var pv=el('v-pup');if(pv&&pv.classList.contains('act')){e.preventDefault();pgTap();}}});"
+"function spawnObs(){if(Math.random()<0.4)obs.push({x:W+8,top:true,w:16,h:104});"
+"else obs.push({x:W+8,top:false,w:16,h:22+(Math.random()*22|0)});}"
+"function step(){if(st==='run'){score+=spd*0.05;spd+=0.0016;"
+"vy+=G;py+=vy;if(py>GY){py=GY;vy=0;}"
+"acc++;if(acc>=spawn){acc=0;spawn=48+(Math.random()*46|0);spawnObs();}"
+"var i,o,pl=px2(),pr=pl+SZ-18,ptp=py-SZ+6,pbt=py-3;"
+"for(i=obs.length-1;i>=0;i--){o=obs[i];o.x-=spd;if(o.x+o.w<0){obs.splice(i,1);continue;}"
+"var ot=o.top?0:GY-o.h,ob=o.top?o.h:GY;"
+"if(pr>o.x&&pl<o.x+o.w&&pbt>ot&&ptp<ob){over();}}frame++;}draw();}"
+"function px2(){return 40+8;}"
+"function draw(){cx.clearRect(0,0,W,H);"
+"cx.strokeStyle='#7a6a3a';cx.lineWidth=2;cx.beginPath();cx.moveTo(0,GY+2);cx.lineTo(W,GY+2);cx.stroke();"
+"cx.fillStyle='#c9483b';var i,o;for(i=0;i<obs.length;i++){o=obs[i];"
+"if(o.top)cx.fillRect(o.x,0,o.w,o.h);else cx.fillRect(o.x,GY-o.h,o.w,o.h);}"
+"var row=(py<GY-1)?3:1,col=(row===1)?(Math.floor(frame/6)%2):0;"
+"if(sheetOk)cx.drawImage(sheet,col*160,row*160,160,160,40,py-SZ,SZ,SZ);"
+"else{cx.fillStyle='#e8b84b';cx.fillRect(40,py-SZ,SZ,SZ);}"
+"var sc=el('pgscore');if(sc)sc.textContent=Math.floor(score);"
+"if(st!=='run'){cx.fillStyle='rgba(0,0,0,.5)';cx.fillRect(0,0,W,H);"
+"cx.fillStyle='#fff7d6';cx.textAlign='center';cx.font='bold 17px system-ui';"
+"cx.fillText(st==='over'?('Score '+Math.floor(score)):'Fetch Runner',W/2,H/2-4);"
+"cx.font='bold 12px system-ui';cx.fillText(st==='over'?'Tap Jump to play again':'Tap Jump to start',W/2,H/2+16);"
+"cx.textAlign='left';}}"
+"setInterval(step,33);draw();})();"
+#endif
 "loadpup();"
 "var tm={};"
 "function disarm(b){b.removeAttribute('data-armed');"
@@ -457,7 +638,7 @@ static const char DASH_HTML[] =
 "b.setAttribute('data-armed','1');b.setAttribute('data-l',b.textContent);"
 "b.textContent='tap again \\u2014 page will disconnect';"
 "setTimeout(function(){disarm(b)},3000)}"
-"function nav(v){['home','pup','byos','settings'].forEach(function(n){"
+"function nav(v){['home','pup','settings'].forEach(function(n){"
 "el('v-'+n).classList.toggle('act',n===v);"
 "el('nv-'+n).classList.toggle('act',n===v)})}"
 
@@ -481,91 +662,37 @@ static const char DASH_HTML[] =
 "b.setAttribute('data-armed','1');b.setAttribute('data-l',b.textContent);"
 "b.textContent='tap again \\u2014 AP will close';"
 "setTimeout(function(){disarm(b)},3000)}"
-"var byosLines=[],byfiles=[],byurl='';"
-"el('byfile').addEventListener('change',function(){byfiles=this.files?[].slice.call(this.files):[];"
-"byosLines=[];el('bysc').disabled=true;el('bydl').style.display='none';"
-"el('bystat').textContent='Ready to carve.';"
-"if(!byfiles.length){el('byname').textContent='No file selected.'}"
-"else if(byfiles.length==1){el('byname').textContent=byfiles[0].name+' ('+Math.round(byfiles[0].size/1024)+' KB)'}"
-"else{var kb=0;for(var i=0;i<byfiles.length;i++)kb+=byfiles[i].size;"
-"el('byname').textContent=byfiles.length+' files ('+Math.round(kb/1024)+' KB) — one source each'}});"
-"function bypick(){el('byfile').click()}"
 
-"function bysrcname(fn){var b=String(fn||'').replace(/\\.[^.]*$/,'');return bysan(b,16)||'src'}"
-"function bynorm(m){var h=String(m==null?'':m).replace(/[^0-9A-Fa-f]/g,'').toUpperCase();"
-"return h.length==12?h.match(/../g).join(':'):''}"
-"function bysan(v,n){return String(v==null?'':v).replace(/[\\t\\r\\n]+/g,' ').trim().slice(0,n)}"
+"var FONTS={system:\"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif\","
+"rounded:\"ui-rounded,'SF Pro Rounded','Segoe UI Rounded',Nunito,system-ui,sans-serif\","
+"serif:\"Georgia,'Times New Roman',serif\","
+"mono:\"ui-monospace,Menlo,Consolas,'Courier New',monospace\","
+"condensed:\"'Roboto Condensed','Arial Narrow',system-ui,sans-serif\","
+"comic:\"'Comic Sans MS','Comic Neue',cursive\"};"
+"function applyfont(id){var f=FONTS[id]||FONTS.system;document.body.style.setProperty('--font',f);"
+"var e=el('fnt');if(e)e.value=FONTS[id]?id:'system'}"
+"function setfont(id){applyfont(id);try{localStorage.setItem('sc-font',id)}catch(e){}}"
+"try{applyfont(localStorage.getItem('sc-font')||'system')}catch(e){}"
 
-"function byhasmac(o){var ks=Object.keys(o);for(var i=0;i<ks.length;i++){var lp=ks[i].toLowerCase().split('.').pop();"
-"if((lp=='mac'||lp=='bssid'||lp=='macaddr'||lp=='addr'||lp=='address')&&bynorm(o[ks[i]]))return true}return false}"
+"function cust(k,v){var c=customGet();c.v[k]=v;customSet(c);setthm('custom')}"
+"function custDark(on){var c=customGet();c.d=on?1:0;customSet(c);setthm('custom')}"
+"function custImg(inp){var f=inp.files&&inp.files[0];if(!f)return;var r=new FileReader();"
+"r.onload=function(){var c=customGet();c.img=String(r.result||'');customSet(c);setthm('custom')};r.readAsDataURL(f)}"
+"function custClearImg(){var c=customGet();c.img='';customSet(c);setthm('custom');var e=el('cc-img');if(e)e.value=''}"
+"function custSeed(){var c=customGet(),"
+"D={bg:'#ffd93b',panel:'#fff7d6',ink:'#3f2a14',line:'#3f2a14',hdr:'#ff8a1e',muted:'#7a5a34',"
+"accent:'#ff8a1e',pname:'#e0701a',onacc:'#3f2a14',sh:'#3f2a14',bold:'#ff8a1e',ital:'#e0701a',"
+"safe:'#2fa85a',caution:'#d99a1e',avoid:'#d64545',wifi:'#2a6cd6',ble:'#6a4ce0',track:'#d98a1e',drone:'#1ea6a6'};"
+"Object.keys(D).forEach(function(k){var e=el('cc-'+k);if(e)e.value=(c.v[k]||D[k])});"
+"var d=el('cc-dark');if(d)d.checked=!!c.d}"
+"function custSync(){var cw=el('customwrap');if(!cw)return;cw.style.display=(curth==='custom')?'':'none';if(curth==='custom')custSeed()}"
+"custSync();"
 
-"function byfield(o,names,d){if(!o||typeof o!='object'||d>4)return undefined;var ks=Object.keys(o);"
-"for(var n=0;n<names.length;n++){for(var i=0;i<ks.length;i++){var kl=ks[i].toLowerCase();"
-"if(kl==names[n]||kl.split('.').pop()==names[n]){var v=o[ks[i]];if(v!=null&&v!==''&&typeof v!='object')return v}}}"
-"for(var i=0;i<ks.length;i++){var v=o[ks[i]];if(v&&typeof v=='object'&&!Array.isArray(v)){var r=byfield(v,names,(d||0)+1);if(r!==undefined)return r}}return undefined}"
-
-"function byrec(o,dsrc){var mac=bynorm(byfield(o,['mac','bssid','macaddr','addr','address'],0));if(!mac)return null;"
-"var typ=String(byfield(o,['type','phyname','phy','technology'],0)||'').toLowerCase();"
-"var ssid=byfield(o,['ssid','essid'],0),name=byfield(o,['name','local_name','devname','commonname'],0);"
-"var ch=parseInt(byfield(o,['channel','chan'],0),10),rssi=parseInt(byfield(o,['rssi','signal','signal_dbm','last_signal','bestlevel'],0),10);"
-"var auth=byfield(o,['authtype','authmode','auth','capabilities','encryption','security','crypt'],0);"
-"var w=/wifi|wlan|802\\.11|ieee/.test(typ),b=/ble|bt|bluetooth/.test(typ);"
-"var isw=w||(!b&&(ssid!=null||auth!=null)),isb=b||(!w&&!isw&&name!=null);"
-
-"var src=bysan(byfield(o,['source_id','source','node','node_id','sensor','observer'],0),16)||dsrc||'local';"
-"var lat=bysan(byfield(o,['lat','latitude','trilat','currentlatitude'],0),16);"
-"var lon=bysan(byfield(o,['lon','lng','longitude','trilong','currentlongitude'],0),16);"
-"var ts=bysan(byfield(o,['time','timestamp','lasttime','firsttime','firstseen','lastseen'],0),16);"
-"if(isw)return ['W',mac,bysan(ssid!=null?ssid:name,32),isNaN(ch)?'':ch,isNaN(rssi)?'':rssi,bysan(auth,23),src,lat,lon,ts].join('\\t');"
-"if(isb)return ['B',mac,bysan(name,32),isNaN(rssi)?'':rssi,src,lat,lon,ts].join('\\t');"
-"return ['M',mac,src,lat,lon,ts].join('\\t')}"
-
-"function bywalk(node,out){if(Array.isArray(node)){for(var i=0;i<node.length;i++)bywalk(node[i],out);return}"
-"if(node&&typeof node=='object'){if(byhasmac(node)){out.push(node);return}var ks=Object.keys(node);for(var i=0;i<ks.length;i++)bywalk(node[ks[i]],out)}}"
-
-"function bysplit(l){var o=[],c='',q=false;for(var i=0;i<l.length;i++){var ch=l[i];"
-"if(q){if(ch=='\\\"'){if(l[i+1]=='\\\"'){c+='\\\"';i++}else q=false}else c+=ch}"
-"else if(ch=='\\\"')q=true;else if(ch==','){o.push(c);c=''}else c+=ch}o.push(c);return o}"
-"function bycsv(s,dsrc){var ls=s.split(/\\r?\\n/),h=-1,cols=[];"
-"for(var i=0;i<ls.length;i++){var fs=bysplit(ls[i]).map(function(x){return x.trim().toLowerCase()});"
-"if(fs.indexOf('mac')>=0||fs.indexOf('bssid')>=0){h=i;cols=fs;break}}"
-"if(h<0)return [];var recs=[];"
-"for(var i=h+1;i<ls.length;i++){if(!ls[i].trim())continue;var fs=bysplit(ls[i]),o={};"
-"for(var j=0;j<cols.length;j++)if(j<fs.length)o[cols[j]]=fs[j];var r=byrec(o,dsrc);if(r)recs.push(r)}return recs}"
-
-"function bysrcof(p){return p[0]=='W'?p[6]:p[0]=='B'?p[4]:p[2]}"
-
-"function byone(s,dsrc,seen,out,cnt){var objs=[],recs=[];"
-"try{objs.push(JSON.parse(s))}catch(e){var ls=s.split(/\\r?\\n/);for(var i=0;i<ls.length;i++){var t=ls[i].trim();"
-"if(t&&(t[0]=='{'||t[0]=='[')){try{objs.push(JSON.parse(t))}catch(e2){}}}}"
-"if(objs.length){var found=[];for(var i=0;i<objs.length;i++)bywalk(objs[i],found);"
-"for(var i=0;i<found.length;i++){var r=byrec(found[i],dsrc);if(r)recs.push(r)}}"
-"if(!recs.length)recs=bycsv(s,dsrc);"
-"for(var i=0;i<recs.length;i++){var p=recs[i].split('\\t'),mac=p[1];if(!mac)continue;"
-"var k=mac+'|'+(bysrcof(p)||dsrc);if(seen[k])continue;seen[k]=1;out.push(recs[i]);"
-"if(p[0]=='W')cnt[0]++;else if(p[0]=='B')cnt[1]++;else cnt[2]++}"
-
-"var re=/(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}|[0-9A-Fa-f]{4}\\.[0-9A-Fa-f]{4}\\.[0-9A-Fa-f]{4}|\\b[0-9A-Fa-f]{12}\\b/g,m;"
-"while((m=re.exec(s))){var x=bynorm(m[0]);if(!x)continue;var k=x+'|'+dsrc;if(!seen[k]){seen[k]=1;out.push(['M',x,dsrc,'','',''].join('\\t'));cnt[2]++}}}"
-
-"function byparse(){if(!byfiles.length){el('bystat').textContent='Choose a scan file first.';return}"
-"el('bystat').textContent='Carving on this device...';"
-"var seen={},out=[],cnt=[0,0,0],fi=0,multi=byfiles.length>1;"
-"function done(){byosLines=out;var n=out.length;"
-"el('bystat').textContent=n?(n+' sightings: '+cnt[0]+' Wi-Fi, '+cnt[1]+' BLE, '+cnt[2]+' MAC-only'+(multi?(' across '+byfiles.length+' sources'):'')+'.'):'No devices found.';"
-"el('bysc').disabled=!n;"
-"if(byurl)URL.revokeObjectURL(byurl);byurl=URL.createObjectURL(new Blob([out.join('\\n')],{type:'text/plain'}));"
-"el('bydl').href=byurl;el('bydl').style.display=n?'block':'none'}"
-"function next(){if(fi>=byfiles.length){done();return}var f=byfiles[fi++];"
-"var dsrc=multi?bysrcname(f.name):'local';var fr=new FileReader();"
-"fr.onload=function(){byone(String(fr.result||''),dsrc,seen,out,cnt);next()};"
-"fr.onerror=function(){next()};fr.readAsText(f)}"
-"next()}"
-"function bysniff(){if(!byosLines.length)return;el('dig').style.display='flex';"
-"fetch('/api/byos/sniffcheck',{method:'POST',headers:{'Content-Type':'text/plain'},body:byosLines.join('\\n')})"
-".then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'BYOS failed');return j})})"
-".then(function(j){location.href=j.report||'/report.html'})"
-".catch(function(e){el('dig').style.display='none';el('bystat').textContent=e.message||'BYOS failed'})}"
+"function savesd(b){var o=b.textContent;b.disabled=true;b.textContent='Saving to SD\\u2026';"
+"fetch('/api/captures/save-sd',{method:'POST'}).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})"
+".then(function(x){var m=el('sdex');if(m)m.textContent=(x.j&&(x.j.message||x.j.error))||(x.ok?'Saved to SD card.':'SD save failed.');"
+"b.textContent=o;b.disabled=false})"
+".catch(function(){var m=el('sdex');if(m)m.textContent='SD save failed.';b.textContent=o;b.disabled=false})}"
 "</script>"
 "<div id=rcov><div id=rcbox>"
 "<h3 id=rctitle>Scan running</h3>"
@@ -578,6 +705,7 @@ static const char DASH_HTML[] =
 static esp_err_t root_get(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, DASH_HTML, sizeof(DASH_HTML) - 1);
 }
 
@@ -604,6 +732,16 @@ static esp_err_t pup_get(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400");
     return httpd_resp_send(req, (const char *)_binary_webap_pup_png_start, len);
 }
+
+#if SC_CLUSTER_HEAD
+static esp_err_t epup_sprites_get(httpd_req_t *req)
+{
+    size_t len = (size_t)(_binary_epup_sprites_png_end - _binary_epup_sprites_png_start);
+    httpd_resp_set_type(req, "image/png");
+    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400");
+    return httpd_resp_send(req, (const char *)_binary_epup_sprites_png_start, len);
+}
+#endif
 
 static esp_err_t status_get(httpd_req_t *req)
 {
@@ -652,8 +790,29 @@ static esp_err_t live_jsonl_get(httpd_req_t *req)
              capture_writer_session_id());
     httpd_resp_set_hdr(req, "Content-Disposition", disp);
 
+    capture_ring_stats_t rst;
+    capture_ring_get_stats(&rst);
+    uint32_t base  = rst.records_total - rst.records_current;
+    uint32_t total = rst.records_total;
+    size_t   skip  = 0;
+
+    char q[24], sv[16];
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
+        httpd_query_key_value(q, "since", sv, sizeof(sv)) == ESP_OK) {
+        uint32_t since = (uint32_t)strtoul(sv, NULL, 10);
+        if (since > 0 && since < base) httpd_resp_set_hdr(req, "X-SC-Gap", "1");
+        else if (since >= base && since <= total) skip = (size_t)(since - base);
+    }
+
+    char hbase[12], htotal[12];
+    snprintf(hbase,  sizeof(hbase),  "%u", (unsigned)base);
+    snprintf(htotal, sizeof(htotal), "%u", (unsigned)total);
+    httpd_resp_set_hdr(req, "X-SC-Base", hbase);
+    httpd_resp_set_hdr(req, "X-SC-Total", htotal);
+    httpd_resp_set_hdr(req, "X-SC-Session", capture_writer_session_id());
+
     size_t emitted = 0;
-    esp_err_t err = stream_ring(req, false, &emitted);
+    esp_err_t err = stream_records(req, false, skip, &emitted);
     if (err == ESP_ERR_NO_MEM) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no mem");
         return ESP_FAIL;
@@ -666,7 +825,7 @@ static esp_err_t live_jsonl_get(httpd_req_t *req)
 static esp_err_t live_json_get(httpd_req_t *req)
 {
 
-    char *buf = heap_caps_malloc(STREAM_LINE_MAX + 2, MALLOC_CAP_SPIRAM);
+    char *buf = serve_buf_alloc(STREAM_LINE_MAX + 2);
     if (!buf) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no mem");
         return ESP_FAIL;
@@ -720,6 +879,7 @@ static esp_err_t report_get(httpd_req_t *req)
     }
 
     httpd_resp_set_type(req, "text/html");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
 
     char query[16], dl[4];
     char disp[80];
@@ -736,7 +896,7 @@ static esp_err_t report_get(httpd_req_t *req)
         return ESP_FAIL;
 
     size_t emitted = 0;
-    esp_err_t err = stream_ring(req, true, &emitted);
+    esp_err_t err = stream_records(req, true, 0, &emitted);
     if (err != ESP_OK) {
         if (err == ESP_ERR_NO_MEM)
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no mem");
@@ -753,6 +913,7 @@ static esp_err_t report_get(httpd_req_t *req)
 static esp_err_t viewer_get(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, _binary_capture_viewer_html_start,
                            strlen(_binary_capture_viewer_html_start));
 }
@@ -762,6 +923,13 @@ static esp_err_t clear_post(httpd_req_t *req)
     capture_ring_clear_volatile();
     ESP_LOGI(TAG, "ring cleared by client");
     return send_json(req, "{\"ok\":true}");
+}
+
+static esp_err_t save_sd_post(httpd_req_t *req)
+{
+    ESP_LOGI(TAG, "save-to-SD requested (Phase 51 not yet implemented)");
+    return send_json(req,
+        "{\"ok\":false,\"error\":\"SD card storage isn't available on this build yet.\"}");
 }
 
 static esp_err_t extend_post(httpd_req_t *req)
@@ -894,19 +1062,31 @@ static esp_err_t send_pup(httpd_req_t *req)
 {
     vp_status_t st;
     virtual_pup_get(&st);
-    char json[256];
+    char json[288];
     snprintf(json, sizeof(json),
         "{\"name\":\"%s\",\"level\":%u,\"xp\":%llu,\"xp_next\":%llu,"
         "\"mood\":\"%s\",\"lifetime_scans\":%u,\"last_scan_xp\":%u,"
-        "\"pets\":%u,\"treats\":%u}",
+        "\"pets\":%u,\"treats\":%u,\"high_score\":%u,\"plays\":%u}",
         virtual_pup_name(), (unsigned)st.level,
         (unsigned long long)st.xp_into_level, (unsigned long long)st.xp_for_level,
         virtual_pup_mood_label(), (unsigned)st.lifetime_scans,
-        (unsigned)st.last_scan_xp, (unsigned)st.pets, (unsigned)st.treats);
+        (unsigned)st.last_scan_xp, (unsigned)st.pets, (unsigned)st.treats,
+        (unsigned)st.high_score, (unsigned)st.plays);
     return send_json(req, json);
 }
 
 static esp_err_t pup_status_get(httpd_req_t *req){ return send_pup(req); }
+
+static esp_err_t pup_play_post(httpd_req_t *req)
+{
+    char body[64];
+    int score = 0;
+    if (read_body(req, body, sizeof(body)) >= 0)
+        json_int(body, "\"score\"", &score);
+    if (score < 0) score = 0;
+    virtual_pup_record_play((uint32_t)score);
+    return send_pup(req);
+}
 
 static esp_err_t pup_pet_post(httpd_req_t *req)
 {
@@ -976,7 +1156,7 @@ static esp_err_t pup_walk_start_post(httpd_req_t *req)
 static esp_err_t sta_get(httpd_req_t *req)
 {
     const size_t cap = 16384;
-    char *buf = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM);
+    char *buf = serve_buf_alloc(cap);
     if (!buf) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no mem");
         return ESP_FAIL;
@@ -1023,6 +1203,12 @@ static esp_err_t csi_get(httpd_req_t *req)
 {
     const wifi_csi_result_t *r = wifi_csi_probe_last();
     char json[256];
+    if (!r) {
+        return send_json(req,
+            "{\"supported\":false,\"ran\":false,\"channel\":0,\"window_ms\":0,"
+            "\"cb_count\":0,\"len_min\":0,\"len_max\":0,\"len_last\":0,"
+            "\"fwi_count\":0,\"rssi_last\":0}");
+    }
     snprintf(json, sizeof(json),
         "{\"supported\":%s,\"ran\":%s,\"channel\":%u,\"window_ms\":%u,"
         "\"cb_count\":%u,\"len_min\":%u,\"len_max\":%u,\"len_last\":%u,"
@@ -1129,6 +1315,12 @@ static esp_err_t pcap_status_get(httpd_req_t *req)
 {
     const pcap_meta_t *m = pcap_capture_meta();
     char json[640];
+    if (!m) {
+        return send_json(req,
+            "{\"ran\":false,\"status\":\"idle\",\"seconds_per_channel\":0,"
+            "\"duration_s\":0,\"packets\":0,\"dropped\":0,\"truncated\":0,"
+            "\"bytes\":0,\"scan_id\":0,\"download\":\"/api/pcap/latest\",\"channels\":[]}");
+    }
     int o = snprintf(json, sizeof(json),
         "{\"ran\":%s,\"status\":\"%s\",\"seconds_per_channel\":%u,"
         "\"duration_s\":%lu,\"packets\":%lu,\"dropped\":%lu,\"truncated\":%lu,"
@@ -1180,7 +1372,7 @@ static esp_err_t pcap_latest_get(httpd_req_t *req)
 #define BYOS_TEXT_MAX          32
 #define BYOS_AUTH_MAX          23
 #define BYOS_SRCID_MAX         16
-#define BYOS_LINE_MAX          256 
+#define BYOS_LINE_MAX          256
 
 typedef struct {
     uint8_t  mac[6];
@@ -1352,7 +1544,7 @@ static esp_err_t byos_sniffcheck_post(httpd_req_t *req)
     if (req->content_len == 0) return send_bad(req, "empty upload");
     if (req->content_len > BYOS_UPLOAD_MAX_BYTES) return send_bad(req, "scan too large");
 
-    byos_import_t *im = heap_caps_calloc(1, sizeof(*im), MALLOC_CAP_SPIRAM);
+    byos_import_t *im = serve_buf_calloc(sizeof(*im));
     if (!im) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no mem");
         return ESP_FAIL;
@@ -1402,12 +1594,6 @@ static esp_err_t byos_sniffcheck_post(httpd_req_t *req)
         return send_bad(req, "no records found");
     }
 
-    /* Additive import: keep whatever is already in the ring (live capture and
-       prior imports) and fold this scan in as its own pass. Only lay down a
-       fresh header/codebook when the ring is empty. The import takes the next
-       scan slot after any existing scans so it sequences distinctly in the
-       cross-scan view. When the 4 MB PSRAM ring fills, the ring evicts its
-       oldest records first (see capture_ring_write). */
     capture_ring_stats_t rst;
     capture_ring_get_stats(&rst);
     bool fresh = (rst.records_current == 0);
@@ -1466,6 +1652,9 @@ static void register_handlers(void)
         { .uri = "/logo.png",                  .method = HTTP_GET,  .handler = logo_get },
         { .uri = "/favicon.ico",               .method = HTTP_GET,  .handler = favicon_get },
         { .uri = "/pup.png",                   .method = HTTP_GET,  .handler = pup_get },
+#if SC_CLUSTER_HEAD
+        { .uri = "/epup_sprites.png",          .method = HTTP_GET,  .handler = epup_sprites_get },
+#endif
         { .uri = "/generate_204",              .method = HTTP_GET,  .handler = root_get },
         { .uri = "/hotspot-detect.html",       .method = HTTP_GET,  .handler = root_get },
         { .uri = "/connecttest.txt",           .method = HTTP_GET,  .handler = root_get },
@@ -1476,6 +1665,7 @@ static void register_handlers(void)
         { .uri = "/api/captures/live.jsonl",   .method = HTTP_GET,  .handler = live_jsonl_get },
         { .uri = "/api/captures/live.json",    .method = HTTP_GET,  .handler = live_json_get },
         { .uri = "/api/captures/clear-volatile", .method = HTTP_POST, .handler = clear_post },
+        { .uri = "/api/captures/save-sd",        .method = HTTP_POST, .handler = save_sd_post },
         { .uri = "/api/download/extend",       .method = HTTP_POST, .handler = extend_post },
         { .uri = "/api/download/disable",      .method = HTTP_POST, .handler = disable_post },
         { .uri = "/api/settings",              .method = HTTP_GET,  .handler = settings_get },
@@ -1487,6 +1677,7 @@ static void register_handlers(void)
         { .uri = "/api/pup/status",            .method = HTTP_GET,  .handler = pup_status_get },
         { .uri = "/api/pup/pet",               .method = HTTP_POST, .handler = pup_pet_post },
         { .uri = "/api/pup/treat",             .method = HTTP_POST, .handler = pup_treat_post },
+        { .uri = "/api/pup/play",              .method = HTTP_POST, .handler = pup_play_post },
         { .uri = "/api/pup/name",              .method = HTTP_POST, .handler = pup_name_post },
         { .uri = "/api/pup/reset",             .method = HTTP_POST, .handler = pup_reset_post },
         { .uri = "/api/pup/walk/last",         .method = HTTP_GET,  .handler = pup_walk_last_get },
@@ -1514,9 +1705,9 @@ esp_err_t download_http_start(void)
 
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
 
-    cfg.max_open_sockets = 7;
+    cfg.max_open_sockets = SC_CLUSTER_HEAD ? 12 : 7;
     cfg.lru_purge_enable = true;
-    cfg.max_uri_handlers = 40;
+    cfg.max_uri_handlers = 56;
 
     cfg.stack_size = 8192;
 
@@ -1537,4 +1728,9 @@ void download_http_stop(void)
     httpd_stop(s_server);
     s_server = NULL;
     ESP_LOGI(TAG, "HTTP server stopped");
+}
+
+httpd_handle_t download_http_server(void)
+{
+    return s_server;
 }

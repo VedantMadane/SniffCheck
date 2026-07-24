@@ -102,8 +102,14 @@ body.dark{
 html{-webkit-text-size-adjust:100%}
 body{margin:0;color:var(--txt);
   font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-family:var(--font,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif);
   padding-bottom:env(safe-area-inset-bottom);
   background:var(--bg)}
+/* dashboard-authored custom theme: bold/italic accent colors + bg image */
+strong,b{color:var(--bold,inherit)}
+em,i{color:var(--ital,inherit)}
+body.hasbg::before{content:"";position:fixed;inset:0;z-index:-1;background-image:var(--bgimg);
+  background-size:cover;background-position:center;background-attachment:fixed}
 
 h2{font-size:13px;margin:0 0 12px;color:var(--txt);letter-spacing:.7px;
   text-transform:uppercase;font-weight:900;display:flex;align-items:center;gap:8px}
@@ -293,9 +299,149 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .sigbar .bars i:nth-child(3){height:9px}.sigbar .bars i:nth-child(4){height:12px}
 .sigbar .bars i.on{opacity:1;background:var(--txt)}
 .sigbar .rssi{font-size:9px;color:var(--dim);opacity:.7;line-height:1;font-variant-numeric:tabular-nums}
+/* Dog Park cluster-control summary card */
+.dpwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 10px}
+/* Paused during a manual Refresh: dim the block and block its controls so it reads as "off". */
+.dp-busy{opacity:.5;pointer-events:none;filter:grayscale(.4);transition:opacity .15s}
+.dphead{font-weight:800;color:var(--acc);display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.dphead .dpico{width:1.15em;height:1.15em;flex:none}
+.dparms{font-weight:600;font-size:12px;color:var(--dim);display:flex;flex-wrap:wrap;gap:10px}
+.dparmpill{white-space:nowrap}
+.dpctrl{display:flex;gap:8px;margin:4px 0 8px;flex-wrap:wrap}
+.dpbtn{padding:6px 12px;border:2px solid var(--line);border-radius:8px;background:var(--panelw);color:var(--txt);font-weight:700;cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
+.dpbtn:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+.dplog{max-height:38vh;overflow-y:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:2px 8px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.dprow{display:flex;align-items:center;gap:8px;padding:3px 0;border-top:1px solid var(--line2)}
+.dprow:first-child{border-top:0}
+.dprow .dicon .ic{width:1.2em;height:1.2em;vertical-align:-.22em}
+.dpnm{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.dparm{color:var(--acc2)}
+.dpt{flex:none;color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums}
 .bar{display:inline-block;width:54px;height:8px;background:var(--trk);border-radius:5px;
   overflow:hidden;vertical-align:middle;margin-right:4px;border:1.5px solid var(--line)}
 .bar i{display:block;height:100%}
+
+/* ePup learning-brain summary card (B9) */
+.epwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 10px}
+.ephead{font-weight:800;color:var(--acc);display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.ephead .epico{width:1.15em;height:1.15em;flex:none}
+.epsub{font-weight:600;font-size:12px;color:var(--dim)}
+.epstats{display:flex;flex-wrap:wrap;gap:6px 14px;margin:2px 0 8px}
+.epstat{display:flex;flex-direction:column;font-size:11px;color:var(--dim);line-height:1.15}
+.epstat b{font-size:15px;color:var(--txt);font-weight:800;font-variant-numeric:tabular-nums}
+.epplace{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 9px;border-radius:8px;
+  border:1px solid var(--line);background:var(--bg)}
+.epplace .ic{width:1.2em;height:1.2em;flex:none;opacity:.85}
+.epplace.tone-known{border-color:var(--safe);color:var(--safe)}
+.epplace.tone-new{border-color:var(--acc2);color:var(--acc2)}
+.epplace.tone-fam{border-color:var(--acc);color:var(--acc)}
+.epplace.tone-dim{color:var(--dim)}
+.epclass{display:flex;gap:6px;margin-top:8px}
+.epclass input{flex:1;min-width:0;padding:6px 9px;border:1.5px solid var(--line);border-radius:8px;
+  background:var(--panelw);color:var(--txt);font-size:13px}
+.epclass button{padding:6px 12px;border:2px solid var(--line);border-radius:8px;background:var(--panelw);
+  color:var(--txt);font-weight:700;cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
+.epclass button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+/* ePup mascot animation (105l). One embedded 640x800 sprite sheet (/epup_sprites.png),
+   cell 160 native, shown at 120 (background-size 480x600). Each state is a row; walk/
+   sniff/dig cycle via steps(), stand/sit are static poses. The browser does all the
+   animation — the S3 just serves the sheet once. */
+.epsprite{width:120px;height:120px;margin:2px auto 4px;
+  background:url(/epup_sprites.png) no-repeat 0 0;background-size:480px 600px}
+.epsprite.sniff{background-position:0 0;animation:eps-sniff .9s steps(4) infinite}
+@keyframes eps-sniff{from{background-position:0 0}to{background-position:-480px 0}}
+.epsprite.walk{background-position:0 -120px;animation:eps-walk .5s steps(2) infinite}
+@keyframes eps-walk{from{background-position:0 -120px}to{background-position:-240px -120px}}
+.epsprite.dig{background-position:0 -240px;animation:eps-dig .7s steps(3) infinite}
+@keyframes eps-dig{from{background-position:0 -240px}to{background-position:-360px -240px}}
+.epsprite.stand{background-position:0 -360px}
+.epsprite.sit{background-position:0 -480px}
+@media(prefers-reduced-motion:reduce){.epsprite{animation:none!important}}
+/* ePup stats panel (toggled open under the card body). */
+.epmore{display:block;margin:2px auto 6px;padding:4px 12px;border:2px solid var(--line);
+  border-radius:8px;background:var(--panelw);color:var(--txt);font-weight:700;font-size:12px;
+  cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
+.epmore:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+.epdetail{margin:2px 0 6px;border-top:1px solid var(--line);padding-top:6px}
+.epdrow{display:flex;align-items:baseline;gap:8px;padding:3px 0;font-size:12px}
+.epdrow b{min-width:104px;color:var(--acc);font-weight:800}
+.epdrow span{color:var(--txt);font-weight:700}
+.epdrow i{color:var(--dim);font-style:normal;font-weight:600;margin-left:auto;text-align:right}
+/* Hostile-gadget sentinel controls, hosted inside the ePup card. */
+.epsent{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.epshd{display:flex;align-items:center;gap:7px;font-weight:800;color:var(--acc);font-size:13px;margin-bottom:6px}
+.epshd .ic{width:1.1em;height:1.1em;flex:none}
+.epsent-arm{display:flex;align-items:center;gap:7px;font-size:12.5px;padding-bottom:6px;margin-bottom:6px;
+  border-bottom:1px solid var(--line)}
+.epsent-arm b{color:var(--txt);font-weight:800}
+.epsbody.off{opacity:.45}
+.epscount{font-size:12px;color:var(--dim);margin:2px 0 6px}
+.epscount b{color:var(--txt);font-weight:800;font-variant-numeric:tabular-nums}
+.epslbl{font-size:11px;color:var(--dim);margin:7px 0 2px}
+.epsrow{display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 0;color:var(--txt)}
+.epsrow .dicon .ic{width:1.05em;height:1.05em}
+.epsrow .hits{color:var(--dim);font-size:11px;margin-left:auto;text-align:right;white-space:nowrap}
+.epsrow input[type=checkbox]{flex:none;margin:0}
+.epsadd{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.epsadd input,.epsadd select{padding:5px 7px;border:1.5px solid var(--line);border-radius:7px;
+  background:var(--panelw);color:var(--txt);font-size:12px}
+.epsadd .mac{flex:1 1 130px;min-width:0}
+.epsadd .nm{width:84px}
+.epsadd button{padding:5px 11px;border:2px solid var(--line);border-radius:7px;background:var(--panelw);
+  color:var(--txt);font-weight:700;cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
+.epsadd button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+.epsdel{margin-left:auto;border:none;background:none;color:var(--avoid);cursor:pointer;
+  font-size:14px;line-height:1;padding:0 2px}
+/* Sentinel action buttons (open the signatures / add-device / flagged-results popups). */
+.epsbtns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
+.epsbtns button{display:flex;align-items:center;gap:6px;padding:6px 11px;border:2px solid var(--line);
+  border-radius:8px;background:var(--panelw);color:var(--txt);font-weight:700;font-size:12px;cursor:pointer;
+  box-shadow:2px 2px 0 var(--sh)}
+.epsbtns button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+.epsbtns button .ic{width:1.05em;height:1.05em;flex:none}
+/* Popup form (add device / rename environment). */
+.epsform{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+.epsform label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--dim)}
+.epsform input,.epsform select{padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;
+  background:var(--panelw);color:var(--txt);font-size:13px}
+.epsform button,.envclass button{align-self:flex-start;padding:7px 14px;border:2px solid var(--line);
+  border-radius:8px;background:var(--acc);color:#fff;font-weight:800;cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
+.epsform button:active,.envclass button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+/* Flagged-detection history cards (the flagged-results popup). */
+.hitcard{border:2px solid var(--line);border-left:6px solid var(--avoid);border-radius:10px;
+  padding:8px 10px;margin:7px 0;background:var(--panelw);box-shadow:2px 2px 0 var(--sh)}
+.hithd{display:flex;align-items:center;gap:7px;min-width:0}
+.hithd .ic{width:1.1em;height:1.1em;flex:none}
+.hitnm{flex:1;min-width:0;font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hitkind{flex:none;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--dim)}
+.hitmeta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;
+  font-size:11.5px;color:var(--dim);flex-wrap:wrap}
+.hitts{font-variant-numeric:tabular-nums}
+.hitgps{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11px;color:var(--dim);opacity:.45}
+.hitgps .ic{width:1em;height:1em;flex:none}
+/* Environments (place memory) grid — a clusters-style tile view. */
+.envwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 10px}
+.envgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:6px}
+.envtile{display:flex;flex-direction:column;gap:5px;text-align:left;font:inherit;cursor:pointer;
+  background:var(--panelw);color:var(--txt);border:2px solid var(--line);border-left:6px solid var(--cat,var(--line));
+  border-radius:10px;padding:9px 10px;box-shadow:2px 2px 0 var(--sh)}
+.envtile:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+.envtile.tone-cur{--cat:var(--acc)} .envtile.tone-known{--cat:var(--safe)} .envtile.tone-new{--cat:var(--acc2)}
+.envtn{font-weight:800;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.envtb{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:10.5px;color:var(--dim)}
+.envdet .kv2{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin:10px 0}
+.envdet .kv2>div{display:flex;flex-direction:column;font-size:11px;color:var(--dim)}
+.envdet .kv2 b{color:var(--txt);font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+.envclass{display:flex;gap:6px;margin-top:6px}
+.envclass input{flex:1;min-width:0;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;
+  background:var(--panelw);color:var(--txt);font-size:13px}
+/* Generic popup overlay for the sentinel/environment sheets (mirrors #clov). */
+#epov{position:fixed;inset:0;z-index:43;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center}
+#epov[hidden]{display:none}
+@media(min-width:560px){#epov{align-items:center}}
+#epsheet{width:100%;max-width:520px;max-height:88vh;overflow:auto;background:var(--panel);
+  border:3px solid var(--line);border-radius:14px 14px 0 0;box-shadow:0 -4px 0 var(--sh);padding:0 15px 15px}
+@media(min-width:560px){#epsheet{border-radius:14px;box-shadow:5px 5px 0 var(--sh)}}
 
 .pres{display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap;
   font-size:11px}
@@ -594,17 +740,75 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   margin-left:5px;font-size:10.5px;font-weight:700;letter-spacing:.3px;
   text-transform:uppercase;vertical-align:middle}
 
-.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));
-  gap:7px;margin-bottom:10px}
-.ctile{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;height:60px;min-width:0;background:var(--panel);color:var(--txt);
-  border:2px solid var(--line);border-radius:9px;padding:5px 8px;cursor:pointer;
-  box-shadow:2px 2px 0 var(--sh)}
-.ctile .dicon .ic{width:1.35em;height:1.35em}
-.ctile .cmac{font-size:11px;max-width:100%;overflow:hidden;
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));
+  gap:9px;margin-bottom:10px}
+/* Cluster result card — fixed size, mirrors the Wi-Fi/BLE .dcard look:
+   colored left bar, type icon + name + scan-type badge, MAC + small icons. */
+.ctile{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+  gap:5px;height:98px;min-width:0;text-align:left;background:var(--panel);color:var(--txt);
+  border:2.5px solid var(--line);border-left:7px solid var(--cat,var(--line));
+  border-radius:11px;padding:9px 11px;cursor:pointer;box-shadow:3px 3px 0 var(--sh)}
+.ctile.k-wifi{--cat:var(--wifi)} .ctile.k-ble{--cat:var(--ble)}
+.ctile:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--sh)}
+.cthd{display:flex;align-items:center;gap:6px;min-width:0}
+.cthd .dicon{flex:none}
+.cthd .dicon .ic{width:1.25em;height:1.25em}
+.ctname{flex:1;min-width:0;font-size:13.5px;font-weight:700;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctkind{flex:none;font-size:9px;font-weight:800;letter-spacing:.4px;
+  text-transform:uppercase;color:var(--cat,var(--dim));
+  border:1px solid var(--cat,var(--line));border-radius:5px;padding:1px 5px}
+.ctmac{font-size:11px;color:var(--dim);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
-.ctile.open{background:var(--acc);color:#181206;font-weight:800}
-.cdet{grid-column:1/-1;min-width:0}
+.ctico{display:flex;gap:5px;align-items:center;margin-top:auto;color:var(--dim)}
+.ctico .ic{width:14px;height:14px}
+.ctile.open{outline:2px solid var(--acc2);outline-offset:2px}
+/* .cdet is now a hidden data holder — its content is cloned into the modal. */
+.cdet{display:none}
+/* Cluster detail popup (reuses the summary-sheet overlay pattern). */
+#clov{position:fixed;inset:0;z-index:42;background:rgba(0,0,0,.5);
+  display:flex;align-items:flex-end;justify-content:center}
+#clov[hidden]{display:none}
+@media(min-width:560px){#clov{align-items:center}}
+#clsheet{width:100%;max-width:520px;max-height:88vh;overflow:auto;
+  background:var(--panel);border:3px solid var(--line);border-radius:14px 14px 0 0;
+  box-shadow:0 -4px 0 var(--sh);padding:0 15px 15px}
+@media(min-width:560px){#clsheet{border-radius:14px;box-shadow:5px 5px 0 var(--sh)}}
+.clhd{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  position:sticky;top:0;background:var(--panel);padding:14px 0 8px;z-index:1;
+  border-bottom:1px solid var(--line);margin-bottom:10px}
+.clhd h3{margin:0;font-size:16px;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.clx{flex:none;width:32px;height:32px;border:2px solid var(--line);
+  background:var(--panel);color:var(--txt);border-radius:9px;font-size:14px;
+  font-weight:900;cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
+.clx:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+/* Cluster member cards inside the popup — uniform, tappable result cards that
+   mirror the Wi-Fi/BLE .dcard look and ARE the link to the full result. */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+  gap:8px;margin:9px 0}
+.mcard{display:flex;flex-direction:column;gap:5px;min-height:60px;width:100%;
+  text-align:left;font:inherit;background:var(--panelw);color:var(--txt);
+  border:2px solid var(--line);border-left:6px solid var(--cat,var(--line));
+  border-radius:10px;padding:8px 10px;box-shadow:2px 2px 0 var(--sh)}
+button.mcard{cursor:pointer}
+button.mcard:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+.mcard.k-wifi{--cat:var(--wifi)} .mcard.k-ble{--cat:var(--ble)}
+.mchd{display:flex;align-items:center;gap:6px;min-width:0}
+.mchd .lyr{flex:none;font-weight:800;font-size:10px}
+.mchd .lyr.w{color:var(--wifi)} .mchd .lyr.b{color:var(--ble)}
+.mcname{flex:1;min-width:0;font-size:13px;font-weight:700;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcsig{flex:none;display:flex;align-items:center;gap:3px;color:var(--dim);
+  font-size:11px;font-variant-numeric:tabular-nums}
+.mcsig .ic{width:14px;height:14px}
+.mchd .dicon{flex:none} .mchd .dicon .ic{width:15px;height:15px}
+.mcbody{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-size:11.5px;color:var(--dim)}
+.mcbody .mmac{color:var(--txt)}
+.mctag{flex:none;font-size:9px;font-weight:800;letter-spacing:.4px;
+  text-transform:uppercase;color:var(--cat,var(--dim));
+  border:1px solid var(--cat,var(--line));border-radius:4px;padding:0 4px}
 
 .ctab .tn{color:var(--acc);font-weight:800;margin-left:6px}
 .ctab.act .tn{color:#5c4a10}
@@ -759,23 +963,81 @@ const SC_THEMES={
   txt:"#f0eff1",dim:"#b6b1c8",acc:"#ff7edb",acc2:"#36f9f6",onacc:"#262335",
   purple:"#d580ff",sh:"#171520",trk:"#171520",code:"#241b2f",wifi:"#36f9f6",
   ble:"#d580ff",track:"#ff8b39",drone:"#ff7edb",safe:"#72f1b8",ok:"#fede5d",
-  caution:"#ff8b39",avoid:"#fe4450"}}
+  caution:"#ff8b39",avoid:"#fe4450"}},
+ "hacker-green":{label:"Hacker — Neon Green",dark:true,vars:{bg:"#000000",
+  panel:"#0a140a",panelw:"#0f1f0f",band:"#123312",line:"#39ff14",line2:"#1f5f1f",
+  txt:"#39ff14",dim:"#2fae2f",acc:"#39ff14",acc2:"#7dff5a",onacc:"#001100",
+  purple:"#7dff5a",sh:"#000000",trk:"#001a00",code:"#020a02",wifi:"#39ff14",
+  ble:"#7dff5a",track:"#b6ff5a",drone:"#39ff14",safe:"#39ff14",ok:"#7dff5a",
+  caution:"#b6ff5a",avoid:"#ff4d4d"}},
+ "hacker-red":{label:"Hacker — Blood Red",dark:true,vars:{bg:"#0a0000",
+  panel:"#180404",panelw:"#220808",band:"#3a0e0e",line:"#5a1414",line2:"#3a0e0e",
+  txt:"#ff5a5a",dim:"#b02a2a",acc:"#ff1a1a",acc2:"#ff8080",onacc:"#200000",
+  purple:"#ff8080",sh:"#000000",trk:"#200000",code:"#0a0202",wifi:"#ff5a5a",
+  ble:"#ff8080",track:"#ffb0b0",drone:"#ff1a1a",safe:"#ff6b6b",ok:"#ff8080",
+  caution:"#ffb0b0",avoid:"#ff1a1a"}},
+ "midnight-blue":{label:"Midnight Blue",dark:true,vars:{bg:"#0a1428",
+  panel:"#12203c",panelw:"#1a2c50",band:"#22386a",line:"#2a4a7a",line2:"#22386a",
+  txt:"#cfe0ff",dim:"#8aa6d0",acc:"#4a90ff",acc2:"#7db4ff",onacc:"#04122a",
+  purple:"#9a8cff",sh:"#04070f",trk:"#0a1a33",code:"#0c1830",wifi:"#4a90ff",
+  ble:"#9a8cff",track:"#ffb26b",drone:"#ff6b9a",safe:"#5ec98a",ok:"#ffd166",
+  caution:"#ffb26b",avoid:"#ff6b6b"}},
+ "neon-purple":{label:"Neon Purple",dark:true,vars:{bg:"#140a24",
+  panel:"#221238",panelw:"#2e1a4a",band:"#3a2260",line:"#4a2a7a",line2:"#3a2260",
+  txt:"#ede0ff",dim:"#b79ad6",acc:"#b14aff",acc2:"#d18cff",onacc:"#12042a",
+  purple:"#d18cff",sh:"#0a0416",trk:"#1a0a33",code:"#180a2c",wifi:"#7db4ff",
+  ble:"#d18cff",track:"#ff9e64",drone:"#ff6bd1",safe:"#7dffb0",ok:"#ffd166",
+  caution:"#ff9e64",avoid:"#ff6b8a"}}
 };
 let curTheme="sniffcheck";
 function applyTheme(id){
+  if(id==="custom"){applyCustomReport();curTheme="custom";return;}
   if(!SC_THEMES[id])id="sniffcheck";
   const t=SC_THEMES[id],s=document.body.style;
   SC_VARS.forEach(v=>s.removeProperty("--"+v));
   Object.keys(t.vars).forEach(v=>s.setProperty("--"+v,t.vars[v]));
+  s.removeProperty("--bold");s.removeProperty("--ital");s.removeProperty("--bgimg");
+  document.body.classList.remove("hasbg");
   document.body.classList.toggle("dark",!!t.dark);
   curTheme=id;
 }
-// This viewer has no picker of its own — it inherits the theme chosen on the
-// SniffCheck dashboard (Settings → Theme) via the shared sc-theme key.
+// Custom theme authored on the dashboard (sc-custom). Maps the dashboard's var
+// names (ink/accent/pname) onto the viewer's (txt/acc/acc2); unset vars fall back
+// to the :root / .dark defaults so derived colors stay coherent.
+function applyCustomReport(){
+  let c;try{c=JSON.parse(localStorage.getItem("sc-custom"));}catch(e){}
+  if(!c||!c.v)c={d:0,v:{},img:""};
+  const s=document.body.style;
+  SC_VARS.forEach(v=>s.removeProperty("--"+v));
+  document.body.classList.toggle("dark",!!c.d);
+  const map={bg:"bg",panel:"panel",ink:"txt",line:"line",accent:"acc",pname:"acc2",muted:"dim",
+    onacc:"onacc",sh:"sh",safe:"safe",caution:"caution",avoid:"avoid",
+    wifi:"wifi",ble:"ble",track:"track",drone:"drone"};
+  Object.keys(map).forEach(k=>{if(c.v[k])s.setProperty("--"+map[k],c.v[k]);});
+  ["bold","ital"].forEach(k=>{if(c.v[k])s.setProperty("--"+k,c.v[k]);else s.removeProperty("--"+k);});
+  if(c.img){s.setProperty("--bgimg","url("+c.img+")");document.body.classList.add("hasbg");}
+  else{s.removeProperty("--bgimg");document.body.classList.remove("hasbg");}
+}
+const RFONTS={system:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",
+  rounded:"ui-rounded,'SF Pro Rounded','Segoe UI Rounded',Nunito,system-ui,sans-serif",
+  serif:"Georgia,'Times New Roman',serif",
+  mono:"ui-monospace,Menlo,Consolas,'Courier New',monospace",
+  condensed:"'Roboto Condensed','Arial Narrow',system-ui,sans-serif",
+  comic:"'Comic Sans MS','Comic Neue',cursive"};
+function applyFontReport(id){document.body.style.setProperty("--font",RFONTS[id]||RFONTS.system);}
+// This viewer has no picker of its own — it inherits the theme/font chosen on the
+// SniffCheck dashboard (Settings) via the shared sc-theme / sc-custom / sc-font keys.
 try{let t=localStorage.getItem("sc-theme");
   if(t==="dark")t="sniffcheck-dark";else if(t==="light")t="sniffcheck";
   applyTheme(t||"sniffcheck");
-}catch(e){}</script>
+}catch(e){}
+try{applyFontReport(localStorage.getItem("sc-font")||"system");}catch(e){}
+// Live-update if the dashboard changes theme/font in another tab.
+addEventListener("storage",e=>{if(e&&/^sc-(theme|custom|font)$/.test(e.key||"")){
+  try{let t=localStorage.getItem("sc-theme");
+    if(t==="dark")t="sniffcheck-dark";else if(t==="light")t="sniffcheck";
+    applyTheme(t||"sniffcheck");applyFontReport(localStorage.getItem("sc-font")||"system");
+    if(typeof renderBanner==="function")renderBanner();}catch(_){}}});</script>
 <button id="hotbtn" type="button" class="hotbtn" title="Quick tabs" aria-label="Quick tabs" aria-haspopup="true" aria-expanded="false">
   <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></g></svg>
 </button>
@@ -815,7 +1077,9 @@ try{let t=localStorage.getItem("sc-theme");
   <span id="constat" class="constat" title="Not connected to a SniffCheck device">
     <span class="cdot"></span><span class="ctext">offline</span></span>
   <span class="sub" id="srcinfo"></span>
-  <button class="tbtn" id="addcap" style="display:none;margin-left:auto"
+  <button class="tbtn" id="refbtn" style="display:none;margin-left:auto"
+    title="Pull the latest results from the device (after a scan or walk)">Refresh</button>
+  <button class="tbtn" id="addcap" style="display:none"
     title="Add a SniffCheck capture, or import a Biscuit/Wigle/Kismet/wardriver scan">Import</button>
 </header>
 
@@ -1294,6 +1558,15 @@ function sourceBadge(r){
   return "";
 }
 
+// Render a capture timestamp in the viewer's LOCAL timezone. `ts` is only a real
+// Unix epoch once the device clock has been set (the cluster pushes it via
+// /api/cluster/time); before that it can be a small uptime value, so treat anything
+// under 1e9 (< 2001) as "no real time" and show a dash rather than a bogus 1970 date.
+function fmtLocalTs(ts){
+  return (typeof ts==="number"&&ts>1e9)
+    ? esc(new Date(ts*1000).toLocaleString())
+    : '<span class="dim">—</span>';
+}
 function sourcesTable(s){
   if(!Array.isArray(s)||!s.length)return '<span class="dim">none</span>';
   let h='<table class="mono" style="border-collapse:collapse;font-size:12px"><tr><th style="text-align:left;padding:1px 8px 1px 0">source</th><th style="text-align:left;padding:1px 8px 1px 0">rssi</th><th style="text-align:left;padding:1px 8px 1px 0">lat,lon</th><th style="text-align:left;padding:1px 0">ts</th></tr>';
@@ -1301,7 +1574,7 @@ function sourcesTable(s){
     const id=x&&x.id!=null?esc(x.id):"?";
     const rssi=x&&x.rssi!=null?esc(x.rssi)+" dBm":'<span class="dim">—</span>';
     const pos=(x&&x.lat!=null&&x.lon!=null)?esc(x.lat)+", "+esc(x.lon):'<span class="dim">—</span>';
-    const ts=(x&&x.ts!=null&&x.ts>0)?esc(new Date(x.ts*1000).toISOString().replace("T"," ").replace(".000Z"," UTC")):'<span class="dim">—</span>';
+    const ts=fmtLocalTs(x&&x.ts);
     h+='<tr><td style="padding:1px 8px 1px 0">'+id+'</td><td style="padding:1px 8px 1px 0">'+rssi+'</td><td style="padding:1px 8px 1px 0">'+pos+'</td><td style="padding:1px 0">'+ts+'</td></tr>';
   }
   return h+'</table>';
@@ -1320,6 +1593,7 @@ function kvGrid(rec){
       val='<span class="mono">'+esc(JSON.stringify(v))+'</span>';
     else if(ENUM_FIELDS[k])val=esc(v)+' <span class="dim">('+esc(cb(ENUM_FIELDS[k],v))+')</span>';
     else if(k==="ts_us")val=esc(v)+' <span class="dim">('+fmtTs(v)+')</span>';
+    else if(k==="ts")val=fmtLocalTs(v);   // real wall-clock epoch (brain-stamped) -> local time
     else if(k==="threat_rule_ids")val=ruleList(v);
     else val=esc(v);
     h+="<div><b>"+esc(k)+":</b><span>"+val+"</span></div>";
@@ -1644,6 +1918,42 @@ function pvLink(mac){
     "gotoCluster('pv',"+i+')">privacy cluster</button>';
 }
 function privLinks(mac){return devLink(mac)+pvLink(mac);}
+
+// The gotoDevice() call for a MAC, or null when it resolves to no result card.
+// Same resolution as devLink, exposed so a whole card can be the hyperlink.
+function devGoto(mac){
+  if(!mac)return null;
+  if(M.wifi.has(mac))return "gotoDevice('s-wifi','"+anchorId("wifi",mac)+"')";
+  if(M.ble.has(mac))return "gotoDevice('s-ble','"+anchorId("ble",mac)+"')";
+  return null;
+}
+// A uniform, fixed-size cluster-member card that mirrors the Wi-Fi/BLE result
+// card and IS the hyperlink: tapping it jumps to that device's full result and
+// closes the popup (wired in openClusterModal). o = {mac,kind:'wifi'|'ble',name,
+// rssi,band,radio}. rssi/band default from the stored record when omitted.
+function memberCard(o){
+  const w=o.kind==="wifi";
+  const e=o.mac?(w?M.wifi.get(o.mac):M.ble.get(o.mac)):null;
+  const rec=e&&e.rec;
+  const icon=rec?catIcon(rec,o.kind):iconSpan([w?"ic-wifi":"ic-ble",w?"Wi-Fi":"BLE"]);
+  const rssi=o.rssi!==undefined?o.rssi:(rec&&typeof rec.rssi==="number"?rec.rssi:null);
+  const band=o.band!==undefined?o.band:(w&&rec?(rec.band_5g?"5G":"2.4G"):null);
+  const sig=typeof rssi==="number"?
+    '<span class="mcsig"><svg class="ic"><use href="#ic-signal"/></svg>'+esc(rssi)+"</span>":"";
+  const inner='<span class="mchd">'+
+    '<span class="lyr '+(w?"w":"b")+'">'+(w?"WIFI":"BLE")+"</span>"+
+    '<span class="mcname">'+esc(o.name||o.mac||"?")+"</span>"+sig+
+    '<span class="dicon">'+icon+"</span></span>"+
+    '<span class="mcbody"><span class="mmac mono">'+esc(o.mac||"?")+"</span>"+
+    (band?'<span class="mcband">'+esc(band)+"</span>":"")+
+    (o.radio?'<span class="mctag">radio</span>':"")+"</span>";
+  const cls="mcard "+(w?"k-wifi":"k-ble");
+  const go=devGoto(o.mac);
+  return go?
+    '<button class="'+cls+'" type="button" onclick="event.stopPropagation();'+go+
+      '">'+inner+"</button>":
+    '<div class="'+cls+'">'+inner+"</div>";
+}
 
 function devCard(kind,id,name,pill,meta,why,icon){
   return '<div class="dcard k-'+kind+'"'+(id?' id="'+id+'"':"")+">"+
@@ -2120,8 +2430,561 @@ function blkWatch(){
   return h;
 }
 
+// ---- Dog Park cluster control (movable summary card) ----
+// Native controls for a SniffCheck cluster master: arm status, Adv rescan /
+// Sniff Walk, and a live results waterfall streamed from the arms. Polls the
+// master's /api/cluster/* + /api/captures/live.jsonl. Feature-detects the
+// cluster: on a plain capture / offline viewer the card stays hidden. Lives in
+// the summary registry so it drags/reorders like any other summary card.
+const DP_OBS={wifi_ap:1,ble_device:1,tracker:1,drone_rid:1};
+const DP_CAMCLASS=new Set([12]); // device_class camera / surveillance
+let DP={started:false,cluster:null,status:null,seen:null,law:null,rows:[],sentinel:null,places:null,sc:0};
+function dpMac(o){return String(o.bssid||o.addr||o.mac||"").toUpperCase();}
+function dpIdOf(o){return o.ssid||o.name||o.bssid||o.addr||o.mac||"—";}
+function dpKey(o){return (o.bssid||o.addr||o.mac||"")+"|"+(o.ts_us||o.ts_wall||"")+"|"+o.type;}
+function dpArmOf(o){return o.source_id||o.arm||o.node||null;}
+function dpTypeIcon(o){
+  const f=o.eui_flags||0;
+  if(o.type==="wifi_ap"){
+    if(f&0x0002)return iconSpan(["ic-router-ent","enterprise access point"]);
+    if(f&0x0004)return iconSpan(["ic-router","consumer router"]);
+    return iconSpan(["ic-wifi","Wi-Fi network"]);
+  }
+  if(o.type==="tracker")return iconSpan(["ic-tracker","tracker / beacon"]);
+  if(o.type==="drone_rid")return iconSpan(["ic-drone","drone"]);
+  return iconSpan(["ic-ble","BLE device"]);
+}
+function dpSig(rssi){
+  if(typeof rssi!=="number")return "";
+  const on=rssi>=-55?4:rssi>=-67?3:rssi>=-78?2:rssi>=-88?1:0;
+  let b="";for(let i=1;i<=4;i++)b+='<i class="'+(i<=on?"on":"")+'"></i>';
+  return '<span class="sigbar" title="'+rssi+' dBm"><span class="bars">'+b+
+    '</span><span class="rssi">'+rssi+"</span></span>";
+}
+function dpTime(o){
+  // Prefer the brain-stamped real epoch (o.ts, seconds); fall back to legacy wall-ms, and
+  // never treat o.ts_us (device uptime µs) as an epoch (that rendered a bogus 2025 date).
+  const ms=(o.ts&&o.ts>1e9)?o.ts*1000:(o.ts_wall||0);
+  return ms?new Date(ms).toLocaleTimeString():"";
+}
+function dpRowHtml(o){
+  const mac=dpMac(o),arm=dpArmOf(o);
+  let flags="";
+  if(mac&&DP.law.has(mac))flags+=iconSpan(["ic-police","law-enforcement presence"]);
+  if(DP_CAMCLASS.has(o.device_class))flags+=iconSpan(["ic-camera","camera / surveillance"]);
+  return '<div class="dprow">'+dpTypeIcon(o)+flags+
+    '<span class="dpnm">'+esc(dpIdOf(o))+(arm?' <span class="dparm">·'+esc(arm)+"</span>":"")+"</span>"+
+    dpSig(o.rssi)+'<span class="dpt">'+esc(dpTime(o))+"</span></div>";
+}
+function dpVis(){const w=$("dpwrap");if(w)w.style.display="";}
+function dpPaintCtrl(){
+  const a=$("dp-arms"),c=$("dp-ctrl");if(!a||!c)return;
+  if(DP.cluster===false){
+    a.textContent="no cluster master detected — open this report from a SniffCheck cluster head";
+    c.innerHTML="";return;}
+  const s=DP.status;
+  if(!s){a.textContent="connecting…";return;}
+  a.innerHTML=(s.arms||[]).map(x=>{
+    const st=["idle","scanning","walking"][x.state]||"?";
+    return '<span class="dparmpill"><b>Arm '+x.i+"</b> "+esc(x.band||"")+" · "+
+      '<b style="color:'+(x.online?"var(--safe)":"var(--avoid)")+'">'+
+      (x.online?"online":"offline")+"</b> · "+esc(st)+" · W"+x.wifi+" B"+x.ble+"</span>";
+  }).join("")||"no arms yet";
+  const walking=!!s.walking;
+  c.innerHTML='<button type="button" class="dpbtn" id="dp-scan">Adv rescan</button>'+
+    '<button type="button" class="dpbtn" id="dp-walk">'+(walking?"Stop walk":"Start walk")+"</button>";
+  $("dp-scan").onclick=()=>fetch("/api/cluster/scan",{method:"POST"}).then(()=>setTimeout(dpPoll,300)).catch(()=>{});
+  $("dp-walk").onclick=()=>fetch("/api/cluster/walk?start="+(walking?0:1),{method:"POST"}).then(()=>setTimeout(dpPoll,300)).catch(()=>{});
+}
+function dpPaintLog(){
+  const l=$("dp-log");if(!l)return;
+  const near=(l.scrollHeight-l.scrollTop-l.clientHeight)<48;
+  l.innerHTML=DP.rows.map(dpRowHtml).join("")||'<div class="chempty">Waiting for arm results…</div>';
+  if(near)l.scrollTop=l.scrollHeight;
+}
+function dpIngest(t){
+  const ls=t.split("\n");
+  for(let i=0;i<ls.length;i++){const s=ls[i].trim();if(!s||s[0]!=="{")continue;
+    let o;try{o=JSON.parse(s);}catch(e){continue;}
+    if(o.type==="law_enforcement_presence"&&Array.isArray(o.entries)){
+      for(const e of o.entries){const m=String(e.mac||e.bssid||e.addr||"").toUpperCase();if(m)DP.law.add(m);}
+      continue;
+    }
+    if(!DP_OBS[o.type])continue;const k=dpKey(o);if(DP.seen.has(k))continue;DP.seen.add(k);DP.rows.push(o);
+  }
+  if(DP.rows.length>400)DP.rows=DP.rows.slice(-400);
+}
+function dpSchedule(ms){clearTimeout(DP.t);if(DP.paused)return;DP.t=setTimeout(dpPoll,ms);}
+// Suspend/resume the whole cluster polling loop (Dog Park / ePup / Environments / Health /
+// Sentinel / Activity) during a manual Refresh, and visibly disable their controls so it's
+// clear they're paused. Clearing the timers alone isn't enough — an in-flight dpPoll would
+// repaint the controls and re-arm the loop; DP.paused makes dpSchedule a no-op and makes the
+// in-flight cycle bail before it repaints or grabs another socket.
+function dpBusy(on){
+  DP.paused=on;
+  if(on){clearTimeout(DP.t);clearTimeout(accT);}
+  ["dpwrap","epwrap","hcard","ss-card","act-card"].forEach(id=>{
+    const w=$(id);if(w)w.classList.toggle("dp-busy",on);});
+}
+function dpPoll(){
+  if(DP.paused)return;   // suspended during a manual Refresh so it doesn't starve the sockets
+  fetch("/api/cluster/status",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();})
+    .then(j=>{if(DP.paused)return;   // Refresh started mid-flight — abort before repaint/socket
+      DP.cluster=true;DP.status=j;accStart();dpVis();dpPaintCtrl();epPaint();envPaint();healthPaint();
+      DP.sc=(DP.sc|0)+1;
+      if(DP.sc%2)epSentFetch();          // sentinel changes rarely — poll every other cycle (~4 s)
+      else envFetch();                    // environments change rarely too — alternate cycle
+      if(DP.sc%3===0)actFetch();          // activity log — every third cycle (~6 s)
+      if(!epTimeSynced||DP.sc%30===0)epTimeSync();   // keep the head's clock set (survives its reboot)
+      // Pull only NEW records past our cursor, not the whole ring every 2s. The full-ring
+      // firehose held an HTTP socket for seconds on a large session, starving the ESP32's
+      // few sockets so Refresh (and other requests) could never connect. ?since is skipped
+      // server-side; X-SC-Total advances the cursor; X-SC-Session resets it on a reboot.
+      return fetch("/api/captures/live.jsonl?since="+(DP.cur|0),{cache:"no-store"}).then(r=>{
+        const tot=parseInt(r.headers.get("X-SC-Total"),10),sess=r.headers.get("X-SC-Session")||"";
+        if(sess&&DP.sess&&sess!==DP.sess){DP.cur=0;if(DP.seen)DP.seen.clear();DP.rows=[];}
+        if(sess)DP.sess=sess;
+        if(Number.isFinite(tot))DP.cur=tot;
+        return r.text();
+      });})
+    .then(t=>{if(t!=null){dpIngest(t);dpPaintLog();}dpSchedule(2000);})
+    .catch(()=>{if(DP.cluster===null)DP.cluster=false;dpVis();epPaint();dpSchedule(DP.cluster?2000:15000);});
+}
+function dpStart(){
+  if(DP.started)return;DP.started=true;
+  DP.seen=new Set();DP.law=new Set();DP.rows=[];
+  dpPoll();epSentFetch();envFetch();epTimeSync();
+}
+function blkDogpark(){
+  return '<div class="dpwrap" id="dpwrap">'+
+    '<div class="dphead"><svg class="ic dpico"><use href="#ic-radio"/></svg>'+
+    'Dog Park <span class="dparms" id="dp-arms">connecting…</span></div>'+
+    '<div class="dpctrl" id="dp-ctrl"></div>'+
+    '<div class="dplog" id="dp-log"></div></div>';
+}
+
+// ---- ePup learning brain (movable summary card, B9) ----
+// Surfaces the cluster brain's ePup summary + place recognition ("where am I")
+// from the same /api/cluster/status poll the Dog Park card uses. Self-hides on a
+// plain capture / non-cluster viewer, like the Dog Park card. The classify input
+// (naming the current place) posts to /api/cluster/epup/label.
+function epStat(label,v){
+  return '<span class="epstat"><b>'+(v==null?"—":v)+'</b>'+label+'</span>';
+}
+function epPlace(p){
+  if(!p)return "";
+  let msg,tone,ic="ic-home";
+  if(p.cur<0){msg="Not enough Wi-Fi landmarks here to place you yet.";tone="dim";}
+  else if(p.is_new){msg="Somewhere new — first time the ePup has seen this place.";tone="new";}
+  else if(p.known){msg=(p.label?'“'+esc(p.label)+'” — ':"")+
+    "I know this place. Visit #"+p.scans+" · "+p.sim+"% match.";tone="known";}
+  else{msg="Getting to know this place… visit #"+p.scans+" ("+p.sim+"% match).";tone="fam";}
+  return '<div class="epplace tone-'+tone+'"><svg class="ic"><use href="#'+ic+'"/></svg>'+
+    '<span>'+msg+"</span></div>";
+}
+// Classify input (naming the current place). Built ONCE and preserved across the 2 s
+// poll so it never clobbers what the user is typing; epPaint only re-syncs the hint.
+function epClassSync(p){
+  const box=$("ep-class");if(!box)return;
+  if(!p||p.cur<0){box.style.display="none";box.innerHTML="";box.dataset.built="";return;}
+  box.style.display="";
+  if(box.dataset.built!=="1"){
+    box.innerHTML='<div class="epclass"><input id="ep-lin" maxlength="15" autocomplete="off" '+
+      'placeholder="Name this place"><button id="ep-lbtn" type="button">Name</button></div>';
+    box.dataset.built="1";
+    const send=()=>{const v=($("ep-lin").value||"").trim();if(!v)return;
+      fetch("/api/cluster/epup/label",{method:"POST",body:v})
+        .then(()=>{$("ep-lin").value="";setTimeout(dpPoll,300);}).catch(()=>{});};
+    $("ep-lbtn").onclick=send;
+    $("ep-lin").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();send();}};
+  }
+  const lin=$("ep-lin");
+  if(lin&&document.activeElement!==lin)
+    lin.placeholder=p.label?("Rename “"+p.label+"”"):"Name this place";
+}
+function epPaint(){
+  const w=$("epwrap");if(!w)return;
+  if(DP.cluster===false){w.style.display="none";return;}
+  w.style.display="";
+  const e=DP.status&&DP.status.epup,sub=$("ep-sub"),body=$("ep-body");
+  if(!e){if(sub)sub.textContent="connecting…";if(body)body.innerHTML="";epSpriteFor(null);epClassSync(null);return;}
+  if(sub)sub.textContent=esc(e.title)+" · L"+e.level+" · "+e.confidence+"% learned";
+  let h='<div class="epstats">'+epStat("scans",e.scans)+epStat("unique",e.unique)+
+    epStat("wifi/win",e.wifi)+epStat("ble/win",e.ble)+epStat("new",e.new)+"</div>";
+  h+=epPlace(e.place);
+  h+='<button class="epmore" id="ep-more" type="button">'+(epStatsOpen?"Hide stats":"ePup stats")+"</button>";
+  if(epStatsOpen)h+=epStatsHtml(e);
+  body.innerHTML=h;
+  const mb=$("ep-more");if(mb)mb.onclick=()=>{epStatsOpen=!epStatsOpen;epPaint();};
+  epSpriteFor(e);
+  epClassSync(e.place);
+}
+// Detailed ePup stats: what drives the level, environments learned, boots alive, etc.
+// Level follows an integer-sqrt curve over scan windows folded; "% learned" is those
+// same windows measured against the 40,000-window "fully learned" horizon.
+let epStatsOpen=false;
+function epStatsHtml(e){
+  const lvl=e.level|0, scans=e.scans|0, MAT=40000;
+  const nextAt=(lvl+1)*(lvl+1), toNext=Math.max(0,nextAt-scans);
+  const p=e.place||{};
+  const row=(k,v,note)=>'<div class="epdrow"><b>'+k+'</b><span>'+v+"</span>"+
+    (note?'<i>'+note+"</i>":"")+"</div>";
+  let h='<div class="epdetail">';
+  h+=row("Title",esc(e.title),"grows with scans folded");
+  h+=row("Level","L"+lvl,"√ of "+scans.toLocaleString()+" scans · next at "+nextAt.toLocaleString()+" ("+toNext.toLocaleString()+" to go)");
+  h+=row("Learned",e.confidence+"%",scans.toLocaleString()+" of "+MAT.toLocaleString()+" windows");
+  h+=row("Environments",(p.count|0)+" learned",p.cur>=0?("here: visit #"+(p.scans|0)):"no place fix yet");
+  if(typeof e.boots==="number")h+=row("Boots alive",e.boots,"power-ups since born");
+  h+=row("Devices seen",(e.unique|0).toLocaleString()+" unique","Bloom estimate");
+  h+=row("Per window",(e.wifi|0)+" Wi-Fi · "+(e.ble|0)+" BLE","~"+(e.ema|0)+" avg · "+(e.new|0)+" new");
+  h+="</div>";
+  return h;
+}
+// Pick the mascot animation from the ePup's live state. Priority (highest first):
+//   stand  — ALERT: sentinel armed with a recent flagged detection (heads-up posture)
+//   dig    — brand-new environment (first time the ePup has seen this place)
+//   sniff  — actively scanning: on a walk, or a fresh scan window just folded
+//   sit    — idle in a KNOWN, familiar place (relaxed)
+//   stand  — idle everywhere else (unknown place / connecting)
+// Only re-set the class when the state actually changes, so the CSS animation isn't
+// restarted every 2 s poll. Scan freshness is derived by watching e.scans tick up.
+let epPrevScans=-1, epScanBumpTs=0;
+const EP_SCAN_FRESH_MS=8000;   // "actively scanning" window after a new scan folds
+function epSpriteFor(e){
+  const spr=$("ep-sprite");if(!spr)return;
+  const p=e&&e.place;
+  const now=Date.now();
+  if(e&&typeof e.scans==="number"){
+    if(epPrevScans>=0&&e.scans>epPrevScans)epScanBumpTs=now;
+    epPrevScans=e.scans;
+  }
+  const s=DP.sentinel;
+  const alert = !!(s&&s.armed&&(s.recent|0)>0);          // hostile-gadget hit this pass
+  const walking = !!(DP.status&&DP.status.walking);
+  const scanning = walking || (now-epScanBumpTs)<EP_SCAN_FRESH_MS;
+  let anim;
+  if(alert)                             anim="stand";  // alert — on guard
+  else if(p&&p.cur>=0&&p.is_new)        anim="dig";    // new area — digging in
+  else if(scanning)                     anim="sniff";  // on a walk / actively scanning
+  else if(p&&p.known)                   anim="sit";    // familiar place — relaxed
+  else                                  anim="stand";  // idle, somewhere new/unknown
+  if(spr.dataset.anim!==anim){spr.className="epsprite "+anim;spr.dataset.anim=anim;}
+}
+function blkEpup(){
+  return '<div class="epwrap" id="epwrap">'+
+    '<div class="ephead"><svg class="ic epico"><use href="#ic-chip"/></svg>'+
+    'ePup <span class="epsub" id="ep-sub">learning…</span></div>'+
+    '<div class="epsprite stand" id="ep-sprite" title="ePup" role="img" aria-label="ePup mascot"></div>'+
+    '<div class="epbody" id="ep-body"></div>'+
+    '<div id="ep-class"></div>'+
+    '<div class="epsent" id="ep-sent" hidden></div></div>';
+}
+
+// ---- Hostile-gadget sentinel controls (105i), hosted in the ePup card ----
+// The head owns the sentinel (flagged-signature watchlist) on /api/cluster/sentinel;
+// this mirrors the Dog Park dashboard's Sentinel card so the report page can arm/
+// disarm it, toggle categories, and manage flagged (BYOI) devices. The add-form
+// inputs are built ONCE and never clobbered by the ~4 s poll; only the live
+// state (armed, counts, category/BYOI rows) is re-rendered.
+const EP_SENT_ICONS=["ic-tracker","ic-ble","ic-wifi","ic-router","ic-camera","ic-police","ic-drone"];
+function epSentPost(obj){
+  return fetch("/api/cluster/sentinel",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(obj)}).then(()=>setTimeout(epSentFetch,150)).catch(()=>{});
+}
+function epSentFetch(){
+  fetch("/api/cluster/sentinel",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();})
+    .then(j=>{DP.sentinel=j;epSentPaint();sentStatPaint();}).catch(()=>{});
+}
+function epSentCatRow(c){
+  return '<label class="epsrow"><input type="checkbox" data-scat="'+c.id+'"'+(c.alert?" checked":"")+">"+
+    iconSpan([c.icon||"ic-alert",c.label])+"<span>"+esc(c.label)+'</span>'+
+    '<span class="hits">'+(c.hits|0)+" seen</span></label>";
+}
+function epSentByoiRow(b){
+  return '<div class="epsrow"><input type="checkbox" data-sen="'+b.i+'"'+(b.enabled?" checked":"")+
+    ' title="alert on this device">'+iconSpan([b.icon||"ic-tracker",b.name])+
+    "<span"+(b.enabled?"":' style="opacity:.5"')+">"+esc(b.name)+"</span>"+
+    '<span class="hits">'+esc(b.mac)+(b.pref_len<6?"/"+(b.pref_len*8):"")+" · "+(b.hits|0)+"</span>"+
+    '<button class="epsdel" type="button" data-sdel="'+b.i+'" title="Remove">&#10005;</button></div>';
+}
+// Friendly labels for the device-type dropdown in the add-device popup.
+const SENT_ICON_LABEL={"ic-tracker":"Tracker / gadget","ic-ble":"BLE device","ic-wifi":"Wi-Fi device",
+  "ic-router":"Router / AP","ic-camera":"Camera","ic-police":"Law enforcement","ic-drone":"Drone"};
+function epSentPaint(){
+  const w=$("ep-sent");if(!w)return;
+  const d=DP.sentinel;
+  if(DP.cluster===false||!d||!d.cats){w.hidden=true;return;}
+  w.hidden=false;
+  if(w.dataset.built!=="1"){
+    w.innerHTML='<div class="epshd"><svg class="ic"><use href="#ic-alert"/></svg>Hostile-gadget sentinel</div>'+
+      '<label class="epsent-arm"><input type="checkbox" id="eps-arm"> <b id="eps-armt">Sentinel</b>'+
+      ' <span class="epsub">master switch</span></label>'+
+      '<div class="epsbody" id="eps-body"><div class="epscount" id="eps-count"></div>'+
+      '<div class="epsbtns">'+
+      '<button id="eps-sigbtn" type="button"><svg class="ic"><use href="#ic-alert"/></svg>Alert signatures</button>'+
+      '<button id="eps-addbtn" type="button"><svg class="ic"><use href="#ic-tracker"/></svg>Add device</button>'+
+      '<button id="eps-hitbtn" type="button"><svg class="ic"><use href="#ic-signal"/></svg>Flagged results</button>'+
+      '</div>'+
+      '<div class="epslbl">Your flagged devices:</div><div id="eps-byoi"></div></div>';
+    w.dataset.built="1";
+    $("eps-arm").onchange=()=>epSentPost({armed:$("eps-arm").checked?1:0});
+    $("eps-sigbtn").onclick=epSentSigOpen;
+    $("eps-addbtn").onclick=epSentAddOpen;
+    $("eps-hitbtn").onclick=epSentHitsOpen;
+  }
+  const armed=d.armed!==false;   // default on if an older head omits the field
+  const arm=$("eps-arm");if(arm&&document.activeElement!==arm)arm.checked=armed;
+  $("eps-armt").textContent="Sentinel "+(armed?"armed":"disarmed");
+  $("eps-body").classList.toggle("off",!armed);
+  const last=d.last&&d.last.label?(" · last: "+esc(d.last.label)):"";
+  const life=(d.life!=null)?(" · <b>"+(d.life|0)+"</b> lifetime · "+(d.life_uniq|0)+" unique"+
+    ((d.returning|0)?" · "+(d.returning|0)+" returning":"")):"";
+  $("eps-count").innerHTML="<b>"+(d.total|0)+"</b> this session"+life+last;
+  const by=$("eps-byoi");
+  by.innerHTML=(d.byoi&&d.byoi.length)?d.byoi.map(epSentByoiRow).join("")
+    :'<div class="epsub">none yet — tap “Add device” to flag one</div>';
+  by.querySelectorAll("input[data-sen]").forEach(cb=>cb.onchange=()=>
+    epSentPost({byoi_en:{i:+cb.dataset.sen,on:cb.checked?1:0}}));
+  by.querySelectorAll("button[data-sdel]").forEach(b=>b.onclick=()=>
+    epSentPost({byoi_del:+b.dataset.sdel}));
+}
+
+// ---- Cluster health card (S4d): "how is everything performing" ----
+// Live per-node traffic / uptime / errors for brain + arms + S3, from the same
+// /api/cluster/status poll (its 2 s cadence IS the heartbeat). Toggle via Customize.
+function fmtDur(s){s=s|0;if(s<0)return"—";const h=(s/3600)|0,m=((s%3600)/60)|0;
+  return h?h+"h"+m+"m":(m?m+"m":s+"s");}
+function fmtAgo(d){d=d|0;if(d<0)return"";return d<60?d+"s ago":((d/60)|0)+"m ago";}
+function hNode(name,online,ic,rows){
+  return '<div style="flex:1 1 132px;min-width:132px;background:var(--panel2,var(--panel));'+
+    'border:2px solid var(--line);border-radius:10px;padding:8px 10px">'+
+    '<div style="display:flex;align-items:center;gap:6px;font-weight:800;font-size:12px;margin-bottom:6px">'+
+    '<span style="width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:'+
+    (online?"#3ad17a":"var(--dim)")+'"></span>'+
+    '<svg class="ic"><use href="#'+ic+'"/></svg>'+esc(name)+'</div>'+
+    '<div class="epstats" style="gap:4px 12px">'+rows.map(r=>
+      '<span class="epstat"><b>'+r[1]+'</b>'+r[0]+'</span>').join("")+'</div></div>';
+}
+function blkHealth(){
+  return '<div class="smlist" id="hcard"><h4>Cluster health · '+
+    '<span style="font-weight:600;text-transform:none;color:var(--dim)">heartbeat 2s</span></h4>'+
+    '<div id="h-grid" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>';
+}
+function healthPaint(){
+  const g=$("h-grid");if(!g)return;
+  const c=$("hcard");if(DP.cluster===false){if(c)c.style.display="none";return;}
+  if(c)c.style.display="";
+  const st=DP.status||{},h=st.health||{},arms=st.arms||[],s3=h.s3||{};
+  let html=hNode("Brain",true,"ic-chip",[["up",fmtDur(h.up)],["merges",h.merges|0],
+    ["heap",((h.heap|0)/1024|0)+"K"],["bus rst",h.busrst|0]]);
+  arms.forEach(a=>{const miss=Math.max(0,(a.polls|0)-(a.ok|0));
+    html+=hNode("Arm "+a.i,!!a.online,"ic-radio",[["state",["idle","scan","walk"][a.state|0]||"?"],
+      ["seq",a.seq|0],["polls",a.polls|0],["miss",miss]]);});
+  html+=hNode("S3 node",!!s3.online,"ic-router",[["up",fmtDur(s3.up)],["SD recs",s3.recs|0],
+    ["flagged",s3.flagged|0],["push ✓/✗",(h.s3push|0)+"/"+(h.s3fail|0)]]);
+  g.innerHTML=html;
+}
+
+// ---- Sentinel lifetime stats card (S4d): the watchlist scoreboard ----
+function blkSentStat(){
+  return '<div class="smlist" id="ss-card"><h4>Sentinel stats</h4><div id="ss-body"></div></div>';
+}
+function sentStatPaint(){
+  const b=$("ss-body");if(!b)return;
+  const c=$("ss-card"),d=DP.sentinel;
+  if(DP.cluster===false||!d){if(c)c.style.display="none";return;}
+  if(c)c.style.display="";
+  const st=(l,v)=>'<span class="epstat"><b>'+(v==null?"—":v)+'</b>'+l+'</span>';
+  const cf=d.last&&d.last.conf;
+  b.innerHTML='<div class="epstats">'+st("this session",d.total|0)+st("lifetime",d.life|0)+
+    st("unique devices",d.life_uniq|0)+st("returning",d.returning|0)+'</div>'+
+    (d.last&&d.last.label?'<div class="epsub" style="margin-top:4px">last: '+esc(d.last.label)+
+      (cf===2?" · high confidence":cf===1?" · low confidence (name)":"")+'</div>':'');
+}
+
+// ---- Activity / ePup history log card (S4d): the cluster's running event log ----
+function actFetch(){
+  fetch("/api/cluster/log",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();})
+    .then(j=>{DP.log=j.log||[];activityPaint();}).catch(()=>{});
+}
+function blkActivity(){
+  return '<div class="smlist" id="act-card"><h4>Activity log</h4>'+
+    '<div id="act-body"><div class="epsub">…</div></div></div>';
+}
+function activityPaint(){
+  const b=$("act-body");if(!b)return;
+  const c=$("act-card");if(DP.cluster===false){if(c)c.style.display="none";return;}
+  if(c)c.style.display="";
+  const log=DP.log||[];
+  if(!log.length){b.innerHTML='<div class="epsub">no events yet</div>';return;}
+  const nowUp=(DP.status&&DP.status.health&&DP.status.health.up)|0;
+  b.innerHTML=log.slice(0,12).map(e=>
+    '<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:2px 0;'+
+    'border-top:1px solid var(--line)">'+
+    '<span>'+esc(e.s)+'</span>'+
+    '<span class="dim" style="white-space:nowrap">'+fmtAgo(nowUp-(e.t|0))+'</span></div>').join("");
+}
+
+// ---- Generic popup sheet (mirrors the cluster #clov modal, own overlay #epov) ----
+// Reused by the sentinel popups (signatures / add-device / flagged-results) and the
+// environments editor so opening one never disturbs the report layout underneath.
+let epSheetWired=false;
+function epSheetClose(){const ov=$("epov");if(ov)ov.hidden=true;}
+function openSheet(title,bodyHtml,wire){
+  const ov=$("epov"),sh=$("epsheet");if(!ov||!sh)return;
+  sh.innerHTML='<div class="clhd"><h3>'+esc(title)+'</h3>'+
+    '<button class="clx" type="button" aria-label="Close">✕</button></div>'+
+    '<div class="clbody">'+bodyHtml+'</div>';
+  sh.querySelector(".clx").onclick=epSheetClose;
+  if(!epSheetWired){epSheetWired=true;
+    ov.addEventListener("click",e=>{if(e.target===ov)epSheetClose();});
+    addEventListener("keydown",e=>{if(e.key==="Escape"&&!ov.hidden)epSheetClose();});
+  }
+  if(wire)wire(sh);
+  ov.hidden=false;sh.scrollTop=0;
+}
+
+// Alert-signatures popup: toggle which built-in attack-tool signatures raise an alert.
+function epSentSigOpen(){
+  const d=DP.sentinel;if(!d||!d.cats)return;
+  const body='<div class="epslbl">Choose which known attack-tool signatures raise a sentinel alert. '+
+    'Matching is evidence-based on observed device names/vendors — nothing is hidden or dropped.</div>'+
+    '<div id="sig-list">'+d.cats.map(epSentCatRow).join("")+'</div>';
+  openSheet("Alert signatures",body,sh=>{
+    sh.querySelectorAll("input[data-scat]").forEach(cb=>cb.onchange=()=>{
+      const m=(DP.sentinel&&DP.sentinel.mask)||0,id=+cb.dataset.scat;
+      epSentPost({mask:cb.checked?(m|(1<<id)):(m&~(1<<id))});});
+  });
+}
+
+// Add-device popup: flag one device or a whole vendor (OUI) by MAC + name + type.
+function epSentAddOpen(){
+  const opts=EP_SENT_ICONS.map(i=>'<option value="'+i+'">'+esc(SENT_ICON_LABEL[i]||i.replace("ic-",""))+'</option>').join("");
+  const body='<div class="epslbl">Flag a specific device or a whole vendor so the sentinel alerts whenever it appears.</div>'+
+    '<div class="epsform">'+
+    '<label>MAC address<input class="mac" id="add-mac" placeholder="aa:bb:cc:dd:ee:ff" autocomplete="off"></label>'+
+    '<label>Name<input id="add-nm" placeholder="e.g. suspicious tracker" autocomplete="off"></label>'+
+    '<label>Device type<select id="add-ic">'+opts+'</select></label>'+
+    '<label>Scope<select id="add-sc"><option value="6">This device only</option><option value="3">Whole vendor (OUI)</option></select></label>'+
+    '<button id="add-go" type="button">Add device</button>'+
+    '<div class="epsub" id="add-msg"></div></div>';
+  openSheet("Add device",body,sh=>{
+    const go=()=>{const mac=sh.querySelector("#add-mac").value.trim();
+      if(!mac){sh.querySelector("#add-msg").textContent="Enter a MAC address.";return;}
+      epSentPost({byoi_add:{mac:mac,name:sh.querySelector("#add-nm").value.trim()||"flagged",
+        icon:sh.querySelector("#add-ic").value,pref_len:+sh.querySelector("#add-sc").value}});
+      epSheetClose();};
+    sh.querySelector("#add-go").onclick=go;
+    sh.querySelector("#add-mac").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();go();}};
+  });
+}
+
+// Flagged-results popup: the head's timestamped detection history (GPS greyed for now).
+function fmtStamp(ts,up){
+  if(ts&&ts>1700000000){const d=new Date(ts*1000);
+    return d.toLocaleDateString()+" "+d.toLocaleTimeString();}
+  const s=up|0,h=(s/3600)|0,m=((s%3600)/60)|0;   // clock not set: relative uptime
+  return "at uptime "+(h?h+"h ":"")+m+"m";
+}
+function epSentHitsOpen(){
+  openSheet("Flagged detections",'<div id="hit-list"><div class="epsub">Loading…</div></div>',sh=>{
+    fetch("/api/cluster/sentinel/hits",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();}).then(j=>{
+      const el=sh.querySelector("#hit-list");if(!el)return;
+      const hits=(j&&j.hits)||[];
+      if(!hits.length){el.innerHTML='<div class="epsub">No flagged detections recorded yet.</div>';return;}
+      el.innerHTML=hits.map(h=>'<div class="hitcard">'+
+        '<div class="hithd">'+iconSpan([h.kind==="flagged"?"ic-tracker":"ic-alert",h.kind])+
+        '<span class="hitnm">'+esc(h.name)+'</span>'+
+        '<span class="hitkind">'+esc(h.kind)+'</span></div>'+
+        '<div class="hitmeta"><span class="mono">'+esc(h.mac)+'</span>'+
+        '<span class="hitts">'+esc(fmtStamp(h.ts,h.up))+'</span></div>'+
+        '<div class="hitgps" title="GPS logging is not wired up yet">'+
+        iconSpan(["ic-home","location"])+'<span>GPS location — coming soon</span></div>'+
+        '</div>').join("");
+    }).catch(()=>{const el=sh.querySelector("#hit-list");
+      if(el)el.innerHTML='<div class="epsub">Could not load detections.</div>';});
+  });
+}
+
+// ---- Environments (Phase-95 place memory) — a clusters-style tile view (105k) ----
+// Surfaces the brain's remembered places from /api/cluster/places: each tile is a place
+// (current / known / new), tap opens a detail popup where the user reads the place's
+// stats and renames it (full access to the brain's environment logic). Self-hides on a
+// plain capture / non-cluster viewer like the other cluster cards.
+function blkEnviron(){
+  return '<div class="envwrap" id="envwrap">'+
+    '<div class="ephead"><svg class="ic epico"><use href="#ic-home"/></svg>'+
+    'Environments <span class="epsub" id="env-sub">learning…</span></div>'+
+    '<div class="envgrid" id="env-grid"></div></div>';
+}
+function envFetch(){
+  fetch("/api/cluster/places",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();})
+    .then(j=>{DP.places=j;envPaint();}).catch(()=>{});
+}
+function envTone(p){return p.current?"cur":(p.known?"known":"new");}
+function envName(p){return p.label?esc(p.label):("Environment "+(p.idx+1));}
+function envTileHtml(p){
+  const state=p.current?"here now":(p.known?"known":"learning");
+  return '<button class="envtile tone-'+envTone(p)+'" type="button" data-eidx="'+p.idx+'">'+
+    '<div class="envtn">'+envName(p)+'</div>'+
+    '<div class="envtb"><span>'+state+'</span><span>'+(p.scans|0)+' visits</span>'+
+    '<span>'+(p.landmarks|0)+' landmarks</span></div></button>';
+}
+function envPaint(){
+  const w=$("envwrap");if(!w)return;
+  if(DP.cluster===false){w.style.display="none";return;}
+  w.style.display="";
+  const g=$("env-grid"),sub=$("env-sub");if(!g)return;
+  const ps=(DP.places&&DP.places.places)||[];
+  if(sub)sub.textContent=ps.length?(ps.length+" place"+(ps.length>1?"s":"")+" remembered"):"no places learned yet";
+  g.innerHTML=ps.length?ps.map(envTileHtml).join(""):
+    '<div class="epsub">The brain hasn’t fingerprinted a place yet — it needs a couple of persistent Wi-Fi landmarks nearby.</div>';
+  g.querySelectorAll("button[data-eidx]").forEach(b=>b.onclick=()=>envOpen(+b.dataset.eidx));
+}
+function envOpen(idx){
+  const ps=(DP.places&&DP.places.places)||[];const p=ps.find(x=>x.idx===idx);if(!p)return;
+  const state=p.current?"You are here now":(p.known?"A known / familiar place":"Still learning this place");
+  const tone=p.current?"fam":(p.known?"known":"new");
+  const body='<div class="envdet">'+
+    '<div class="epplace tone-'+tone+'"><svg class="ic"><use href="#ic-home"/></svg><span>'+state+'</span></div>'+
+    '<div class="kv2">'+
+      '<div><b>'+(p.scans|0)+'</b>visits</div>'+
+      '<div><b>'+(p.landmarks|0)+'</b>Wi-Fi landmarks</div>'+
+      '<div><b>'+(p.known?"known":"learning")+'</b>status</div>'+
+      '<div><b>#'+p.idx+'</b>place index</div>'+
+    '</div>'+
+    '<div class="epslbl">Name this environment</div>'+
+    '<div class="envclass"><input id="env-lin" maxlength="15" autocomplete="off" placeholder="'+
+      (p.label?("Rename “"+esc(p.label)+"”"):"e.g. Home, Office, Gym")+'">'+
+      '<button id="env-lbtn" type="button">Save</button></div>'+
+    '<div class="epsub" id="env-msg">Letters, numbers, spaces, - and _ (max 15).</div></div>';
+  openSheet(envName(p),body,sh=>{
+    const send=()=>{const v=(sh.querySelector("#env-lin").value||"").trim();if(!v)return;
+      fetch("/api/cluster/place/label",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({idx:idx,label:v})})
+        .then(()=>{sh.querySelector("#env-msg").textContent="Saved.";
+          setTimeout(()=>{envFetch();epSheetClose();},450);}).catch(()=>{
+          sh.querySelector("#env-msg").textContent="Could not save.";});};
+    sh.querySelector("#env-lbtn").onclick=send;
+    sh.querySelector("#env-lin").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();send();}};
+  });
+}
+
+// One-shot browser→head clock sync so flagged detections get real date/time stamps.
+let epTimeSynced=false;
+function epTimeSync(){
+  fetch("/api/cluster/time",{method:"POST",body:String(Math.floor(Date.now()/1000))})
+    .then(()=>{epTimeSynced=true;}).catch(()=>{});
+}
+
 // Block registry. `def` = on in the default (pre-charts) summary layout.
 const SUMMARY_BLOCKS=[
+  {id:"dogpark",   label:"Dog Park (cluster control)",def:false,render:blkDogpark},
+  {id:"epup",      label:"ePup (learning brain)",  def:false, render:blkEpup},
+  {id:"environ",   label:"Environments (place memory)",def:false,render:blkEnviron},
+  {id:"health",    label:"Cluster health (nodes / traffic)",def:false,render:blkHealth},
+  {id:"sentstat",  label:"Sentinel stats (lifetime)",def:false,isList:true,render:blkSentStat},
+  {id:"activity",  label:"Activity log (cluster history)",def:false,isList:true,render:blkActivity},
   {id:"verdict",   label:"Worst-threat verdict",   def:true,  render:blkVerdict},
   {id:"tiles",     label:"Count tiles",            def:true,  render:blkTiles},
   {id:"channels",  label:"Channel chips",          def:true,  render:blkChannels},
@@ -2207,6 +3070,15 @@ function wireSummaryActs(){
   });
   $("banner").querySelectorAll("[data-wl=manage]").forEach(el=>
     el.onclick=openWatchlist);
+  // Dog Park / ePup cards: start the shared live poller once (either card needs
+  // it), then repaint from cached state (renderBanner rebuilds the containers each
+  // pass, so re-attach handlers here).
+  if($("dpwrap")||$("epwrap")||$("hcard")||$("ss-card")||$("act-card")){dpStart();}
+  if($("dpwrap")){dpVis();dpPaintCtrl();dpPaintLog();}
+  if($("epwrap")){epPaint();}
+  if($("hcard")){healthPaint();}
+  if($("ss-card")){sentStatPaint();}
+  if($("act-card")){actFetch();activityPaint();}
 }
 
 // ---- watchlist manager sheet ----
@@ -2456,12 +3328,11 @@ function renderClusters(){
       (best?'<div class="why">grouped by: '+esc(evName(best.evidence))+"</div>":"")+
       '<div class="small dim">'+lead+" · "+total+
       " member"+(total>1?"s":"")+" · confidence "+esc(c.confidence??"?")+
-      " · scan "+esc(c.scan_index??"?")+"</div>"+siblingCaveat(c)+"<div>";
+      " · scan "+esc(c.scan_index??"?")+"</div>"+siblingCaveat(c)+'<div class="mgrid">';
     for(const mb of members){
-      const nm=nameOf(mb.layer,mb.mac),w=mb.layer==="wifi";
-      h+='<span class="chip"><span class="lyr '+(w?"w":"b")+'">'+
-        (w?"WIFI":"BLE")+"</span>"+(nm?"<b>"+esc(nm)+"</b> ":"")+
-        '<span class="mono">'+esc(mb.mac||"?")+"</span></span>";
+      const w=mb.layer==="wifi";
+      h+=memberCard({mac:mb.mac,kind:w?"wifi":"ble",
+        name:nameOf(mb.layer,mb.mac)||mb.mac});
     }
     h+="</div>";
     if((c.edges||[]).length){
@@ -2503,28 +3374,26 @@ function renderClusters(){
 
   function mrPanel(r){
     const sibs=r.radio_siblings||[],total=r.radio_count??(sibs.length+1);
-    let h='<div class="card"><div class="small dim">'+esc(realName(r.ssid)||"(hidden)")+
+    const nm=realName(r.ssid)||"(hidden)";
+    let h='<div class="card"><div class="small dim">'+esc(nm)+
       " · "+esc(total)+" radios merged into one logical network · scan "+
-      esc(r.scan_index??"?")+'</div><div>';
-    h+='<span class="chip"><span class="lyr w">REP</span><span class="mono">'+
-      esc(r.bssid||"?")+"</span> "+bandChip(r.band_5g)+
-      ' <span class="dim">ch '+esc(r.channel??"?")+" · rssi "+esc(r.rssi??"?")+"</span></span>";
+      esc(r.scan_index??"?")+'</div><div class="mgrid">';
+    h+=memberCard({mac:r.bssid,kind:"wifi",name:nm,radio:true,
+      rssi:r.rssi,band:r.band_5g?"5G":"2.4G"});
     for(const s of sibs)
-      h+='<span class="chip"><span class="mono">'+esc(s.bssid||"?")+"</span> "+
-        bandChip(s.band_5g)+' <span class="dim">ch '+esc(s.channel??"?")+
-        " · rssi "+esc(s.rssi??"?")+"</span></span>";
+      h+=memberCard({mac:s.bssid,kind:"wifi",name:nm,radio:true,
+        rssi:s.rssi,band:s.band_5g?"5G":"2.4G"});
     return h+"</div></div>";
   }
 
   function sbPanel(r){
     let h='<div class="card"><div class="small dim">anonymous / ambient advertiser'+
       " · hidden from the on-device Lite list · scan "+esc(r.scan_index??"?")+
-      '</div><div>';
-    h+='<span class="chip"><span class="lyr b">BLE</span><span class="mono">'+
-      esc(r.addr||"?")+"</span></span>";
+      '</div><div class="mgrid">'+
+      memberCard({mac:r.addr,kind:"ble",name:r.name||r.vendor||r.addr,
+        rssi:typeof r.rssi==="number"?r.rssi:null,band:null})+
+      "</div><div>";
     if(r.addr_subtype!=null)h+='<span class="chip">'+esc(cb("addr_subtype",r.addr_subtype))+"</span>";
-    if(typeof r.rssi==="number")h+='<span class="chip dim">rssi '+esc(r.rssi)+"</span>";
-    if(r.name)h+='<span class="chip"><b>'+esc(r.name)+"</b></span>";
     if(r.vendor)h+='<span class="chip">'+esc(r.vendor)+"</span>";
     h+='<span class="chip dim">class '+esc(fClass(r)||"—")+"</span>";
     return h+"</div></div>";
@@ -2553,31 +3422,25 @@ function renderClusters(){
     return repMac(c);
   }
 
-  function tgrid(arr,label,gid,ic,mac,panel){
+  // Fixed-size cluster result card that mirrors the Wi-Fi/BLE .dcard look:
+  // a type/signal icon + name + scan-type badge on top, the MAC and small
+  // cluster-nature icons below. Tapping opens the detail popup (wired below);
+  // the .cdet sibling is a hidden data holder cloned into that popup. `meta(c)`
+  // returns {icon,name,kind,kcls,mac,ico} so every grid renders one way.
+  function tgrid(arr,label,gid,meta,panel){
     if(!arr.length)return "";
     let h="";
     arr.forEach((c,i)=>{
-      const m=mac(c)||"?";
-      h+='<button class="ctile" data-g="'+gid+'" data-i="'+i+'" title="'+esc(m)+
-        '" aria-expanded="false">'+(ic(c)||"")+
-        '<span class="cmac mono">'+esc(m)+"</span></button>"+
-        '<div class="cdet" data-g="'+gid+'" data-i="'+i+'" style="display:none">'+
-        panel(c)+"</div>";
-    });
-    return '<h3 class="cgh">'+label+" ("+arr.length+')</h3><div class="cgrid">'+h+"</div>";
-  }
-  // Privacy-only tile grid: surfaces a name/vendor (non-mono) with the MAC as
-  // the tooltip. Kept separate so NIC / aggregate / other grids stay untouched.
-  function pvGrid(arr,label,gid,ic,name,panel){
-    if(!arr.length)return "";
-    let h="";
-    arr.forEach((c,i)=>{
-      const nm=name(c);
-      h+='<button class="ctile" data-g="'+gid+'" data-i="'+i+'" title="'+esc(nm.title||nm.s)+
-        '" aria-expanded="false">'+(ic(c)||"")+
-        '<span class="cmac'+(nm.mono?" mono":"")+'">'+esc(nm.s)+"</span></button>"+
-        '<div class="cdet" data-g="'+gid+'" data-i="'+i+'" style="display:none">'+
-        panel(c)+"</div>";
+      const m=meta(c);
+      h+='<button class="ctile'+(m.kcls?" "+m.kcls:"")+'" data-g="'+gid+
+        '" data-i="'+i+'" aria-haspopup="dialog" aria-expanded="false" title="'+
+        esc(m.mac||m.name||"")+'"><span class="cthd">'+
+        '<span class="dicon">'+(m.icon||"")+"</span>"+
+        '<span class="ctname">'+esc(m.name||"?")+"</span>"+
+        (m.kind?'<span class="ctkind">'+esc(m.kind)+"</span>":"")+"</span>"+
+        '<span class="ctmac mono">'+esc(m.mac||"")+"</span>"+
+        '<span class="ctico">'+(m.ico||"")+"</span></button>"+
+        '<div class="cdet" data-g="'+gid+'" data-i="'+i+'">'+panel(c)+"</div>";
     });
     return '<h3 class="cgh">'+label+" ("+arr.length+')</h3><div class="cgrid">'+h+"</div>";
   }
@@ -2731,36 +3594,50 @@ function renderClusters(){
       h+='<span class="chip"><b>'+famLabel(n.family)+"</b> "+
         '<button class="plink" type="button" onclick="event.stopPropagation();'+
         "gotoCluster('"+n.g+"',"+n.i+')">view</button></span>';
-    h+='</div><div style="margin-top:8px">';
+    h+='</div><div class="mgrid">';
 
     for(const ad of a.addrs){
       const d=addrInfo(ad);
-      h+='<span class="chip">'+
-        (d.ly?'<span class="lyr '+d.ly+'">'+esc(d.type.toUpperCase())+"</span>":"")+
-        (d.name?"<b>"+esc(d.name)+"</b> ":"")+
-        '<span class="mono">'+esc(ad)+"</span>"+
-        (d.band?' <span class="dim">'+d.band+"</span>":"")+
-        (typeof d.rssi==="number"?' <span class="dim">'+esc(d.rssi)+" dBm</span>":"")+
-        "</span>";
+      h+=memberCard({mac:ad,kind:d.ly==="b"?"ble":"wifi",name:d.name||ad,
+        rssi:typeof d.rssi==="number"?d.rssi:null,
+        band:d.band||null,radio:d.type==="Radio"});
     }
     return h+"</div></div>";
   }
+  // Scan-type badge + color class from a representative record's layer.
+  const kindOf=k=>k==="wifi"?{kind:"WIFI",kcls:"k-wifi"}:{kind:"BLE",kcls:"k-ble"};
+  const nicMeta=c=>{const p=repRec(c),k=p?kindOf(p.kind):{kind:"",kcls:""};
+    return{icon:clusterIcon(c),name:repName(c),mac:repMac(c),
+      ico:iconSpan(["ic-nic","NIC cluster"]),...k};};
   const nicHtml=
-    tgrid(veh,"Vehicle groups","v",clusterIcon,repName,panelHtml)+
-    tgrid(net,"Network clusters","n",clusterIcon,repName,panelHtml)+
-    tgrid(bt,"Bluetooth clusters","b",clusterIcon,repName,panelHtml)+
-    tgrid(supBle,"Suppressed BLE","sb",r=>catIcon(r,"ble"),
-      r=>r.name||r.addr,sbPanel)||
+    tgrid(veh,"Vehicle groups","v",nicMeta,panelHtml)+
+    tgrid(net,"Network clusters","n",nicMeta,panelHtml)+
+    tgrid(bt,"Bluetooth clusters","b",nicMeta,panelHtml)+
+    tgrid(supBle,"Suppressed BLE","sb",
+      r=>({icon:catIcon(r,"ble"),name:r.name||r.vendor||r.addr,mac:r.addr,
+        kind:"BLE",kcls:"k-ble",ico:iconSpan(["ic-privacy","suppressed advertiser"])}),
+      sbPanel)||
     empty("No NIC clusters in this capture.");
   const radioHtml=
-    tgrid(mrAps,"Merged radios","mr",r=>catIcon(r,"wifi"),
-      r=>realName(r.ssid)||r.bssid,mrPanel)||
+    tgrid(mrAps,"Merged radios","mr",
+      r=>({icon:catIcon(r,"wifi"),name:realName(r.ssid)||r.bssid,mac:r.bssid,
+        kind:"RADIO",kcls:"k-wifi",ico:iconSpan(["ic-radio","radio cluster"])}),
+      mrPanel)||
     empty("No merged-radio records in this capture.");
   const privHtml=
-    pvGrid(PV,"Privacy clusters","pv",pvIcon,pvName,pvPanel)||
+    tgrid(PV,"Privacy clusters","pv",
+      e=>{const nm=pvName(e),p=M.wifi.get(e.mac)?"wifi":(M.ble.get(e.mac)?"ble":null),
+        k=p?kindOf(p):{kind:"",kcls:""};
+        return{icon:pvIcon(e),name:nm.s,mac:e.mac,
+          ico:iconSpan(["ic-privacy","privacy cluster"]),...k};},
+      pvPanel)||
     empty("No per-device privacy-analyzer rows in this capture.");
   const aggHtml=
-    tgrid(AGG,"Aggregate clusters","ag",aggIcon,aggName,aggPanel)||
+    tgrid(AGG,"Aggregate clusters","ag",
+      a=>{const p=aggRep(a),k=p?kindOf(p.kind):{kind:"MIXED",kcls:""};
+        return{icon:aggIcon(a),name:aggName(a),mac:[...a.addrs][0]||"?",
+          ico:iconSpan(["ic-nic","aggregate cluster"]),...k};},
+      aggPanel)||
     empty("No clusters combine across families in this capture.");
 
   const rcName=c=>{
@@ -2774,7 +3651,6 @@ function renderClusters(){
   // group. A type icon on each result tells the two apart.
   const rcIcon=c=>{const mb=c.members[0];return catIcon(mb.rec,mb.kind==="wifi"?"wifi":"ble");};
   const xcType=c=>c.rotation?["ic-rotate","address rotation"]:["ic-chain","product group"];
-  const xcIcon=c=>rcIcon(c)+iconSpan(xcType(c));
   function xcPanel(c){
     const rot=c.rotation,ico=iconSpan(xcType(c));
     const lbl=rot?"MAC randomization — one device changing address across scans":
@@ -2790,12 +3666,12 @@ function renderClusters(){
         const w=mb.kind==="wifi",nm=w?mb.rec.ssid:(mb.rec.name||mb.rec.vendor||"");
         const band=w?(mb.rec.band_5g?"5 GHz":"2.4 GHz"):"BLE";
         h+='<div class="hop"><span class="dot"></span><div class="body">'+
-          '<span class="chip"><span class="lyr '+(w?"w":"b")+'">'+(w?"WIFI":"BLE")+
-          "</span>"+(nm?"<b>"+esc(nm)+"</b> ":"")+'<span class="mono">'+esc(mb.mac)+
-          "</span></span>"+
+          memberCard({mac:mb.mac,kind:w?"wifi":"ble",name:nm||mb.mac,
+            rssi:mb.rec&&typeof mb.rec.rssi==="number"?mb.rec.rssi:null,
+            band:w?(mb.rec.band_5g?"5G":"2.4G"):null})+
           '<span class="rng">scans '+esc(slotLabel(mb.p.first))+"–"+
           esc(slotLabel(mb.p.last))+" · "+esc(band)+" · seen "+mb.p.seen+"/"+
-          mb.p.total+"</span> "+presStrip(mb.p)+" "+devLink(mb.mac)+
+          mb.p.total+"</span> "+presStrip(mb.p)+" "+
           (i<c.members.length-1?'<div class="small dim" style="margin-top:3px">'+
             "↓ address changed</div>":"")+
           "</div></div>";
@@ -2805,12 +3681,12 @@ function renderClusters(){
       h+="<div>";
       for(const mb of c.members){
         const w=mb.kind==="wifi",nm=w?mb.rec.ssid:(mb.rec.name||mb.rec.vendor||"");
-        h+='<div style="margin:4px 0"><span class="chip"><span class="lyr '+
-          (w?"w":"b")+'">'+(w?"WIFI":"BLE")+"</span>"+(nm?"<b>"+esc(nm)+"</b> ":"")+
-          '<span class="mono">'+esc(mb.mac)+"</span></span> "+presStrip(mb.p)+
+        h+='<div style="margin:4px 0">'+
+          memberCard({mac:mb.mac,kind:w?"wifi":"ble",name:nm||mb.mac,
+            rssi:mb.rec&&typeof mb.rec.rssi==="number"?mb.rec.rssi:null,
+            band:w?(mb.rec.band_5g?"5G":"2.4G"):null})+" "+presStrip(mb.p)+
           ' <span class="dim">scans '+esc(slotLabel(mb.p.first))+"–"+
-          esc(slotLabel(mb.p.last))+" ("+mb.p.seen+"/"+mb.p.total+")</span> "+
-          devLink(mb.mac)+"</div>";
+          esc(slotLabel(mb.p.last))+" ("+mb.p.seen+"/"+mb.p.total+")</span></div>";
       }
       h+="</div>"+'<div class="small dim" style="margin-top:6px">'+
         c.overlap+" scan pass"+(c.overlap>1?"es":"")+" heard 2+ of these addresses "+
@@ -2821,7 +3697,10 @@ function renderClusters(){
   }
   const rcHtml=M.slots.length<2?
     empty("Single scan loaded — use Import (or run more scan passes) to trace devices across scans."):
-    (tgrid(RC,"Cross scan clusters","rc",xcIcon,rcName,xcPanel)||
+    (tgrid(RC,"Cross scan clusters","rc",
+       c=>{const mb=c.members[0];return{icon:rcIcon(c),name:rcName(c),mac:mb.mac,
+         ...kindOf(mb.kind),ico:iconSpan(xcType(c))};},
+       xcPanel)||
      empty("No cross-scan matches — no device was seen in two scans under a "+
        "different address with >70 confidence of being the same unit."));
   const nicN=veh.length+net.length+bt.length+supBle.length;
@@ -2846,18 +3725,47 @@ function renderClusters(){
     };
   });
   root.querySelectorAll(".ctile").forEach(b=>{
-    b.onclick=()=>{
-      const wasOpen=b.classList.contains("open");
-      root.querySelectorAll(".ctile.open").forEach(x=>{
-        x.classList.remove("open");x.setAttribute("aria-expanded","false");});
-      root.querySelectorAll(".cdet").forEach(d=>d.style.display="none");
-      if(!wasOpen){
-        b.classList.add("open");b.setAttribute("aria-expanded","true");
-        root.querySelector('.cdet[data-g="'+b.dataset.g+'"][data-i="'+b.dataset.i+'"]')
-          .style.display="";
-      }
-    };
+    b.onclick=()=>openClusterModal(b.dataset.g,b.dataset.i);
   });
+}
+
+// Cluster detail popup. Clones the (hidden) .cdet panel for a given tile into a
+// modal sheet instead of expanding it inline, so opening one card never shifts
+// the others. A member's "view result" link jumps to its Wi-Fi/BLE card and
+// closes the popup; a cross-link to another cluster re-points the same popup.
+let clWired=false;
+function clModalClose(){const ov=$("clov");if(ov)ov.hidden=true;}
+function openClusterModal(g,i){
+  const root=$("clusters");if(!root)return;
+  const det=root.querySelector('.cdet[data-g="'+g+'"][data-i="'+i+'"]');
+  if(!det)return;
+  const tile=root.querySelector('.ctile[data-g="'+g+'"][data-i="'+i+'"]');
+  root.querySelectorAll(".ctile.open").forEach(x=>{
+    x.classList.remove("open");x.setAttribute("aria-expanded","false");});
+  if(tile){tile.classList.add("open");tile.setAttribute("aria-expanded","true");}
+  const title=(tile&&tile.querySelector(".ctname"))?
+    tile.querySelector(".ctname").textContent:"Cluster detail";
+  const ov=$("clov"),sheet=$("clsheet");
+  sheet.innerHTML='<div class="clhd"><h3>'+esc(title)+"</h3>"+
+    '<button class="clx" type="button" aria-label="Close">✕</button></div>'+
+    '<div class="clbody">'+det.innerHTML+"</div>";
+  sheet.querySelector(".clx").onclick=clModalClose;
+  if(!clWired){
+    clWired=true;
+    ov.addEventListener("click",e=>{if(e.target===ov)clModalClose();});
+    // A "view result" link navigates to a device card, so drop the popup after.
+    // A cross-cluster "view" link re-opens the popup on the other cluster, so
+    // openClusterModal has already repainted the sheet — leave it open.
+    // Capture phase: the member links call event.stopPropagation() in their own
+    // handler, so a bubbling listener here would never see the click.
+    sheet.addEventListener("click",e=>{
+      const a=e.target.closest(".plink,.clink,.mcard");
+      if(a&&/gotoDevice/.test(a.getAttribute("onclick")||""))clModalClose();
+    },true);
+    addEventListener("keydown",e=>{
+      if(e.key==="Escape"&&!ov.hidden)clModalClose();});
+  }
+  ov.hidden=false;sheet.scrollTop=0;
 }
 
 function renderTrackers(){
@@ -3407,7 +4315,7 @@ function renderNav(){
     ["s-ble","BLE",FB.length,1],
     ["s-clusters","Clusters",FC.length,1],
     ["s-trackers","Trackers",FT.length,1],
-    ["s-alerts","Notifications",FA.length,1],
+    ["s-alerts","Notices",FA.length,1],
     ["s-privacy","Privacy",availPrivacy(),1],
     ["s-channel","Channels",0,1],
     ["s-raw","Raw",M.total,1],
@@ -3441,11 +4349,9 @@ function gotoCluster(g,i){
   const tb=root.querySelector('.ctab[data-t="'+sub+'"]');
   if(tb&&!tb.classList.contains("act"))tb.click();
   const tile=root.querySelector('.ctile[data-g="'+g+'"][data-i="'+i+'"]');
-  if(!tile)return;
-  if(!tile.classList.contains("open"))tile.click();
-  tile.scrollIntoView({block:"center"});
-  tile.style.outline="3px solid var(--acc2)";tile.style.outlineOffset="2px";
-  setTimeout(()=>{tile.style.outline="";tile.style.outlineOffset="";},1700);
+  if(tile)tile.scrollIntoView({block:"center"});
+  // Open the detail popup for this cluster (repoints it if one is already up).
+  openClusterModal(g,i);
 }
 
 function fillSel(id,anyLabel,pairs){
@@ -3979,6 +4885,8 @@ function renderAll(){
   $("app").style.display="block";
   $("bar").style.display="block";
   $("addcap").style.display="";
+  // Refresh only makes sense when served live from a device (not a file:// report).
+  $("refbtn").style.display=deviceOnline()?"":"none";
   populateFilters();
   readFilters();
   applyFilter();
@@ -4131,6 +5039,162 @@ fpick.onchange=()=>{
   fpick.value="";
 };
 $("addcap").onclick=()=>fpick.click();
+
+// Refresh: re-pull the device's current results (served from the head's uncapped SD
+// store) and fold them back into the device session, so a scan or walk shows up
+// without reloading the page. Mirrors importCarved's session-replace so we never
+// duplicate the pre-existing device records.
+function refreshDevice(){
+  const b=$("refbtn");if(!b||b.disabled)return;
+  // When the cluster accumulator owns the device session, a full-ring replace would
+  // clobber the results it has offloaded from PSRAM. Force an incremental pull instead.
+  if(ACC_ON){
+    const label=b.textContent;b.disabled=true;b.textContent="Refreshing…";
+    // Turn the cluster blocks OFF for the duration of the pull, then back ON. Those blocks each
+    // hold one of the ESP32's few HTTP sockets, starving accPull's request; suspending them
+    // (and disabling their controls) lets the refresh get through, then we resume.
+    const wasPolling=DP.started;
+    dpBusy(true);
+    accPull().finally(()=>{
+      b.disabled=false;b.textContent=label;
+      dpBusy(false);if(wasPolling)dpSchedule(300);
+    });
+    return;
+  }
+  const label=b.textContent;b.disabled=true;b.textContent="Refreshing…";
+  dpBusy(true);
+  fetch("/api/captures/live.jsonl",{cache:"no-store"})
+    .then(r=>{if(!r.ok)throw new Error("device did not answer");return r.text();})
+    .then(txt=>{
+      const pr=parseCapture(txt);
+      if(!pr.recs.length)throw new Error("no records returned");
+      const sess={label:"SniffCheck device",recs:pr.recs,bad:pr.bad};
+      if(DEVICE_SESSION>=0&&DEVICE_SESSION<SESSIONS.length)SESSIONS[DEVICE_SESSION]=sess;
+      else{SESSIONS.push(sess);DEVICE_SESSION=SESSIONS.length-1;}
+      renderAll();
+    })
+    .catch(e=>alert("Refresh failed: "+(e.message||e)))
+    .finally(()=>{b.disabled=false;b.textContent=label;
+      dpBusy(false);if(DP.started)dpSchedule(300);});
+}
+$("refbtn").onclick=refreshDevice;
+
+// ==== Cluster result accumulator (IndexedDB offload) ==========================
+// Problem: the brain serves report.html from a PSRAM ring that drop_oldest()s under
+// load, so a long walk with thousands of sightings silently loses the earliest ones.
+// Fix: the browser becomes the durable accumulator for THIS scan session. We pull
+// only NEW records from the ring (GET /api/captures/live.jsonl?since=<cursor>, which
+// the firmware skips server-side) and persist them to IndexedDB, deduped by device
+// identity. The ring can evict freely; the browser keeps everything it has seen, so
+// the results view keeps climbing past what PSRAM holds. Cluster-only: kicked off
+// from dpPoll once /api/cluster/status confirms a cluster, so the standalone
+// one-shot report is untouched. Per-scan-session: the store is keyed by the firmware
+// session id (X-SC-Session) and cleared when that changes.
+const RS_DB="sc-results",RS_RECS="recs",RS_META="meta";
+let ACC_ON=false,ACC_CURSOR=0,ACC_SESSION=null,ACC_GAP=false,rsDB=null,accBusy=false;
+
+function rsOpen(){
+  return new Promise((res,rej)=>{
+    if(rsDB)return res(rsDB);
+    if(!("indexedDB"in window))return rej(new Error("no IndexedDB"));
+    const q=indexedDB.open(RS_DB,1);
+    q.onupgradeneeded=()=>{const db=q.result;
+      if(!db.objectStoreNames.contains(RS_RECS))db.createObjectStore(RS_RECS);
+      if(!db.objectStoreNames.contains(RS_META))db.createObjectStore(RS_META);};
+    q.onsuccess=()=>{rsDB=q.result;res(rsDB);};
+    q.onerror=()=>rej(q.error);
+  });
+}
+function rsTx(store,mode,fn){
+  return rsOpen().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction(store,mode),st=tx.objectStore(store);
+    let out;try{out=fn(st);}catch(e){rej(e);return;}
+    tx.oncomplete=()=>res(out);tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error);
+  }));
+}
+function rsGetMeta(){return rsTx(RS_META,"readonly",st=>st.get("state"))
+  .then(r=>new Promise(res=>{r.onsuccess=()=>res(r.result||{});r.onerror=()=>res({});}));}
+function rsSetMeta(m){return rsTx(RS_META,"readwrite",st=>{st.put(m,"state");});}
+function rsClear(){return rsTx(RS_RECS,"readwrite",st=>{st.clear();});}
+function rsPutAll(pairs){return rsTx(RS_RECS,"readwrite",st=>{for(const[k,v]of pairs)st.put(v,k);});}
+function rsAll(){return rsTx(RS_RECS,"readonly",st=>st.getAll())
+  .then(r=>new Promise(res=>{r.onsuccess=()=>res(r.result||[]);r.onerror=()=>res([]);}));}
+
+// Stable dedupe identity. Slice 1: the brain now dedupes into a session device table and
+// serves ONE durable row per device (carrying first_scan/last_scan/seen), so we key device
+// records by type|MAC and UPSERT — the browser mirrors the brain instead of stacking a row
+// per scan window. Non-device seed singletons key by type|content-hash.
+function accMac(r){const pk=PRES_KINDS[r&&r.type];return pk?pk[1](r):null;}
+function accHash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return(h>>>0).toString(36);}
+function accKey(r){
+  const mac=accMac(r);
+  if(mac)return r.type+"|"+String(mac).toUpperCase();
+  return (r&&r.type||"?")+"|"+accHash(JSON.stringify(r));
+}
+function accIngest(recs){const pairs=[];for(const r of recs)if(r&&typeof r==="object")pairs.push([accKey(r),r]);return pairs;}
+
+// Rebuild the device session from everything in the store and re-render.
+function accApply(){
+  return rsAll().then(recs=>{
+    const sess={label:"SniffCheck cluster · "+recs.length.toLocaleString()+" accumulated"+
+      (ACC_GAP?" · ⚠ some sightings missed":""),recs,bad:0};
+    if(DEVICE_SESSION>=0&&DEVICE_SESSION<SESSIONS.length)SESSIONS[DEVICE_SESSION]=sess;
+    else{SESSIONS.push(sess);DEVICE_SESSION=SESSIONS.length-1;}
+    renderAll();
+  });
+}
+
+function accStart(){
+  if(ACC_ON||!deviceOnline()||!("indexedDB"in window))return;
+  ACC_ON=true;
+  // Seed the store with whatever the initial data island already showed, so nothing is
+  // lost even if the ring evicts those records before our first pull lands.
+  const seed=(DEVICE_SESSION>=0&&SESSIONS[DEVICE_SESSION])?SESSIONS[DEVICE_SESSION].recs:[];
+  rsGetMeta()
+    .then(m=>{ACC_CURSOR=m.cursor||0;ACC_SESSION=m.session||null;
+      return seed.length?rsPutAll(accIngest(seed)):null;})
+    .then(accApply)
+    .catch(e=>{console.warn("accumulator disabled:",e);ACC_ON=false;})
+    .finally(()=>{if(ACC_ON)accSchedule();});
+}
+let accT=null;
+function accSchedule(){clearTimeout(accT);accT=setTimeout(accPull,4000);}
+
+// One incremental pull: fetch the brain's device rows changed since our window cursor
+// (GET /api/cluster/devices?since=<window>), upsert them by device identity, advance the
+// cursor to X-SC-Merge, reset on a brain restart (X-SC-Session), and re-render only when
+// something actually changed. The brain table is bounded, so this stays small even on a
+// long walk; IndexedDB remains the browser's durable layer if the brain evicts its oldest.
+function accPull(){
+  if(!ACC_ON)return Promise.resolve();
+  if(accBusy){accSchedule();return Promise.resolve();}
+  accBusy=true;
+  return fetch("/api/cluster/devices?since="+ACC_CURSOR,{cache:"no-store"})
+    .then(r=>{if(!r.ok)throw new Error("device did not answer");
+      const merge=parseInt(r.headers.get("X-SC-Merge"),10),
+            sess=r.headers.get("X-SC-Session")||"";
+      return r.text().then(t=>({merge,sess,t}));})
+    .then(({merge,sess,t})=>{
+      let pre=Promise.resolve();
+      if(sess&&ACC_SESSION&&sess!==ACC_SESSION){          // brain restarted -> reset mirror
+        pre=rsClear().then(()=>{ACC_CURSOR=0;ACC_GAP=false;});
+      }
+      return pre.then(()=>{
+        if(sess)ACC_SESSION=sess;
+        const pr=parseCapture(t),pairs=accIngest(pr.recs);
+        const p=pairs.length?rsPutAll(pairs):Promise.resolve();
+        return p.then(()=>{
+          if(Number.isFinite(merge)&&merge>=ACC_CURSOR)ACC_CURSOR=merge;
+          return rsSetMeta({cursor:ACC_CURSOR,session:ACC_SESSION});
+        }).then(()=>pairs.length>0);
+      });
+    })
+    .then(changed=>{ if(changed) return accApply(); })
+    .catch(e=>{console.warn("accumulator pull failed:",e&&e.message||e);})
+    .finally(()=>{accBusy=false;if(ACC_ON)accSchedule();});
+}
+// ==============================================================================
+
 drop.ondragover=e=>{e.preventDefault();drop.classList.add("hover");};
 drop.ondragleave=()=>drop.classList.remove("hover");
 drop.ondrop=e=>{
@@ -4188,6 +5252,8 @@ addEventListener("visibilitychange",()=>{if(!document.hidden)pollConn();});
 <div id="expov" hidden><div id="expsheet" role="dialog" aria-modal="true" aria-label="Export"></div></div>
 <div id="smov" hidden><div id="smsheet" role="dialog" aria-modal="true" aria-label="Customize summary"></div></div>
 <div id="wlov" hidden><div id="wlsheet" role="dialog" aria-modal="true" aria-label="Watchlist"></div></div>
+<div id="clov" hidden><div id="clsheet" role="dialog" aria-modal="true" aria-label="Cluster detail"></div></div>
+<div id="epov" hidden><div id="epsheet" role="dialog" aria-modal="true" aria-label="Detail"></div></div>
 <div id="rcov"><div id="rcbox">
   <h3 id="rctitle">Scan running</h3>
   <div class="rcmsg" id="rcmsg"></div>

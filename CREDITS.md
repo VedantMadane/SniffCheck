@@ -32,21 +32,6 @@ still names the source that first surfaced it.
 * esp_lcd ST7735 panel driver, by Espressif Systems. Apache 2.0. Drives the LCD.
   https://github.com/espressif/esp-bsp
 
-
-## Dog Park X4 orchestrator firmware
-
-The Dog Park X4 image (`firmware/dogpark-x4-c3.bin`) is a separate SniffCheck
-firmware flavor for the Xteink X4 (ESP32-C3). Alongside SniffCheck's own code it
-bundles or references:
-
-* font8x8 by Daniel Hepper. Public domain (based on Marcel Sondaar / IBM
-  public-domain VGA fonts). Bundled for e-ink text rendering.
-  https://github.com/dhepper/font8x8
-* SSD1677 e-ink command sequence, re-implemented from the controller datasheet
-  and cross-checked against GxEPD2 by Jean-Marc Zingg. Hardware and protocol
-  facts only; no source was copied. https://github.com/ZinggJM/GxEPD2
-* Xteink X4 "open-x4" community SDK, used as the board pin-map reference.
-
 ## Bundled in the web flasher
 
 * Adafruit WebSerial ESPTool (with ESP32-C5 support). MIT, Copyright Nabu Casa
@@ -62,9 +47,6 @@ bundles or references:
 * ESP32Marauder by justcallmekoko: https://github.com/justcallmekoko/ESP32Marauder
 * piglet by Hamspiced: https://github.com/Hamspiced/piglet
 * Biscuit DIY: https://biscuitshop.us/products/biscuit-pro, https://github.com/CodeHedge/biscuit_flasher
-* Biscuit (Xteink X4 firmware) by yattsu, with its CrossPoint-Reader upstream:
-  the approach there inspired the Dog Park X4 orchestrator port to the Xteink X4.
-  https://github.com/yattsu/biscuit, https://github.com/crosspoint-reader/crosspoint-reader
 
 Creators whose videos inspired me to build SniffCheck:
 

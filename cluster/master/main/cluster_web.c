@@ -11,6 +11,8 @@
 
 static const char *TAG = "cluster-web";
 
+#define DEV_LINE_STREAM_MAX 3200
+
 extern const char _binary_dogpark_dashboard_html_start[];
 
 static esp_err_t dogpark_get(httpd_req_t *req)
@@ -218,6 +220,36 @@ static esp_err_t hits_get(httpd_req_t *req)
     return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
 }
 
+static esp_err_t devices_get(httpd_req_t *req)
+{
+    uint32_t since = 0;
+    char q[24], sv[16];
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
+        httpd_query_key_value(q, "since", sv, sizeof(sv)) == ESP_OK)
+        since = (uint32_t)strtoul(sv, NULL, 10);
+
+    char hmerge[12];
+    snprintf(hmerge, sizeof(hmerge), "%lu", (unsigned long)master_cluster_merge_count());
+    httpd_resp_set_type(req, "application/x-ndjson");
+    httpd_resp_set_hdr(req, "X-SC-Merge", hmerge);
+    httpd_resp_set_hdr(req, "X-SC-Session", master_cluster_session_id());
+
+    static char line[DEV_LINE_STREAM_MAX];
+    int n = master_cluster_device_count(), sent = 0;
+    for (int i = 0; i < n; i++) {
+        int l = master_cluster_device_json(i, since, line, sizeof(line));
+        if (l > 0) {
+            line[l] = '\n';
+            httpd_resp_send_chunk(req, line, l + 1);
+            sent++;
+        }
+    }
+    httpd_resp_send_chunk(req, NULL, 0);
+    ESP_LOGI(TAG, "/api/cluster/devices?since=%lu -> %d/%d devices",
+             (unsigned long)since, sent, n);
+    return ESP_OK;
+}
+
 static esp_err_t time_post(httpd_req_t *req)
 {
     char buf[24];
@@ -250,6 +282,7 @@ esp_err_t cluster_web_start(httpd_handle_t server)
         { .uri = "/dogpark",            .method = HTTP_GET,  .handler = dogpark_get },
         { .uri = "/api/gps",            .method = HTTP_POST, .handler = gps_post },
         { .uri = "/api/cluster/status", .method = HTTP_GET,  .handler = status_get },
+        { .uri = "/api/cluster/devices", .method = HTTP_GET, .handler = devices_get },
         { .uri = "/api/cluster/log",    .method = HTTP_GET,  .handler = log_get },
         { .uri = "/api/cluster/sentinel", .method = HTTP_GET,  .handler = sentinel_get },
         { .uri = "/api/cluster/sentinel", .method = HTTP_POST, .handler = sentinel_post },

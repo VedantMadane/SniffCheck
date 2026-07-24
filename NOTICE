@@ -36,14 +36,6 @@ its copyright and license retained:
     https://github.com/espressif/esp-bsp
 
 
-The Dog Park X4 image (firmware/dogpark-x4-c3.bin) additionally includes:
-
-  * font8x8 bitmap font
-    by Daniel Hepper, based on Marcel Sondaar / IBM public-domain VGA fonts.
-    Public domain. Used for e-ink text rendering.
-    https://github.com/dhepper/font8x8
-
-
 The web flasher in this repository includes:
 
   * Adafruit WebSerial ESPTool

@@ -24,7 +24,7 @@ Some parts of SniffCheck were built with help from friends and AI along the way.
 
 Open the web flasher: https://sniffcheck.github.io/SniffCheck/ or open `index.html` from this folder in Chrome or Edge on a desktop.
 
-1. Pick a firmware (SniffCheck, SniffCheck Node, or Dog Park X4 orchestrator).
+1. Pick a firmware: SniffCheck (standalone), or a Dog Park cluster role (brain, arm, or S3 node).
 2. Plug the matching board into a USB port.
 3. Click Install, pick the serial port, and wait.
 
@@ -37,8 +37,9 @@ If the dongle is not found, unplug it, hold the BOOT button, plug it back in whi
 Each image under `firmware/` is one merged build (bootloader, partition table, firmware, and any bundled data), so the board works on first boot:
 
 * `sniffcheck-merged.bin` — SniffCheck, the standalone RF audit tool (T-Dongle C5).
-* `sniffcheck-node-c5.bin` — SniffCheck Node, a scanner that reports to a Dog Park orchestrator (ESP32-C5).
-* `dogpark-x4-c3.bin` — Dog Park X4 orchestrator with the e-ink UI (Xteink X4, ESP32-C3).
+* `sniffcheck-cluster-brain-merged.bin` — Dog Park cluster **brain**: the I2C host that runs the web app (ESP32-C5).
+* `sniffcheck-cluster-arm-merged.bin` — Dog Park cluster **arm**: a headless scanner (ESP32-C5); the vendor database is bundled in.
+* `sniffcheck-cluster-s3node-merged.bin` — Dog Park cluster **S3 node**: microSD record store, sentinel, and LCD (ESP32-S3).
 
 `firmware/checksums.txt` lists the SHA-256 of each image.
 
@@ -69,7 +70,7 @@ If SniffCheck marks a network as safe, you can choose to connect your phone to t
 
 ## Roadmap notes
 
-Dog Park connects multiple SniffCheck devices into one coordinated session. An orchestrator (the Dog Park X4, running on an Xteink X4 e-ink device) admits scanner nodes, assigns them Wi-Fi channels for coordinated wardriving (Walk mode), and can put them into perimeter watch (Guard Dog mode). The orchestrator and node firmwares are in the web flasher now.
+Dog Park connects multiple SniffCheck boards into one coordinated session. A **brain** (ESP32-C5) hosts the web app and aggregates, over an I2C bus, what the **arm** scanners (ESP32-C5) find; an **S3 node** (ESP32-S3) keeps the full record history on microSD and runs the sentinel watchlist. The cluster firmwares are in the web flasher now. See `DogParkClusterS3.md` for the full guide.
 
 This is still a demo. It is not a final product. The hardware is bulky, the artwork is still rough, and the feature set is still changing.
 
@@ -101,10 +102,11 @@ Hardware details:
 
 Product page: https://lilygo.cc/en-us/products/t-dongle-c5
 
-The Dog Park firmwares run on two more boards:
+The Dog Park cluster firmwares run on more boards:
 
-* **SniffCheck Node** — any ESP32-C5 board (the T-Dongle C5 works); a headless scanner that reports to an orchestrator.
-* **Dog Park X4 orchestrator** — the Xteink X4 (ESP32-C3, 4.26" 800x480 e-ink, 7 buttons, microSD). It runs the session UI, channel scheduler, and SD/WiGLE export.
+* **Brain** — an ESP32-C5 (the T-Dongle C5 works); the I2C host that runs the web app and aggregates results.
+* **Arm** — one ESP32-C5 per scanner; headless, hands its scansets to the brain over I2C.
+* **S3 node** — an ESP32-S3 (LilyGO T-Dongle-S3); the microSD record store, sentinel watchlist, and status LCD.
 
 As I keep prototyping, I plan to work toward a custom PCB that people can order and build themselves.
 

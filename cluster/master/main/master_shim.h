@@ -22,3 +22,8 @@ void master_cluster_hits_json(char *buf, size_t buflen);
 void master_on_settime(uint32_t epoch);
 
 void master_on_brain_reset(void);
+
+uint32_t    master_cluster_merge_count(void);
+const char *master_cluster_session_id(void);
+int         master_cluster_device_count(void);
+int         master_cluster_device_json(int idx, uint32_t since, char *buf, size_t buflen);

@@ -1,86 +1,71 @@
 // SniffCheck web flasher glue.
 //
 // Drives the vendored Adafruit/CodeHedge WebSerial ESPTool engine
-// (esptool/index.js), which flashes the ESP32-C5 board without the
+// (esptool/index.js), which flashes the ESP32 board without the
 // esptool-js stub path that times out in esp-web-tools 10.2.1
 // (see esphome/esp-web-tools#687).
 //
 // Each firmware is one merged image (bootloader + partition table + app + data)
-// flashed at offset 0x0. The user picks a firmware, plugs in the matching board,
-// and clicks Install; the chip is checked against the picked firmware first.
+// flashed at offset 0x0. The picker cascades brand -> device -> firmware family
+// -> firmware; the leaf firmware is chip-checked before the flash begins.
 
 import { connect } from "./esptool/index.js";
 
-// id -> firmware metadata used for chip gating and pre-erase image validation.
-const TARGETS = {
-  "sniffcheck-c5": {
-    label: "SniffCheck (T-Dongle C5)",
+// Every flashable image, tagged for the cascade. brand/device/family drive the
+// three filter steps; role disambiguates the several cluster images on one chip.
+const FIRMWARES = [
+  {
+    id: "standalone-c5", brand: "lilygo", device: "c5", family: "standalone",
+    role: "SniffCheck",
+    label: "SniffCheck — T-Dongle C5 (ESP32-C5)",
     url: "firmware/sniffcheck-merged.bin",
-    chip: /c5/i,
-    chipName: "ESP32-C5",
-    imageChipId: 23,
-    bootloaderOffset: 0x2000,
-    appOffset: 0x10000,
-    offset: 0x0,
+    chip: /c5/i, chipName: "ESP32-C5", imageChipId: 23,
+    bootloaderOffset: 0x2000, appOffset: 0x10000, offset: 0x0,
   },
-  "node-c5": {
-    label: "SniffCheck Node (ESP32-C5)",
-    url: "firmware/sniffcheck-node-c5.bin",
-    chip: /c5/i,
-    chipName: "ESP32-C5",
-    imageChipId: 23,
-    bootloaderOffset: 0x2000,
-    appOffset: 0x10000,
-    offset: 0x0,
-  },
-  "cluster-master": {
-    label: "Dog Park cluster — master (ESP32-C5)",
-    url: "firmware/sniffcheck-cluster-master-merged.bin",
-    chip: /c5/i,
-    chipName: "ESP32-C5",
-    imageChipId: 23,
-    bootloaderOffset: 0x2000,
-    appOffset: 0x10000,
-    offset: 0x0,
-  },
-  "cluster-arm": {
-    label: "Dog Park cluster — arm (ESP32-C5)",
-    url: "firmware/sniffcheck-cluster-arm-merged.bin",
-    chip: /c5/i,
-    chipName: "ESP32-C5",
-    imageChipId: 23,
-    bootloaderOffset: 0x2000,
-    appOffset: 0x10000,
-    offset: 0x0,
-  },
-  "cluster-brain": {
+  {
+    id: "cluster-brain", brand: "lilygo", device: "c5", family: "cluster",
+    role: "Brain",
     label: "Dog Park cluster — brain (ESP32-C5)",
     url: "firmware/sniffcheck-cluster-brain-merged.bin",
-    chip: /c5/i,
-    chipName: "ESP32-C5",
-    imageChipId: 23,
-    bootloaderOffset: 0x2000,
-    appOffset: 0x10000,
-    offset: 0x0,
+    chip: /c5/i, chipName: "ESP32-C5", imageChipId: 23,
+    bootloaderOffset: 0x2000, appOffset: 0x10000, offset: 0x0,
   },
-  "cluster-s3node": {
+  {
+    id: "cluster-arm", brand: "lilygo", device: "c5", family: "cluster",
+    role: "Arm",
+    label: "Dog Park cluster — arm (ESP32-C5)",
+    url: "firmware/sniffcheck-cluster-arm-merged.bin",
+    chip: /c5/i, chipName: "ESP32-C5", imageChipId: 23,
+    bootloaderOffset: 0x2000, appOffset: 0x10000, offset: 0x0,
+  },
+  {
+    id: "cluster-s3node", brand: "lilygo", device: "s3", family: "cluster",
+    role: "S3 node",
     label: "Dog Park cluster — S3 node (ESP32-S3)",
     url: "firmware/sniffcheck-cluster-s3node-merged.bin",
-    chip: /s3/i,
-    chipName: "ESP32-S3",
-    imageChipId: 9,
-    bootloaderOffset: 0x0,
-    appOffset: 0x10000,
-    offset: 0x0,
+    chip: /s3/i, chipName: "ESP32-S3", imageChipId: 9,
+    bootloaderOffset: 0x0, appOffset: 0x10000, offset: 0x0,
   },
-};
-const DEFAULT_TARGET = "sniffcheck-c5";
+];
+
+// Brands shown in step 1. `soon` brands have no firmware yet but keep their slot.
+const BRANDS = [
+  { id: "lilygo", label: "LilyGo" },
+  { id: "xiao", label: "Xiao (Seeed)", soon: true },
+];
+const DEVICE_LABELS = { c5: "ESP32-C5", s3: "ESP32-S3" };
+const FAMILY_LABELS = { standalone: "Standalone", cluster: "Dog Park cluster" };
 
 const installBtn = document.getElementById("install");
+const brandSel = document.getElementById("brand");
+const deviceSel = document.getElementById("device");
+const familySel = document.getElementById("family");
 const targetSel = document.getElementById("target");
+const noteEl = document.getElementById("picknote");
 const logEl = document.getElementById("log");
 const barEl = document.getElementById("bar");
 const barFill = document.getElementById("barfill");
+const SELS = [brandSel, deviceSel, familySel, targetSel];
 
 function log(line) {
   logEl.style.display = "block";
@@ -98,9 +83,81 @@ function formatMac(mac) {
   return mac.map((b) => b.toString(16).toUpperCase().padStart(2, "0")).join(":");
 }
 
-function currentTarget() {
-  return TARGETS[targetSel && targetSel.value] || TARGETS[DEFAULT_TARGET];
+// --- cascade -------------------------------------------------------------
+// Each step fills the next select from FIRMWARES filtered by the choices so
+// far, then either advances or, at a dead end, notes why and disables Install.
+
+const serialOK = "serial" in navigator;
+
+function fill(sel, items, valueOf, labelOf) {
+  sel.innerHTML = "";
+  for (const it of items) {
+    const o = document.createElement("option");
+    o.value = valueOf(it);
+    o.textContent = labelOf(it);
+    sel.appendChild(o);
+  }
+  sel.disabled = items.length === 0;
 }
+
+function uniq(arr) { return [...new Set(arr)]; }
+
+function setNote(msg) { noteEl.textContent = msg || ""; }
+
+function firmwareReady(ok) {
+  installBtn.disabled = !(ok && serialOK);
+}
+
+function onBrand() {
+  const brand = brandSel.value;
+  const meta = BRANDS.find((b) => b.id === brand);
+  const devices = uniq(FIRMWARES.filter((f) => f.brand === brand).map((f) => f.device));
+  if ((meta && meta.soon) || devices.length === 0) {
+    fill(deviceSel, [], (d) => d, (d) => d);
+    fill(familySel, [], (f) => f, (f) => f);
+    fill(targetSel, [], (t) => t, (t) => t);
+    setNote(`No ${meta ? meta.label : brand} firmware yet — coming soon.`);
+    firmwareReady(false);
+    return;
+  }
+  fill(deviceSel, devices, (d) => d, (d) => DEVICE_LABELS[d] || d);
+  onDevice();
+}
+
+function onDevice() {
+  const brand = brandSel.value, device = deviceSel.value;
+  const families = uniq(
+    FIRMWARES.filter((f) => f.brand === brand && f.device === device).map((f) => f.family)
+  );
+  fill(familySel, families, (f) => f, (f) => FAMILY_LABELS[f] || f);
+  onFamily();
+}
+
+function onFamily() {
+  const brand = brandSel.value, device = deviceSel.value, family = familySel.value;
+  const matches = FIRMWARES.filter(
+    (f) => f.brand === brand && f.device === device && f.family === family
+  );
+  fill(targetSel, matches, (f) => f.id, (f) => f.role || f.label);
+  if (matches.length === 0) {
+    setNote("No firmware for this combination yet.");
+    firmwareReady(false);
+  } else {
+    setNote("");
+    firmwareReady(true);
+  }
+}
+
+function currentTarget() {
+  return FIRMWARES.find((f) => f.id === (targetSel && targetSel.value)) || null;
+}
+
+fill(brandSel, BRANDS, (b) => b.id, (b) => (b.soon ? `${b.label} (coming soon)` : b.label));
+brandSel.addEventListener("change", onBrand);
+deviceSel.addEventListener("change", onDevice);
+familySel.addEventListener("change", onFamily);
+targetSel.addEventListener("change", () => firmwareReady(!!currentTarget()));
+onBrand();
 
 function validateImageHeader(firmware, offset, expectedChipId, description) {
   const headerLength = 24;
@@ -155,7 +212,7 @@ function validateFirmware(buf, target) {
 }
 
 // Web Serial gate.
-if (!("serial" in navigator)) {
+if (!serialOK) {
   installBtn.disabled = true;
   const u = document.getElementById("unsupported");
   if (u) u.style.display = "block";
@@ -165,13 +222,13 @@ let busy = false;
 
 installBtn.addEventListener("click", async () => {
   if (busy) return;
+  const target = currentTarget();
+  if (!target) return;
   busy = true;
   installBtn.disabled = true;
-  if (targetSel) targetSel.disabled = true;
+  SELS.forEach((s) => { if (s) s.disabled = true; });
   logEl.textContent = "";
   barFill.style.width = "0";
-
-  const target = currentTarget();
 
   let esploader;
   let stub;
@@ -221,8 +278,8 @@ installBtn.addEventListener("click", async () => {
         await esploader.disconnect();
       }
     } catch (_) { /* ignore close races */ }
-    installBtn.disabled = !("serial" in navigator);
-    if (targetSel) targetSel.disabled = false;
+    SELS.forEach((s) => { if (s) s.disabled = false; });
+    firmwareReady(!!currentTarget());
     busy = false;
   }
 });

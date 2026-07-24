@@ -10,11 +10,12 @@ Images shipped here:
 | Firmware                              | Board     | Merged image                              |
 |---------------------------------------|-----------|-------------------------------------------|
 | SniffCheck (standalone)               | ESP32-C5  | `sniffcheck-merged.bin`                   |
-| SniffCheck Node                       | ESP32-C5  | `sniffcheck-node-c5.bin`                  |
-| Dog Park cluster — master             | ESP32-C5  | `sniffcheck-cluster-master-merged.bin`    |
-| Dog Park cluster — arm                | ESP32-C5  | `sniffcheck-cluster-arm-merged.bin`       |
 | Dog Park cluster — brain              | ESP32-C5  | `sniffcheck-cluster-brain-merged.bin`     |
+| Dog Park cluster — arm                | ESP32-C5  | `sniffcheck-cluster-arm-merged.bin`       |
 | Dog Park cluster — S3 node            | ESP32-S3  | `sniffcheck-cluster-s3node-merged.bin`    |
+
+The cluster **arm** merged image bundles the vendor database (`data/eui.bin`) at
+`0x310000`, so scanned devices resolve to real vendor names and categories.
 
 `checksums.txt` holds a `sha256` for every `.bin`; the S3-node image is the only
 ESP32-S3 build (the flasher checks the chip family before writing).

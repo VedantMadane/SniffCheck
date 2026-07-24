@@ -48,5 +48,11 @@ for r in "${ROLES[@]}"; do
     run "build" "$r-build" idf.py -B "$BD" $D build
     [ "$MODE" = "build" ] && continue
     run "flash ($(port "$r"))" "$r-flash" idf.py -B "$BD" -p "$(port "$r")" flash
+    case "$r" in arm1|arm2)
+        run "euidb ($(port "$r"))" "$r-euidb" \
+            python -m esptool --chip esp32c5 --port "$(port "$r")" --baud 460800 \
+            write_flash --flash_size 16MB 0x310000 "$PROJ_DIR/../data/eui.bin"
+        ;;
+    esac
 done
 echo "$([ "$MODE" = build ] && echo built || echo flashed) all three. monitor: ./flash_all.sh monitor master|arm1|arm2"

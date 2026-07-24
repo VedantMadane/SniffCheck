@@ -9,6 +9,7 @@
 #include "esp_rom_sys.h"
 #include "esp_heap_caps.h"
 #include "esp_system.h"
+#include "esp_random.h"
 #include "nvs_flash.h"
 #include "esp_event.h"
 #include "esp_netif.h"
@@ -68,7 +69,6 @@ static uint32_t s_bus_resets;
 
 #define BRAIN_ARM_CAP   (64 * 1024)
 #define BRAIN_MERGE_CAP (96 * 1024)
-#define MERGE_MAX_KEYS  4096
 
 typedef struct {
     uint8_t  *buf;
@@ -79,8 +79,21 @@ static arm_slot_t s_arm[2];
 
 static uint8_t  *s_merge_buf;
 static uint32_t  s_merge_len, s_merge_uniq, s_merge_dup, s_merge_count;
-static uint64_t  s_keys[MERGE_MAX_KEYS];
-static int       s_nkeys;
+
+#define DEV_MAX       1024
+#define DEV_LINE_MAX  3072
+typedef struct {
+    uint64_t key;
+    uint32_t first_scan, last_scan, times_seen;
+    uint32_t last_ts;
+    uint16_t len;
+    char     line[DEV_LINE_MAX];
+} dev_ent_t;
+static dev_ent_t        *s_devtab;
+static int               s_dev_n;
+static uint32_t          s_dev_evict;
+static SemaphoreHandle_t  s_dev_mux;
+static char              s_sess_id[16];
 
 #define CL_CHUNK_SETTLE_US  300
 
@@ -119,16 +132,9 @@ static int line_key(const char *line, int n, char *kb, int kbsz)
     return o < kbsz ? o : kbsz - 1;
 }
 
-static bool key_seen(uint64_t h)
-{
-    for (int i = 0; i < s_nkeys; i++) if (s_keys[i] == h) return true;
-    return false;
-}
-
 static void do_merge(void)
 {
-    s_nkeys = 0;
-    uint32_t out = 0, uniq = 0, dup = 0;
+    uint32_t out = 0, kept = 0;
     for (int ai = 0; ai < 2; ai++) {
         const char *b = (const char *)s_arm[ai].buf;
         uint32_t n = s_arm[ai].len, i = 0;
@@ -136,42 +142,89 @@ static void do_merge(void)
             uint32_t j = i;
             while (j < n && b[j] != '\n') j++;
             uint32_t linelen = j - i;
-            if (linelen > 0) {
-                char key[72];
-                int kl = line_key(b + i, (int)linelen, key, sizeof key);
-                if (kl > 0) {
-                    uint64_t h = fnv1a(key, kl);
-                    if (key_seen(h)) {
-                        dup++;
-                    } else {
-                        if (s_nkeys < MERGE_MAX_KEYS) s_keys[s_nkeys++] = h;
-                        uniq++;
-                        if (s_merge_buf && out + linelen + 1 <= BRAIN_MERGE_CAP) {
-                            memcpy(s_merge_buf + out, b + i, linelen);
-                            out += linelen;
-                            s_merge_buf[out++] = '\n';
-                        }
-                    }
-                }
+            if (linelen > 0 && s_merge_buf && out + linelen + 1 <= BRAIN_MERGE_CAP) {
+                memcpy(s_merge_buf + out, b + i, linelen);
+                out += linelen;
+                s_merge_buf[out++] = '\n';
+                kept++;
             }
             i = j + 1;
         }
     }
     s_merge_len  = out;
-    s_merge_uniq = uniq;
-    s_merge_dup  = dup;
+    s_merge_uniq = kept;
+    s_merge_dup  = 0;
     s_merge_count++;
 }
 
-static void ring_feed_scanset(const uint8_t *buf, uint32_t len)
+static void ring_feed_scanset(const uint8_t *buf, uint32_t len, uint32_t wall_ts)
 {
+    static char rl[DEV_LINE_MAX + 24];
     uint32_t i = 0;
     while (i < len) {
         uint32_t j = i;
         while (j < len && buf[j] != '\n') j++;
-        if (j > i) capture_ring_write((const char *)(buf + i), j - i);
+        int ll = (int)(j - i);
+        if (ll > 0) {
+            if (wall_ts && buf[j - 1] == '}' && ll + 20 < (int)sizeof(rl)) {
+                memcpy(rl, buf + i, ll - 1);
+                int o = ll - 1;
+                o += snprintf(rl + o, sizeof(rl) - o, ",\"ts\":%lu}", (unsigned long)wall_ts);
+                capture_ring_write(rl, o);
+            } else {
+                capture_ring_write((const char *)(buf + i), ll);
+            }
+        }
         i = j + 1;
     }
+}
+
+static dev_ent_t *dev_find(uint64_t key)
+{
+    for (int i = 0; i < s_dev_n; i++) if (s_devtab[i].key == key) return &s_devtab[i];
+    return NULL;
+}
+
+static void dev_upsert(const char *line, int n, uint32_t scan, uint32_t wall_ts)
+{
+    if (n <= 0 || n >= DEV_LINE_MAX || line[n - 1] != '}') return;
+    char kb[72];
+    int kl = line_key(line, n, kb, sizeof kb);
+    if (kl <= 0) return;
+    uint64_t h = fnv1a(kb, kl);
+    dev_ent_t *e = dev_find(h);
+    if (!e) {
+        if (s_dev_n < DEV_MAX) {
+            e = &s_devtab[s_dev_n++];
+        } else {
+            int lru = 0;
+            for (int i = 1; i < s_dev_n; i++)
+                if (s_devtab[i].last_scan < s_devtab[lru].last_scan) lru = i;
+            e = &s_devtab[lru];
+            s_dev_evict++;
+        }
+        e->key = h; e->first_scan = scan; e->times_seen = 0;
+    }
+    e->last_scan = scan;
+    e->last_ts   = wall_ts;
+    e->times_seen++;
+    int cp = n < DEV_LINE_MAX - 1 ? n : DEV_LINE_MAX - 1;
+    memcpy(e->line, line, cp);
+    e->len = (uint16_t)cp;
+}
+
+static void dev_table_ingest(const uint8_t *buf, uint32_t len, uint32_t scan, uint32_t wall_ts)
+{
+    if (!s_devtab || !s_dev_mux) return;
+    xSemaphoreTake(s_dev_mux, portMAX_DELAY);
+    uint32_t i = 0;
+    while (i < len) {
+        uint32_t j = i;
+        while (j < len && buf[j] != '\n') j++;
+        if (j > i) dev_upsert((const char *)(buf + i), (int)(j - i), scan, wall_ts);
+        i = j + 1;
+    }
+    xSemaphoreGive(s_dev_mux);
 }
 
 #define ALOG_N   48
@@ -470,6 +523,39 @@ void master_cluster_status_json(char *buf, size_t buflen)
              (unsigned long)s_s3.recs, (unsigned long)s_s3.flagged, (unsigned long)s_s3.windows);
 }
 
+uint32_t master_cluster_merge_count(void) { return s_merge_count; }
+const char *master_cluster_session_id(void) { return s_sess_id; }
+int master_cluster_device_count(void) { return s_dev_n; }
+
+int master_cluster_device_json(int idx, uint32_t since, char *buf, size_t buflen)
+{
+    if (!s_devtab || !s_dev_mux || idx < 0 || idx >= s_dev_n) return 0;
+    int out = 0;
+    xSemaphoreTake(s_dev_mux, portMAX_DELAY);
+    dev_ent_t *e = &s_devtab[idx];
+    if (e->len > 2 && e->last_scan > since) {
+        int body = e->len;
+        while (body > 0 && (e->line[body - 1] == ' ' ||
+                            e->line[body - 1] == '\n' || e->line[body - 1] == '\r')) body--;
+        if (body > 0 && e->line[body - 1] == '}') body--;
+        if (body > 0 && body < (int)buflen) {
+            memcpy(buf, e->line, body);
+            out = body;
+            out += snprintf(buf + out, buflen - out,
+                ",\"scan_index\":%lu,\"first_scan\":%lu,\"last_scan\":%lu,\"seen\":%lu",
+                (unsigned long)e->last_scan, (unsigned long)e->first_scan,
+                (unsigned long)e->last_scan, (unsigned long)e->times_seen);
+            if (e->last_ts)
+                out += snprintf(buf + out, buflen - out, ",\"ts\":%lu", (unsigned long)e->last_ts);
+            if (out < (int)buflen - 1) buf[out++] = '}';
+            buf[out < (int)buflen ? out : (int)buflen - 1] = '\0';
+            if (out >= (int)buflen) out = 0;
+        }
+    }
+    xSemaphoreGive(s_dev_mux);
+    return out;
+}
+
 static void i2c_master_setup(void)
 {
     i2c_master_bus_config_t bus_cfg = {
@@ -584,7 +670,9 @@ static bool ingest_arm(int i, uint32_t seq)
     a->recs = recs;
     a->have = true;
 
-    ring_feed_scanset(a->buf, off);
+    uint32_t wall_ts = s_epoch_base
+        ? (uint32_t)(s_epoch_base + esp_timer_get_time() / 1000000) : 0;
+    ring_feed_scanset(a->buf, off, wall_ts);
     ESP_LOGI(TAG, "ingest arm%d seq=%lu: %lu bytes, %lu recs, %lldms",
              ARMS[i].index, (unsigned long)seq, (unsigned long)off,
              (unsigned long)recs, (long long)(esp_timer_get_time() - t0) / 1000);
@@ -594,10 +682,14 @@ static bool ingest_arm(int i, uint32_t seq)
 static void merge_window(void)
 {
     do_merge();
-    ESP_LOGI(TAG, "MERGE #%lu: %lu uniq, %lu dup, %lu bytes (arm1=%lu arm2=%lu recs)",
+    uint32_t wall_ts = s_epoch_base
+        ? (uint32_t)(s_epoch_base + esp_timer_get_time() / 1000000) : 0;
+    dev_table_ingest(s_merge_buf, s_merge_len, s_merge_count, wall_ts);
+    ESP_LOGI(TAG, "MERGE #%lu: %lu uniq, %lu dup, %lu bytes (arm1=%lu arm2=%lu recs) devtab=%d/%d evict=%lu",
              (unsigned long)s_merge_count, (unsigned long)s_merge_uniq,
              (unsigned long)s_merge_dup, (unsigned long)s_merge_len,
-             (unsigned long)s_arm[0].recs, (unsigned long)s_arm[1].recs);
+             (unsigned long)s_arm[0].recs, (unsigned long)s_arm[1].recs,
+             s_dev_n, DEV_MAX, (unsigned long)s_dev_evict);
     epup_brain_observe((const char *)s_merge_buf, s_merge_len);
 
     push_merge_to_s3();
@@ -893,6 +985,14 @@ void app_main(void)
     ESP_LOGI(TAG, "buffers: 2x%uKB arm + %uKB merge (%s)",
              BRAIN_ARM_CAP / 1024, BRAIN_MERGE_CAP / 1024,
              caps == MALLOC_CAP_SPIRAM ? "PSRAM" : "internal RAM");
+
+    s_dev_mux = xSemaphoreCreateMutex();
+    s_devtab = heap_caps_malloc((size_t)DEV_MAX * sizeof(dev_ent_t), MALLOC_CAP_SPIRAM);
+    snprintf(s_sess_id, sizeof s_sess_id, "b-%08lx", (unsigned long)esp_random());
+    ESP_LOGI(TAG, "devtable: %s (%d slots, %uKB, free PSRAM %uKB) sess=%s",
+             s_devtab ? "PSRAM ok" : "DISABLED (no PSRAM) -> ring fallback", DEV_MAX,
+             (unsigned)((DEV_MAX * sizeof(dev_ent_t)) / 1024),
+             (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024), s_sess_id);
 
     s_s3_mux = xSemaphoreCreateMutex();
     uint32_t jcaps = (caps == MALLOC_CAP_SPIRAM) ? MALLOC_CAP_SPIRAM : MALLOC_CAP_8BIT;
