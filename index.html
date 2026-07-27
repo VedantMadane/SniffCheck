@@ -27,6 +27,10 @@
     select { font: inherit; padding: 0.45rem 0.6rem; border-radius: 8px;
              border: 1px solid rgba(127,127,127,0.4); background: transparent;
              color: inherit; max-width: 100%; }
+    /* The native dropdown list renders on a white background in every theme, so pin the
+       option text dark — otherwise dark-mode's inherited light text is white-on-white and
+       only visible when an option is highlighted. */
+    select option { color: #111; background: #fff; }
     .pick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem;
                  margin: 1.25rem 0 0.5rem; }
     @media (max-width: 30rem) { .pick-grid { grid-template-columns: 1fr; } }

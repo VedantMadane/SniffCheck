@@ -71,3 +71,13 @@ Clusters export as `device_cluster` records: kind (`physical` or `vehicle`), con
 - `candidate` = maybe, not enough to merge
 - `product_family` = same kind of thing
 - `conflict` = looked similar but no joy *sounded cool in my head*
+
+## Environments (place memory)
+
+Same primitives, one layer up. Instead of "are these two the same device?" a place asks "have I been *here* before?" 
+
+A place isn't a pile of BSSIDs, it's a handful of **landmarks**. A landmark is an infrastructure *unit* — same NIC-byte / capability-fingerprint grouping from the Wi-Fi rules above — so a router that shouts main + guest + IoT + 5GHz collapses to **one** landmark, not five. Raw BSSIDs would just saturate and every place would start looking like every other place.
+
+Matching a scan to a known place is a weighted overlap, and the weighting is the same instinct as the SSID rule: a unit that shows up in *lots* of places (carrier APs, the mesh you carry around) barely counts, a unit that's unique to one place is what actually pins it. Plus a floor — a couple of distinctive landmarks have to line up or it's a new place, not a match. That's what stops home and work from smearing together.
+
+Landmarks earn their keep over repeat visits. A fixture that keeps showing up gets **confirmed**; a phone that walked past once gets pruned. "Learn this place" just does that on purpose over a few scans, and if you reposition between them the brain can tell a bolted-down AP from a person wandering through. Everything's editable — pin, remove, rename, forget — because no heuristic is perfect and you know your own place better than the box does.

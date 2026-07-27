@@ -1,6 +1,6 @@
 {
   "name": "SniffCheck Cluster S3 node",
-  "version": "cluster-s3-1.0",
+  "version": "cluster-s3-1.1",
   "new_install_prompt_erase": true,
   "builds": [
     { "chipFamily": "ESP32-S3",

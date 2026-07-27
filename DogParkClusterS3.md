@@ -82,3 +82,28 @@ To build from source instead, see [`cluster/README.md`](./cluster/README.md).
    deeper rescan; flag devices into the sentinel watchlist from any live result.
 4. The full record history is always on the S3 node's microSD, independent of what the
    browser or the brain's memory is holding.
+
+---
+
+## Environments (place memory)
+
+As you scan in a spot, the brain learns the place from the fixed Wi-Fi infrastructure
+around it — not from every raw broadcast, but from the *stable* access points that stay
+put. Each learned place keeps a small set of **landmarks** (one per physical router, so a
+mesh or a multi-SSID box counts once, not five times). Access points that show up
+everywhere — carrier hotspots, gear you carry with you — are down-weighted, so a place is
+defined by what is distinctive to it. That is what keeps two different locations from
+blurring into one.
+
+In the web app's **Environments** tile you can open any learned place to:
+
+- see its landmarks (with how often each was seen, and which are confirmed fixtures),
+- pin a landmark so it is always kept, or remove one that doesn't belong,
+- rename the place, or **forget** it entirely,
+- **Learn this place** — a guided pass that takes several scans, with an optional pause
+  between them so you can reposition. Moving between scans lets the brain tell true
+  fixtures from people passing through; staying in one spot still works but is marked as
+  lower-confidence, honestly.
+
+Place memory lives on the brain and survives reboots. A full erase (or flashing a new
+firmware version) starts it fresh.
