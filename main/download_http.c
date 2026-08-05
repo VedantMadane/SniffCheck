@@ -18,6 +18,9 @@
 #include "app_settings.h"
 #include "virtual_pup.h"
 #include "virtual_pup_walk.h"
+#if SC_CLUSTER_HEAD
+#include "epup_brain.h"
+#endif
 #include "sta_tracker.h"
 #include "wifi_csi_probe.h"
 #include "pcap_capture.h"
@@ -397,6 +400,7 @@ static const char DASH_HTML[] =
 "</div>"
 "</div>"
 
+
 "<div class=view id=v-pup>"
 "<h2>Virtual Pup</h2>"
 "<img id=pupimg alt=\"Suz the pup\" src=\"/pup.png\">"
@@ -416,15 +420,20 @@ static const char DASH_HTML[] =
 "<canvas id=pgcanvas width=360 height=200></canvas>"
 "<div class=pgbar><span id=pgscore>0</span><span id=pgbest>best &ndash;</span></div>"
 "<button class=dl id=pgbtn onclick=\"pgTap()\">Jump</button>"
-"<div class=ex>Tap Jump (or press Space) to hop over the low blocks &mdash; but stay grounded when a block hangs from the top. Playing counts as time with your pup, and your best score is saved to it.</div>"
+"<div class=ex>Tap Jump (or press Space) to hop over the low blocks &mdash; but stay grounded when a block hangs from the top. Grab the floating gadget tokens for bonus points. Playing counts as time with your pup, and your best score is saved to it.</div>"
 "</div>"
 #endif
 "<h2>Sniff Walk</h2>"
 "<div class=wc id=wcard2></div>"
+#if !SC_CLUSTER_HEAD
 "<button class=dl onclick=\"armwalk(this)\">Start Sniff Walk</button>"
 "<div class=ex>The walk scans Wi-Fi &amp; BLE while you carry SniffCheck, so this AP closes. End the walk on the device button &mdash; the AP re-opens with the walk summary.</div>"
+#else
+"<div class=ex>Start and stop the walk from the brain's on-device button or the Dog Park dashboard &mdash; the AP stays up and keeps streaming.</div>"
+#endif
 "<button class=off onclick=\"armpup(this)\">Reset Pup</button>"
 "</div>"
+
 
 "<div class=view id=v-settings>"
 "<div class=set>"
@@ -573,39 +582,72 @@ static const char DASH_HTML[] =
 "var W=cv.width,H=cv.height,GY=H-24,SZ=48,G=0.6,JMP=-8.4;"
 "var sheet=new Image(),sheetOk=false;sheet.onload=function(){sheetOk=true};"
 "sheet.src='/epup_sprites.png';"
-"var st='idle',score=0,spd=2.4,py=GY,vy=0,obs=[],frame=0,acc=0,spawn=60;"
-"function reset(){score=0;spd=2.4;py=GY;vy=0;obs=[];frame=0;acc=0;spawn=60;st='run';}"
-"function over(){st='over';var s=Math.floor(score);"
+"var st='idle',score=0,gads=0,spd=2.4,py=GY,vy=0,obs=[],toks=[],frame=0,acc=0,spawn=60,tacc=0,tspawn=90,happy=0;"
+"var raf=null,last=0,lag=0,STEP=33;"
+"var GAD=['router','cam','tag','ant','ctl','chip'];"
+"var TCOL={router:'#4bd6c9',cam:'#c9a34b',tag:'#8bb0ff',ant:'#7bd06a',ctl:'#d07bd0',chip:'#e8b84b'};"
+"function reset(){score=0;gads=0;spd=2.4;py=GY;vy=0;obs=[];toks=[];frame=0;acc=0;spawn=60;tacc=0;tspawn=90;happy=0;st='run';}"
+"function over(){st='over';stopLoop();draw();var s=Math.floor(score);"
 "fetch('/api/pup/play',{method:'POST',headers:{'Content-Type':'application/json'},"
 "body:JSON.stringify({score:s})}).then(function(r){return r.json()}).then(applypup).catch(function(){});}"
-"window.pgTap=function(){if(st==='run'){if(py>=GY-0.5)vy=JMP;}else reset();};"
-"cv.addEventListener('pointerdown',function(e){e.preventDefault();pgTap();});"
+"function px2(){return 48;}"
+"function loop(ts){if(raf===null)return;var dt=ts-last;last=ts;if(dt>250)dt=250;lag+=dt;"
+"while(lag>=STEP){tick();lag-=STEP;if(st!=='run')break;}draw();"
+"if(st==='run')raf=requestAnimationFrame(loop);else raf=null;}"
+"function startLoop(){if(raf!==null)return;last=performance.now();lag=0;raf=requestAnimationFrame(loop);}"
+"function stopLoop(){if(raf!==null){cancelAnimationFrame(raf);raf=null;}}"
+"window.pgTap=function(){if(st==='run'){if(py>=GY-0.5)vy=JMP;}"
+"else if(st==='paused'){st='run';startLoop();}else{reset();startLoop();}};"
+"window.pgPause=function(){if(st==='run'){st='paused';stopLoop();draw();}};"
+"cv.addEventListener('pointerdown',function(e){e.preventDefault();window.pgTap();});"
 "document.addEventListener('keydown',function(e){if(e.code==='Space'||e.key===' '){"
-"var pv=el('v-pup');if(pv&&pv.classList.contains('act')){e.preventDefault();pgTap();}}});"
+"var pv=el('v-pup');if(pv&&pv.classList.contains('act')){e.preventDefault();window.pgTap();}}});"
+"document.addEventListener('visibilitychange',function(){if(document.hidden)window.pgPause();});"
 "function spawnObs(){if(Math.random()<0.4)obs.push({x:W+8,top:true,w:16,h:104});"
 "else obs.push({x:W+8,top:false,w:16,h:22+(Math.random()*22|0)});}"
-"function step(){if(st==='run'){score+=spd*0.05;spd+=0.0016;"
-"vy+=G;py+=vy;if(py>GY){py=GY;vy=0;}"
+"function spawnTok(){var ty=GY-(20+(Math.random()*36|0)),tx=W+8,i,o;"
+"for(i=0;i<obs.length;i++){o=obs[i];if(tx+8>o.x&&tx-8<o.x+o.w)return;}"
+"toks.push({x:tx,y:ty,r:8,k:GAD[(Math.random()*GAD.length)|0]});}"
+"function tick(){score+=spd*0.05;spd+=0.0016;"
+"vy+=G;py+=vy;if(py>GY){py=GY;vy=0;}if(happy>0)happy--;"
 "acc++;if(acc>=spawn){acc=0;spawn=48+(Math.random()*46|0);spawnObs();}"
-"var i,o,pl=px2(),pr=pl+SZ-18,ptp=py-SZ+6,pbt=py-3;"
+"tacc++;if(tacc>=tspawn){tacc=0;tspawn=80+(Math.random()*70|0);spawnTok();}"
+"var i,o,t,pl=px2(),pr=pl+SZ-18,ptp=py-SZ+6,pbt=py-3;"
 "for(i=obs.length-1;i>=0;i--){o=obs[i];o.x-=spd;if(o.x+o.w<0){obs.splice(i,1);continue;}"
 "var ot=o.top?0:GY-o.h,ob=o.top?o.h:GY;"
-"if(pr>o.x&&pl<o.x+o.w&&pbt>ot&&ptp<ob){over();}}frame++;}draw();}"
-"function px2(){return 40+8;}"
+"if(pr>o.x&&pl<o.x+o.w&&pbt>ot&&ptp<ob){over();return;}}"
+"for(i=toks.length-1;i>=0;i--){t=toks[i];t.x-=spd;if(t.x+t.r<0){toks.splice(i,1);continue;}"
+"if(pr>t.x-t.r&&pl<t.x+t.r&&pbt>t.y-t.r&&ptp<t.y+t.r){toks.splice(i,1);gads++;score+=5;happy=10;}}"
+"frame++;}"
+"function drawTok(t){var x=t.x,y=t.y;cx.fillStyle=TCOL[t.k]||'#e8b84b';"
+"cx.strokeStyle='rgba(0,0,0,.4)';cx.lineWidth=1;"
+"if(t.k==='router'){cx.fillRect(x-7,y-2,14,6);cx.beginPath();cx.moveTo(x-3,y-2);cx.lineTo(x-5,y-9);"
+"cx.moveTo(x+3,y-2);cx.lineTo(x+5,y-9);cx.stroke();}"
+"else if(t.k==='cam'){cx.fillRect(x-7,y-5,14,10);cx.fillStyle='#20303a';cx.beginPath();cx.arc(x+1,y,3,0,6.28);cx.fill();}"
+"else if(t.k==='tag'){cx.beginPath();cx.arc(x,y,7,0,6.28);cx.fill();cx.fillStyle='#20303a';cx.beginPath();cx.arc(x,y,2.5,0,6.28);cx.fill();}"
+"else if(t.k==='ant'){cx.beginPath();cx.moveTo(x,y-8);cx.lineTo(x+6,y+6);cx.lineTo(x-6,y+6);cx.closePath();cx.fill();}"
+"else if(t.k==='ctl'){cx.fillRect(x-8,y-4,16,8);cx.fillStyle='#20303a';cx.fillRect(x-5,y-1,2,2);cx.fillRect(x+3,y-1,2,2);}"
+"else{cx.fillRect(x-6,y-6,12,12);cx.beginPath();"
+"cx.moveTo(x-6,y-3);cx.lineTo(x-9,y-3);cx.moveTo(x-6,y+3);cx.lineTo(x-9,y+3);"
+"cx.moveTo(x+6,y-3);cx.lineTo(x+9,y-3);cx.moveTo(x+6,y+3);cx.lineTo(x+9,y+3);cx.stroke();}}"
 "function draw(){cx.clearRect(0,0,W,H);"
 "cx.strokeStyle='#7a6a3a';cx.lineWidth=2;cx.beginPath();cx.moveTo(0,GY+2);cx.lineTo(W,GY+2);cx.stroke();"
 "cx.fillStyle='#c9483b';var i,o;for(i=0;i<obs.length;i++){o=obs[i];"
 "if(o.top)cx.fillRect(o.x,0,o.w,o.h);else cx.fillRect(o.x,GY-o.h,o.w,o.h);}"
+"for(i=0;i<toks.length;i++)drawTok(toks[i]);"
 "var row=(py<GY-1)?3:1,col=(row===1)?(Math.floor(frame/6)%2):0;"
 "if(sheetOk)cx.drawImage(sheet,col*160,row*160,160,160,40,py-SZ,SZ,SZ);"
 "else{cx.fillStyle='#e8b84b';cx.fillRect(40,py-SZ,SZ,SZ);}"
+"if(happy>0){cx.strokeStyle='#fff7d6';cx.lineWidth=2;cx.beginPath();cx.arc(64,py-SZ/2,SZ*0.6,0,6.28);cx.stroke();}"
+"cx.fillStyle='#111';cx.textAlign='left';cx.font='bold 12px system-ui';cx.fillText('\\u25c8 '+gads,6,16);"
 "var sc=el('pgscore');if(sc)sc.textContent=Math.floor(score);"
 "if(st!=='run'){cx.fillStyle='rgba(0,0,0,.5)';cx.fillRect(0,0,W,H);"
 "cx.fillStyle='#fff7d6';cx.textAlign='center';cx.font='bold 17px system-ui';"
-"cx.fillText(st==='over'?('Score '+Math.floor(score)):'Fetch Runner',W/2,H/2-4);"
-"cx.font='bold 12px system-ui';cx.fillText(st==='over'?'Tap Jump to play again':'Tap Jump to start',W/2,H/2+16);"
+"cx.fillText(st==='over'?('Score '+Math.floor(score)):(st==='paused'?'Paused':'Fetch Runner'),W/2,H/2-4);"
+"cx.font='bold 12px system-ui';"
+"cx.fillText(st==='over'?('Gadgets '+gads+' \\u00b7 Tap Jump to replay'):(st==='paused'?'Tap Jump to resume':'Tap Jump to start'),W/2,H/2+16);"
 "cx.textAlign='left';}}"
-"setInterval(step,33);draw();})();"
+"draw();})();"
 #endif
 "loadpup();"
 "var tm={};"
@@ -640,7 +682,8 @@ static const char DASH_HTML[] =
 "setTimeout(function(){disarm(b)},3000)}"
 "function nav(v){['home','pup','settings'].forEach(function(n){"
 "el('v-'+n).classList.toggle('act',n===v);"
-"el('nv-'+n).classList.toggle('act',n===v)})}"
+"el('nv-'+n).classList.toggle('act',n===v)});"
+"if(v!=='pup'&&window.pgPause)window.pgPause();}"
 
 "function walkhtml(w){var r=function(k,v){return '<div class=wr><span>'+k+"
 "'</span><b>'+v+'</b></div>'};var mm=Math.floor(w.duration_sec/60),"
@@ -927,7 +970,7 @@ static esp_err_t clear_post(httpd_req_t *req)
 
 static esp_err_t save_sd_post(httpd_req_t *req)
 {
-    ESP_LOGI(TAG, "save-to-SD requested (Phase 51 not yet implemented)");
+    ESP_LOGI(TAG, "save-to-SD requested (not yet implemented)");
     return send_json(req,
         "{\"ok\":false,\"error\":\"SD card storage isn't available on this build yet.\"}");
 }
@@ -1061,6 +1104,9 @@ static esp_err_t scan_start_post(httpd_req_t *req)
 static esp_err_t send_pup(httpd_req_t *req)
 {
     vp_status_t st;
+#if SC_CLUSTER_HEAD
+    { epup_summary_t ep; epup_brain_get(&ep); virtual_pup_sync_level((uint16_t)ep.level, ep.total_scans); }
+#endif
     virtual_pup_get(&st);
     char json[288];
     snprintf(json, sizeof(json),
@@ -1707,7 +1753,7 @@ esp_err_t download_http_start(void)
 
     cfg.max_open_sockets = SC_CLUSTER_HEAD ? 12 : 7;
     cfg.lru_purge_enable = true;
-    cfg.max_uri_handlers = 56;
+    cfg.max_uri_handlers = 68;
 
     cfg.stack_size = 8192;
 

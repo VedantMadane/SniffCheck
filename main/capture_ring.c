@@ -9,7 +9,7 @@
 
 static const char *TAG = "sc_capring";
 
-#define HDR_LEN  4 
+#define HDR_LEN  4
 
 static uint8_t            *s_buf;
 static size_t              s_cap;
@@ -87,7 +87,16 @@ esp_err_t capture_ring_init(size_t preferred_bytes, size_t fallback_bytes)
     }
 
     if (!s_buf) {
-        ESP_LOGE(TAG, "PSRAM ring alloc failed (preferred=%u fallback=%u)",
+        size_t n = fallback_bytes ? fallback_bytes : preferred_bytes;
+        s_buf = heap_caps_malloc(n, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (s_buf) {
+            s_cap = n;
+            ESP_LOGW(TAG, "no PSRAM — ring in internal RAM: %u bytes", (unsigned)n);
+        }
+    }
+
+    if (!s_buf) {
+        ESP_LOGE(TAG, "ring alloc failed (preferred=%u fallback=%u)",
                  (unsigned)preferred_bytes, (unsigned)fallback_bytes);
         return ESP_ERR_NO_MEM;
     }

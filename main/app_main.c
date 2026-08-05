@@ -114,6 +114,8 @@ static bool           s_led_enabled = true;
 
 static bool           s_auto_ap_enabled = false;
 
+static bool           s_boot_scan_enabled = true;
+
 typedef enum {
     UI_MODE_MAIN = 0,
     UI_MODE_SCANNING,
@@ -183,9 +185,6 @@ static uint8_t   s_dl_last_drawn_joined = 0xFF;
 
 static volatile bool s_rescan_after_dl = false;
 
-/* Set when a scan is kicked off from the WebAP dashboard so the following
- * do_scan() re-opens the AP on completion regardless of advisor mode / auto-AP
- * — the web user is waiting to reconnect and would otherwise be stranded. */
 static volatile bool s_web_ap_relaunch = false;
 
 static volatile bool s_force_rescan = false;
@@ -421,6 +420,10 @@ static void settings_load(void)
     if (nvs_get_u8(h, "auto_ap", &auto_ap) == ESP_OK) {
         s_auto_ap_enabled = (auto_ap != 0);
     }
+    uint8_t boot_scan = s_boot_scan_enabled ? 1 : 0;
+    if (nvs_get_u8(h, "boot_scan", &boot_scan) == ESP_OK) {
+        s_boot_scan_enabled = (boot_scan != 0);
+    }
 
     nvs_close(h);
     settings_apply();
@@ -439,6 +442,7 @@ static void settings_save(void)
     nvs_set_u8(h, "screen_bri", s_screen_brightness_idx);
     nvs_set_u8(h, "led_en", s_led_enabled ? 1 : 0);
     nvs_set_u8(h, "auto_ap", s_auto_ap_enabled ? 1 : 0);
+    nvs_set_u8(h, "boot_scan", s_boot_scan_enabled ? 1 : 0);
     nvs_commit(h);
     nvs_close(h);
 }
@@ -453,12 +457,14 @@ void app_settings_get_json(char *buf, size_t buflen)
                       ? s_screen_brightness_idx : (BRIGHTNESS_STEPS_COUNT - 1);
     unsigned pct = s_brightness_steps[idx];
     bool led = s_led_enabled;
+    bool boot_scan = s_boot_scan_enabled;
     xSemaphoreGive(s_state_mutex);
 
     snprintf(buf, buflen,
         "{\"advisor_mode\":\"%s\",\"brightness_pct\":%u,\"led_enabled\":%s,"
+        "\"boot_scan_enabled\":%s,"
         "\"download_timeout_min\":%u,\"pup_name\":\"%s\"}",
-        mode, pct, led ? "true" : "false",
+        mode, pct, led ? "true" : "false", boot_scan ? "true" : "false",
         (unsigned)download_mode_get_timeout_minutes(),
         virtual_pup_name());
 }
@@ -2693,6 +2699,7 @@ static const char *menuval_brightness(void)
 }
 static const char *menuval_led(void)     { return s_led_enabled     ? "ON" : "OFF"; }
 static const char *menuval_auto_ap(void) { return s_auto_ap_enabled ? "ON" : "OFF"; }
+static const char *menuval_boot_scan(void) { return s_boot_scan_enabled ? "ON" : "OFF"; }
 
 static bool menurow_lite_hidden(void) { return s_advisor_mode != ADVISOR_MODE_ADV; }
 
@@ -2727,6 +2734,13 @@ static void menusel_toggle_auto_ap(void)
     render_ui_locked();
     ESP_LOGI(TAG, "MENU: auto_ap -> %s", s_auto_ap_enabled ? "on" : "off");
 }
+static void menusel_toggle_boot_scan(void)
+{
+    s_boot_scan_enabled = !s_boot_scan_enabled;
+    settings_save();
+    render_ui_locked();
+    ESP_LOGI(TAG, "MENU: boot_scan -> %s", s_boot_scan_enabled ? "on" : "off");
+}
 static void menusel_open_device(void) { menu_push(&device_menu); }
 static void menusel_open_lights(void) { menu_push(&lights_menu); }
 static void menusel_open_credits(void)
@@ -2746,10 +2760,11 @@ static void menusel_open_launch_ap(void)
 }
 
 static const menu_row_t settings_rows[] = {
-    { "Mode",      menuval_mode,    menusel_toggle_mode,    NULL },
-    { "Device",    NULL,            menusel_open_device,    NULL },
-    { "Launch AP", NULL,            menusel_open_launch_ap, menurow_lite_hidden },
-    { "Auto AP",   menuval_auto_ap, menusel_toggle_auto_ap, menurow_lite_hidden },
+    { "Mode",      menuval_mode,      menusel_toggle_mode,      NULL },
+    { "Boot scan", menuval_boot_scan, menusel_toggle_boot_scan, NULL },
+    { "Device",    NULL,              menusel_open_device,      NULL },
+    { "Launch AP", NULL,              menusel_open_launch_ap,   menurow_lite_hidden },
+    { "Auto AP",   menuval_auto_ap,   menusel_toggle_auto_ap,   menurow_lite_hidden },
 };
 static const menu_row_t device_rows[] = {
     { "Lights",  NULL, menusel_open_lights,  NULL },
@@ -2759,9 +2774,11 @@ static const menu_row_t lights_rows[] = {
     { "Screen", menuval_brightness, menusel_cycle_brightness, NULL },
     { "LED",    menuval_led,        menusel_toggle_led,       NULL },
 };
-static menu_screen_t settings_menu = { "SETTINGS", settings_rows, 4, 0 };
-static menu_screen_t device_menu   = { "DEVICE",   device_rows,   2, 0 };
-static menu_screen_t lights_menu   = { "LIGHTS",   lights_rows,   2, 0 };
+#define MENU_ROWS(a) (a), (uint8_t)(sizeof(a) / sizeof((a)[0]))
+
+static menu_screen_t settings_menu = { "SETTINGS", MENU_ROWS(settings_rows), 0 };
+static menu_screen_t device_menu   = { "DEVICE",   MENU_ROWS(device_rows),   0 };
+static menu_screen_t lights_menu   = { "LIGHTS",   MENU_ROWS(lights_rows),   0 };
 
 static void log_full_scan_dump(const ap_score_t *scores, uint16_t score_count,
                                 const ble_results_t *ble);
@@ -3080,6 +3097,7 @@ static void do_scan(void)
                  vtmp.blocked ? 1u : 0u, vtmp.summary);
     }
 
+    capture_emit_twin_findings(s_capture_scan_idx);
     for (uint16_t i = 0; i < score_count; i++) {
         capture_emit_wifi_ap(&scores_tmp[i], s_capture_scan_idx);
         capture_emit_alerts_for_ap(&scores_tmp[i], s_capture_scan_idx);
@@ -3787,8 +3805,18 @@ static void do_walk(void)
 static void scan_task(void *arg)
 {
 
-    s_regular_scan_override = true;
-    do_scan();
+    if (s_boot_scan_enabled) {
+        s_regular_scan_override = true;
+        do_scan();
+    } else {
+        ESP_LOGI(TAG, "boot scan disabled — waiting at the main menu");
+        if (s_state_mutex) {
+            xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+            s_ui_mode = UI_MODE_MAIN;
+            render_ui_locked();
+            xSemaphoreGive(s_state_mutex);
+        }
+    }
     for (;;) {
 
         xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
@@ -3861,11 +3889,6 @@ void app_request_scan_after_download(void)
 
 int app_scan_eta_seconds(void)
 {
-    /* A web rescan runs a deep pass in Adv (broad multi-sweep Wi-Fi up to
-     * WIFI_ADV_MAX_MS + BLE_ADV_SCAN_MS) and the quick pass in Lite. These are
-     * conservative upper bounds; the browser reconnect button re-checks the
-     * device is actually reachable before it reloads, so a loose estimate is
-     * fine. */
     return (s_advisor_mode == ADVISOR_MODE_ADV) ? 95 : 20;
 }
 
@@ -4979,7 +5002,9 @@ void app_main(void)
     boot_assert_led();
     vTaskDelay(pdMS_TO_TICKS(2000));
 
-    ESP_LOGI(TAG, "SniffCheck Advisor ready — scanning on boot");
+    ESP_LOGI(TAG, "SniffCheck Advisor ready — %s",
+             s_boot_scan_enabled ? "scanning on boot"
+                                 : "boot scan off, waiting at the main menu");
 
     xTaskCreate(usb_console_task,    "sc_echo",    4096,  NULL, 3, NULL);
     xTaskCreate(button_task,         "sc_btn",     6144,  NULL, 4, NULL);

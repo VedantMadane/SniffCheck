@@ -23,7 +23,7 @@ static uint16_t      s_count;
 static volatile bool s_active;
 
 #define SNIFF_HOP_SETTLE_MS 5u
-#define SNIFF_HOP_MS        80u 
+#define SNIFF_HOP_MS        80u
 static volatile uint8_t  s_req_channel;
 static volatile uint32_t s_hop_ms;
 static volatile uint32_t s_drop_settling;

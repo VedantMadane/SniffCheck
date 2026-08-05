@@ -1,8 +1,9 @@
 #include "seq_analyzer.h"
 #include "esp_attr.h"
+#include "sc_profile.h"
 #include <string.h>
 
-#define SEQ_DETAIL_CAP      64
+#define SEQ_DETAIL_CAP      SC_SEQ_DETAIL_CAP
 #define SEQ_LINK_WINDOW     32
 #define SEQ_MASK         0x0FFF
 

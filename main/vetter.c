@@ -111,9 +111,6 @@ static bool ble_context_note(const ap_score_t *ap, const ble_results_t *ble, cha
     return false;
 }
 
-/* Rogue-AP build platforms (Raspberry Pi, ALFA, etc.) are surfaced as
- * evidence, never a verdict. The OUI identifies the *device*, not intent —
- * so name it and only claim wrongdoing when behavior corroborates it. */
 static void append_rogue_hw_note(const ap_score_t *ap, char *note, size_t note_sz)
 {
     if (ap->device_class != EUI_CLASS_ROGUE_HW_OUI) return;

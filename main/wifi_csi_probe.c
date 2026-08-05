@@ -101,7 +101,7 @@ esp_err_t wifi_csi_probe_run(uint8_t channel, uint32_t window_ms)
     return ESP_OK;
 }
 
-#else 
+#else
 
 esp_err_t wifi_csi_probe_run(uint8_t channel, uint32_t window_ms)
 {
@@ -114,6 +114,6 @@ esp_err_t wifi_csi_probe_run(uint8_t channel, uint32_t window_ms)
     return ESP_ERR_NOT_SUPPORTED;
 }
 
-#endif 
+#endif
 
 const wifi_csi_result_t *wifi_csi_probe_last(void) { return &s_result; }

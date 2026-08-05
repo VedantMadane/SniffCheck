@@ -2,12 +2,13 @@
 
 #include "probe_req_log.h"
 #include "esp_attr.h"
+#include "sc_profile.h"
 #include <ctype.h>
 #include <string.h>
 
-#define SSID_DETAIL_CAP    64
+#define SSID_DETAIL_CAP    SC_SSID_DETAIL_CAP
 
-#define SSID_BEACON_CAP    32
+#define SSID_BEACON_CAP    SC_SSID_BEACON_CAP
 
 static probe_req_log_aggregate_t s_agg;
 

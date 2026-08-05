@@ -102,6 +102,8 @@ void capture_emit_pcap_capture(const pcap_meta_t *m, uint16_t scan_index);
 
 void capture_emit_alerts_for_ap(const ap_score_t *ap, uint16_t scan_index);
 
+void capture_emit_twin_findings(uint16_t scan_index);
+
 void capture_emit_alerts_for_ble(const ble_device_t *d, uint16_t scan_index);
 
 void capture_emit_probe_req_log(const probe_req_log_aggregate_t *agg,

@@ -8,6 +8,7 @@
 #include "eui_db.h"
 #include "apple_continuity.h"
 #include "opendroneid.h"
+#include "sc_profile.h"
 
 #include "esp_attr.h"
 #include "esp_log.h"
@@ -817,8 +818,9 @@ static void tw_check(const char *name, bool ok)
 
 static void tw_drain(void) { vTaskDelay(pdMS_TO_TICKS(60)); }
 
-static void tw_add(const char *ssid, const uint8_t bssid[6],
-                   uint8_t channel, bool band_5g, int8_t rssi)
+static void tw_add_auth(const char *ssid, const uint8_t bssid[6],
+                        uint8_t channel, bool band_5g, int8_t rssi,
+                        wifi_auth_mode_t auth)
 {
     uint16_t i = s_tw_results.count;
     if (i >= sizeof(s_tw_scores) / sizeof(s_tw_scores[0])) return;
@@ -829,8 +831,14 @@ static void tw_add(const char *ssid, const uint8_t bssid[6],
     e->channel = channel;
     e->band_5g = band_5g;
     e->rssi    = rssi;
-    e->auth    = WIFI_AUTH_WPA2_PSK;
+    e->auth    = auth;
     s_tw_results.count = i + 1;
+}
+
+static void tw_add(const char *ssid, const uint8_t bssid[6],
+                   uint8_t channel, bool band_5g, int8_t rssi)
+{
+    tw_add_auth(ssid, bssid, channel, band_5g, rssi, WIFI_AUTH_WPA2_PSK);
 }
 
 static bool tw_is_ubnt(const uint8_t b[6])
@@ -999,6 +1007,154 @@ static void run_twin_tests(void)
             if (strcmp(s_tw_scores[i].ssid, "NETGEAR80") == 0 && s_tw_scores[i].twin_detected)
                 twin = true;
         tw_check("NETGEAR sibling pair not twin_detected", !twin);
+    }
+    tw_drain();
+
+    {
+        const uint8_t XM[6] = {0xB2,0x70,0x5D,0xC6,0x6D,0xF2};
+        const uint8_t XW[6] = {0xAA,0x70,0x5D,0xC6,0x6D,0xF2};
+        memset(&s_tw_results, 0, sizeof(s_tw_results));
+        tw_add_auth("Xfinity Mobile", XM, 44, true, -58, WIFI_AUTH_WPA2_ENTERPRISE);
+        tw_add_auth("xfinitywifi",    XW, 44, true, -50, WIFI_AUTH_OPEN);
+        count = 0;
+        analyzer_run(&s_tw_results, NULL, s_tw_scores, &count);
+        bool xf_twin = false; uint8_t xf_sibling = 0;
+        for (uint16_t i = 0; i < count; i++) {
+            const ap_score_t *s = &s_tw_scores[i];
+            if (strcmp(s->ssid, "Xfinity Mobile") != 0 &&
+                strcmp(s->ssid, "xfinitywifi")    != 0) continue;
+            ESP_LOGI(TAG, "   XF %02X:%02X:%02X:%02X:%02X:%02X ssid=\"%s\" twin=%d open_clone=%d sibling=%d class=%s",
+                     s->bssid[0], s->bssid[1], s->bssid[2], s->bssid[3], s->bssid[4], s->bssid[5],
+                     s->ssid, s->twin_detected, s->open_clone, s->sibling_service_peer,
+                     analyzer_twin_class(s));
+            if (s->twin_detected || s->open_clone) xf_twin = true;
+            if (s->sibling_service_peer) xf_sibling++;
+        }
+        tw_check("XFINITY-1 [TARGET] differently-named Xfinity siblings not twin_detected", !xf_twin);
+        tw_check("XFINITY-1 [TARGET] Xfinity pair classified as sibling virtual BSSID", xf_sibling == 2);
+
+        const twin_finding_t *xf = analyzer_twin_finding_for(XM, TWIN_TRIGGER_NONE);
+        tw_check("XFINITY-2 pair finding recorded for the Xfinity pair", xf != NULL);
+        if (xf) {
+            tw_check("XFINITY-2 finding names the other BSSID as peer",
+                     (memcmp(xf->target, XM, 6) == 0 && memcmp(xf->peer, XW, 6) == 0) ||
+                     (memcmp(xf->target, XW, 6) == 0 && memcmp(xf->peer, XM, 6) == 0));
+            tw_check("XFINITY-2 decision is no_twin_evidence",
+                     xf->decision == TWIN_DECISION_NO_EVIDENCE);
+            tw_check("XFINITY-2 trigger is relationship_only",
+                     xf->trigger == TWIN_TRIGGER_RELATIONSHIP_ONLY);
+            tw_check("XFINITY-2 relationship is likely_sibling_virtual_bssid",
+                     xf->relationship == TWIN_REL_LIKELY_SIBLING_VIRTUAL_BSSID);
+            tw_check("XFINITY-2 exact_ssid_match is false",
+                     (xf->evidence & TWIN_EV_EXACT_SSID_MATCH) == 0);
+            tw_check("XFINITY-2 suppressing evidence retained (MAC structure + channel)",
+                     (xf->evidence & TWIN_EV_CONSERVED_MAC_STRUCTURE) &&
+                     (xf->evidence & TWIN_EV_SAME_CHANNEL) &&
+                     (xf->evidence & TWIN_EV_BOTH_LAA));
+            tw_check("XFINITY-2 security mismatch recorded, not hidden",
+                     (xf->evidence & TWIN_EV_SECURITY_MISMATCH) != 0);
+            tw_check("XFINITY-2 symmetric — neither member named as a clone",
+                     xf->symmetric);
+        }
+    }
+    tw_drain();
+
+    {
+        const uint8_t PROT[6] = {0x60,0x22,0x32,0x11,0x22,0x33};
+        const uint8_t OPEN[6] = {0xB4,0x63,0x6F,0x99,0x88,0x77};
+        memset(&s_tw_results, 0, sizeof(s_tw_results));
+        tw_add_auth("HomeNet-5G", PROT, 6, false, -45, WIFI_AUTH_WPA2_PSK);
+        tw_add_auth("HomeNet-5G", OPEN, 6, false, -70, WIFI_AUTH_OPEN);
+        count = 0;
+        analyzer_run(&s_tw_results, NULL, s_tw_scores, &count);
+
+        bool flagged = false;
+        for (uint16_t i = 0; i < count; i++)
+            if (s_tw_scores[i].open_clone) flagged = true;
+        tw_check("DOWNGRADE-1 open clone of a protected SSID still alerts", flagged);
+
+        const twin_finding_t *d = analyzer_twin_finding_for(OPEN, TWIN_TRIGGER_OPEN_CLONE);
+        tw_check("DOWNGRADE-2 open_clone finding recorded", d != NULL);
+        if (d) {
+            tw_check("DOWNGRADE-2 pair is the two HomeNet-5G BSSIDs",
+                     (memcmp(d->target, PROT, 6) == 0 && memcmp(d->peer, OPEN, 6) == 0) ||
+                     (memcmp(d->target, OPEN, 6) == 0 && memcmp(d->peer, PROT, 6) == 0));
+            tw_check("DOWNGRADE-2 exact_ssid_match is true",
+                     (d->evidence & TWIN_EV_EXACT_SSID_MATCH) != 0);
+            tw_check("DOWNGRADE-2 security_mismatch is the trigger evidence",
+                     (d->evidence & TWIN_EV_SECURITY_MISMATCH) != 0);
+            tw_check("DOWNGRADE-2 decision is high_confidence",
+                     d->decision == TWIN_DECISION_HIGH_CONFIDENCE);
+            tw_check("DOWNGRADE-2 unrelated identity — not a managed ESS peer",
+                     d->relationship != TWIN_REL_LIKELY_MANAGED_ESS_PEER);
+        }
+    }
+    tw_drain();
+
+    {
+        const uint8_t A[6] = {0x60,0x22,0x32,0x0A,0x0B,0x0C};
+        const uint8_t B[6] = {0x60,0x22,0x32,0x0A,0x0B,0x5C};
+        const uint8_t C[6] = {0xB4,0x63,0x6F,0x01,0x02,0x03};
+
+        static EXT_RAM_BSS_ATTR twin_finding_t fwd[SC_TWIN_MAX_FINDINGS];
+        uint16_t fwd_n;
+
+        memset(&s_tw_results, 0, sizeof(s_tw_results));
+        tw_add("OrderTest", A, 6, false, -40);
+        tw_add("OrderTest", B, 6, false, -44);
+        tw_add_auth("OrderTest", C, 6, false, -75, WIFI_AUTH_OPEN);
+        count = 0;
+        analyzer_run(&s_tw_results, NULL, s_tw_scores, &count);
+        fwd_n = analyzer_twin_finding_count();
+        for (uint16_t i = 0; i < fwd_n; i++) fwd[i] = *analyzer_twin_finding(i);
+
+        memset(&s_tw_results, 0, sizeof(s_tw_results));
+        tw_add_auth("OrderTest", C, 6, false, -75, WIFI_AUTH_OPEN);
+        tw_add("OrderTest", B, 6, false, -44);
+        tw_add("OrderTest", A, 6, false, -40);
+        count = 0;
+        analyzer_run(&s_tw_results, NULL, s_tw_scores, &count);
+        uint16_t rev_n = analyzer_twin_finding_count();
+
+        tw_check("ORDER-1 same finding count under both input orders",
+                 fwd_n == rev_n && fwd_n > 0);
+
+        bool all_matched = (fwd_n == rev_n);
+        for (uint16_t i = 0; i < rev_n && all_matched; i++) {
+            const twin_finding_t *r = analyzer_twin_finding(i);
+            bool found = false;
+            for (uint16_t k = 0; k < fwd_n; k++) {
+                if (memcmp(fwd[k].target, r->target, 6) != 0) continue;
+                if (memcmp(fwd[k].peer,   r->peer,   6) != 0) continue;
+                if (fwd[k].trigger != r->trigger)             continue;
+                found = fwd[k].evidence     == r->evidence &&
+                        fwd[k].decision     == r->decision &&
+                        fwd[k].relationship == r->relationship &&
+                        fwd[k].weight       == r->weight;
+                break;
+            }
+            if (!found) {
+                all_matched = false;
+                ESP_LOGW(TAG, "   ORDER unmatched pair %02X:%02X:%02X:%02X:%02X:%02X"
+                              " <-> %02X:%02X:%02X:%02X:%02X:%02X trigger=%s",
+                         r->target[0], r->target[1], r->target[2],
+                         r->target[3], r->target[4], r->target[5],
+                         r->peer[0], r->peer[1], r->peer[2],
+                         r->peer[3], r->peer[4], r->peer[5],
+                         analyzer_twin_trigger_label(r->trigger));
+            }
+        }
+        tw_check("ORDER-1 identical pairs, evidence and decisions either way",
+                 all_matched);
+    }
+    tw_drain();
+
+    {
+        memset(&s_tw_results, 0, sizeof(s_tw_results));
+        count = 0;
+        analyzer_run(&s_tw_results, NULL, s_tw_scores, &count);
+        tw_check("pair findings cleared by an empty scan",
+                 analyzer_twin_finding_count() == 0);
     }
     tw_drain();
 

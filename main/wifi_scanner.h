@@ -2,10 +2,11 @@
 
 #include "esp_wifi.h"
 #include "esp_err.h"
+#include "sc_profile.h"
 #include <stdint.h>
 #include <stdbool.h>
 
-#define WIFI_SCAN_MAX_APS  128
+#define WIFI_SCAN_MAX_APS  SC_WIFI_SCAN_MAX_APS
 
 typedef struct {
     char             ssid[33];
@@ -30,8 +31,18 @@ typedef struct {
 
 esp_err_t wifi_scanner_init(void);
 
+esp_err_t wifi_scanner_deinit(void);
+
 esp_err_t wifi_scan_run(scan_results_t *out);
+
+esp_err_t wifi_scan_run_opts(scan_results_t *out, const wifi_scan_opts_t *opts);
 
 esp_err_t wifi_scan_run_broad(scan_results_t *out, uint8_t active_sweeps, uint32_t max_ms);
 
 esp_err_t wifi_scan_run_wardrive(scan_results_t *out, bool include_5g);
+
+esp_err_t wifi_scan_run_channels(scan_results_t *out, const uint8_t *chans,
+                                 uint8_t n, uint16_t dwell_ms);
+
+esp_err_t wifi_scan_channels_append(scan_results_t *out, const uint8_t *chans,
+                                    uint8_t n, uint16_t dwell_ms);

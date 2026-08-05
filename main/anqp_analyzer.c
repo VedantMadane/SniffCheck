@@ -1,8 +1,9 @@
 #include "anqp_analyzer.h"
 #include "esp_attr.h"
+#include "sc_profile.h"
 #include <string.h>
 
-#define ANQP_DETAIL_CAP  64
+#define ANQP_DETAIL_CAP  SC_ANQP_DETAIL_CAP
 
 static EXT_RAM_BSS_ATTR anqp_analyzer_entry_t s_detail[ANQP_DETAIL_CAP];
 static uint16_t                  s_detail_count;

@@ -9,6 +9,7 @@ set(srcs
     "frame_parser.c"
     "wifi_sniffer.c"
     "analyzer.c"
+    "infra_cluster.c"
     "physical_device_cluster.c"
     "ble_scanner.c"
     "ble_advise.c"

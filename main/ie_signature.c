@@ -1,9 +1,10 @@
 #include "ie_signature.h"
 #include "eui_db.h"
 #include "esp_attr.h"
+#include "sc_profile.h"
 #include <string.h>
 
-#define IE_DETAIL_CAP   64
+#define IE_DETAIL_CAP   SC_IE_DETAIL_CAP
 
 static EXT_RAM_BSS_ATTR ie_signature_entry_t s_detail[IE_DETAIL_CAP];
 static uint16_t                 s_detail_count;

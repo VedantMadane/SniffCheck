@@ -4,7 +4,33 @@ SniffCheck only listens. It never attacks, never sends fake stuff, never pokes o
 
 This guide tells you how to push the button, read the screen, and use the phone page. *<- side note: don't push the button*
 
-## What's new in this build (v0.19-phase19-117)
+## What's new in this build (87.0.111)
+
+- **Evil Twin notifications now tell you *which* network they mean.** Before,
+  a twin warning was a single line on one network that said "same SSID +
+  mismatched peer" and left you with no way to check it — you couldn't see the
+  other network involved, or which check actually tripped. Now every twin
+  notification names the peer, links to both networks, and says what fired: an
+  open network sharing a protected one's name, an unrelated network with a big
+  signal gap, or a mismatched security profile.
+- **You can see what argued *against* a warning too.** Each pair lists the
+  evidence pointing toward impersonation and the evidence pointing away from it
+  (conserved MAC structure, same channel, a recognised public SSID). If the
+  evidence can't tell you which of the two is the impostor, it says so instead
+  of blaming one.
+- **Pairs that were checked and cleared now show up.** Open a Wi-Fi network and
+  you'll see the related networks it was compared against and found innocent —
+  the usual carrier gateway advertising two service names off one radio, for
+  example. Previously a cleared pair looked identical to one that was never
+  examined.    *<- this was the actual bug behind a pile of confusing Xfinity
+  warnings people were seeing*
+- **One relationship = one notification.** Both halves of a pair used to raise
+  their own warning, so a single situation read as two or more events. They're
+  grouped now, with a count.
+- **Boot scan can be turned off.** Settings -> Boot scan. The stick powers up to
+  the Main menu and waits instead of scanning immediately. See below.
+
+Previous build (v0.19-phase19-117):
 
 - **The sniffer sweeps in loops now.** Instead of parking on each channel once for a long dwell, the passive sniff hops every `100 ms` and keeps looping over the channel list for the same total time. Devices that only transmit now and then don't get missed just because they were quiet during their channel's one window.
 - **The AP comes back after every capture.** Station capture and CSI capture now relaunch the SniffCheck AP on their own when the window ends, same as the packet scan already did. Just reconnect — no more digging through the device menu to re-open it.
@@ -12,7 +38,7 @@ This guide tells you how to push the button, read the screen, and use the phone 
 - **Aggregate clusters.** The Clusters tab leads with a new subtab that combines NIC, radio, and privacy clusters describing the same physical device — linked only by a shared hardware address, or a shared SSID *plus* matching vendor OUI. Each tile shows which source clusters were combined and why.
 - **RF environment estimate.** The summary now shows a passive read on how busy the air is — crowd density, device density, mobile-device pressure, phone-like clustering — with icons for the device categories that fed the numbers, and a plain caveat that it's an estimate, not a head-count.
 
-Previous build (v0.19-phase19-115): theme picker (Dracula/Nord/Gruvbox/Solarized Light/Tokyo Night/Monokai + SniffCheck defaults), public-safety gear badges, privacy-finding clusters, twin radio-cluster dedupe, PSRAM walk tables.
+Before that (v0.19-phase19-115): theme picker (Dracula/Nord/Gruvbox/Solarized Light/Tokyo Night/Monokai + SniffCheck defaults), public-safety gear badges, privacy-finding clusters, twin radio-cluster dedupe, PSRAM walk tables.
 
 ## The button
 
@@ -81,6 +107,26 @@ If the mode changed, it does a fresh boot scan.    *<- not a reboot*
 2. Go to the **Settings** tab
 3. Pick **Lite** or **Adv**
 4. It takes effect on the next scan
+
+## Stop it scanning the moment you plug it in
+
+By default the stick scans as soon as it powers up — that's the whole "plug it
+in and read the verdict" idea. But if you're just carrying it around, or it's
+sat on a charger, you probably don't want it doing that.
+
+**On the device, from the Main screen:**
+
+1. `[1]` = open the Main menu
+2. `[1]` to highlight **Settings**, `[2]` to open it
+3. `[1]` to highlight **Boot scan**, `[2]` to flip it ON/OFF
+
+With **Boot scan** off it powers up straight to the Main menu and waits. Nothing
+is scanned until you pick **Rescan** yourself. The results screens will say
+there's no scan yet, because there isn't one.    *<- this is the same "no scan
+yet" you'd see before the first scan finishes normally, not an error*
+
+The setting sticks across reboots. It's on by default, and if you've never
+touched it nothing changes.
 
 ### Main menu
 
@@ -214,6 +260,7 @@ Your browser reads it. You can download a device list or send the records into S
 ### Settings
 
 - Mode: Lite or Adv (next scan)
+- Boot scan: On or Off — read-only here, flip it from the device's own Settings menu
 - Theme: palette for the phone page + report (Dracula, Nord, Gruvbox, Solarized Light, Tokyo Night, Monokai, or the two SniffCheck defaults)
 - Quick tabs: choose which report tabs the report's floating apps-grid button jumps to (default: Wi-Fi, BLE, Clusters, Channels)
 - Brightness: `25%`, `50%`, `75%`, `100%`

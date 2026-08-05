@@ -1,8 +1,9 @@
 #include "probe_frame_ring.h"
 #include "esp_attr.h"
+#include "sc_profile.h"
 #include <string.h>
 
-#define PROBE_FRAME_RING_CAP 128
+#define PROBE_FRAME_RING_CAP SC_PROBE_FRAME_RING_CAP
 
 static EXT_RAM_BSS_ATTR probe_frame_t s_ring[PROBE_FRAME_RING_CAP];
 static uint16_t s_head;

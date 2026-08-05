@@ -1,8 +1,9 @@
 #include "ble_adv_ring.h"
 #include "esp_attr.h"
+#include "sc_profile.h"
 #include <string.h>
 
-#define BLE_ADV_RING_CAP 128
+#define BLE_ADV_RING_CAP SC_BLE_ADV_RING_CAP
 
 static EXT_RAM_BSS_ATTR ble_adv_frame_t s_ring[BLE_ADV_RING_CAP];
 static uint16_t s_head;

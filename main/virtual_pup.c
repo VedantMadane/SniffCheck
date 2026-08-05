@@ -18,11 +18,9 @@ static const char *TAG = "sc_vpup";
 #define VP_K_PETS      "vp_pets"
 #define VP_K_TREATS    "vp_treats"
 #define VP_K_NAME      "vp_name"
+#define VP_K_HISCORE   "vp_hi"
+#define VP_K_PLAYS     "vp_plays"
 
-/* XP per scan = wifi networks + BLE devices seen that scan (tens per scan in a
- * populated area). The curve is deliberately slow so a single dense scan can't
- * jump levels: threshold(L) = BASE * GROWTH^L, so L2 ~= 150*1.4^2 ~= 294 XP
- * (a few hundred sightings), L5 ~= 800, L10 ~= 4300. */
 #define VP_CURVE_BASE    150.0
 #define VP_CURVE_GROWTH  1.4
 
@@ -36,6 +34,8 @@ static uint8_t  s_avatar = 0;
 static uint32_t s_scans  = 0;
 static uint32_t s_pets   = 0;
 static uint32_t s_treats = 0;
+static uint32_t s_hiscore = 0;
+static uint32_t s_plays   = 0;
 static char     s_name[VP_NAME_MAX] = "Suz";
 
 static uint32_t  s_last_scan_xp = 0;
@@ -96,6 +96,8 @@ static void virtual_pup_save(void)
     nvs_set_u32(h, VP_K_SCANS, s_scans);
     nvs_set_u32(h, VP_K_PETS, s_pets);
     nvs_set_u32(h, VP_K_TREATS, s_treats);
+    nvs_set_u32(h, VP_K_HISCORE, s_hiscore);
+    nvs_set_u32(h, VP_K_PLAYS, s_plays);
     nvs_set_str(h, VP_K_NAME, s_name);
     nvs_commit(h);
     nvs_close(h);
@@ -115,6 +117,8 @@ void virtual_pup_init(uint32_t boot_count)
         nvs_get_u32(h, VP_K_SCANS, &s_scans);
         nvs_get_u32(h, VP_K_PETS, &s_pets);
         nvs_get_u32(h, VP_K_TREATS, &s_treats);
+        nvs_get_u32(h, VP_K_HISCORE, &s_hiscore);
+        nvs_get_u32(h, VP_K_PLAYS, &s_plays);
         size_t nlen = sizeof(s_name);
         nvs_get_str(h, VP_K_NAME, s_name, &nlen);
         nvs_close(h);
@@ -182,6 +186,23 @@ vp_feed_result_t virtual_pup_grant_xp(uint32_t xp)
     return r;
 }
 
+void virtual_pup_sync_level(uint16_t level, uint32_t scans)
+{
+    if (level < 1) level = 1;
+    uint64_t cur  = curve_threshold(level);
+    uint64_t next = curve_threshold(level + 1);
+    uint32_t band_lo = (uint32_t)level * level;
+    uint32_t band_hi = (uint32_t)(level + 1) * (uint32_t)(level + 1);
+    uint64_t xp = cur;
+    if (next > cur && band_hi > band_lo && scans > band_lo) {
+        uint32_t into = scans - band_lo, span = band_hi - band_lo;
+        if (into > span) into = span;
+        xp = cur + (uint64_t)(next - cur) * into / span;
+    }
+    s_xp    = xp;
+    s_scans = scans;
+}
+
 void virtual_pup_get(vp_status_t *out)
 {
     if (!out) return;
@@ -202,6 +223,8 @@ void virtual_pup_get(vp_status_t *out)
     out->lifetime_scans= s_scans;
     out->pets          = s_pets;
     out->treats        = s_treats;
+    out->high_score    = s_hiscore;
+    out->plays         = s_plays;
     out->last_scan_xp  = s_last_scan_xp;
     out->mood          = s_mood;
 }
@@ -248,6 +271,17 @@ void virtual_pup_treat(void)
     ESP_LOGI(TAG, "treat (%u total)", (unsigned)s_treats);
 }
 
+uint32_t virtual_pup_record_play(uint32_t score)
+{
+    s_plays++;
+    s_mood = VP_MOOD_EXCITED;
+    if (score > s_hiscore) s_hiscore = score;
+    virtual_pup_save();
+    ESP_LOGI(TAG, "play #%u score=%u best=%u", (unsigned)s_plays,
+             (unsigned)score, (unsigned)s_hiscore);
+    return s_hiscore;
+}
+
 const char *virtual_pup_mood_label(void)
 {
     switch (s_mood) {
@@ -262,6 +296,7 @@ void virtual_pup_reset(void)
 {
     s_wifi = 0; s_ble = 0; s_xp = 0;
     s_scans = 0; s_pets = 0; s_treats = 0;
+    s_hiscore = 0; s_plays = 0;
     s_birth = s_cur_boot;
     s_avatar = 0;
     strcpy(s_name, "Suz");

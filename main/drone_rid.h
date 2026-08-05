@@ -13,7 +13,7 @@
 
 #define DRONE_RID_BEARER_BLE          1
 #define DRONE_RID_BEARER_WIFI_BEACON  2
-#define DRONE_RID_BEARER_WIFI_NAN     3 
+#define DRONE_RID_BEARER_WIFI_NAN     3
 
 typedef struct {
     char    id[21];

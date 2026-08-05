@@ -1,6 +1,7 @@
 #include "wifi_scanner.h"
 #include "esp_wifi.h"
 #include "esp_check.h"
+#include "esp_netif.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -230,5 +231,98 @@ esp_err_t wifi_scan_run_wardrive(scan_results_t *out, bool include_5g)
     log_results(out);
     ESP_LOGI(TAG, "wardrive scan done: %u APs (%s)",
              (unsigned)out->count, include_5g ? "2.4+5 GHz" : "2.4 GHz only");
+    return ESP_OK;
+}
+
+esp_err_t wifi_scan_channels_append(scan_results_t *out, const uint8_t *chans,
+                                    uint8_t n, uint16_t dwell_ms)
+{
+    if (!out || !chans || n == 0) return ESP_ERR_INVALID_ARG;
+    if (!dwell_ms) dwell_ms = 80;
+
+    ESP_RETURN_ON_ERROR(prepare_scan(false), TAG, "prepare");
+
+    TickType_t t0 = xTaskGetTickCount();
+    uint8_t swept = 0;
+    for (uint8_t i = 0; i < n; i++) {
+        wifi_scan_config_t cfg = {0};
+        cfg.channel               = chans[i];
+        cfg.show_hidden           = true;
+        cfg.scan_type             = WIFI_SCAN_TYPE_ACTIVE;
+        cfg.scan_time.active.min  = dwell_ms;
+        cfg.scan_time.active.max  = dwell_ms;
+
+        esp_err_t err = esp_wifi_scan_start(&cfg, true);
+        if (err != ESP_OK) {
+            ESP_LOGD(TAG, "scan ch %u: %s", chans[i], esp_err_to_name(err));
+            continue;
+        }
+        swept++;
+
+        uint16_t ap_num = 0;
+        if (esp_wifi_scan_get_ap_num(&ap_num) != ESP_OK) continue;
+        uint16_t num = (ap_num < WIFI_SCAN_MAX_APS) ? ap_num : WIFI_SCAN_MAX_APS;
+
+        static wifi_ap_record_t raw[WIFI_SCAN_MAX_APS];
+        memset(raw, 0, sizeof(raw));
+        if (esp_wifi_scan_get_ap_records(&num, raw) != ESP_OK) continue;
+        esp_wifi_clear_ap_list();
+        for (uint16_t k = 0; k < num; k++) merge_record(out, &raw[k]);
+    }
+
+    ESP_LOGD(TAG, "channel segment: %u APs total over %u/%u channels @ %u ms (%lu ms)",
+             (unsigned)out->count, (unsigned)swept, (unsigned)n, (unsigned)dwell_ms,
+             (unsigned long)pdTICKS_TO_MS(xTaskGetTickCount() - t0));
+    return ESP_OK;
+}
+
+esp_err_t wifi_scan_run_opts(scan_results_t *out, const wifi_scan_opts_t *opts)
+{
+    if (!out || !opts) return ESP_ERR_INVALID_ARG;
+    memset(out, 0, sizeof(*out));
+    esp_err_t err = scan_sweep(out, opts);
+    if (err == ESP_OK) {
+        log_results(out);
+        ESP_LOGI(TAG, "scan done: %u APs (dwell %u ms%s)",
+                 (unsigned)out->count, (unsigned)opts->dwell_ms,
+                 opts->band_2g_only ? ", 2.4 GHz only" : "");
+    }
+    return err;
+}
+
+esp_err_t wifi_scan_run_channels(scan_results_t *out, const uint8_t *chans,
+                                 uint8_t n, uint16_t dwell_ms)
+{
+    if (!out) return ESP_ERR_INVALID_ARG;
+    memset(out, 0, sizeof(*out));
+    esp_err_t err = wifi_scan_channels_append(out, chans, n, dwell_ms);
+    if (err == ESP_OK) {
+        log_results(out);
+        ESP_LOGI(TAG, "channel scan done: %u APs over %u channels @ %u ms",
+                 (unsigned)out->count, (unsigned)n, (unsigned)(dwell_ms ? dwell_ms : 80));
+    }
+    return err;
+}
+
+esp_err_t wifi_scanner_deinit(void)
+{
+    esp_err_t err = esp_wifi_stop();
+    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT) {
+        ESP_LOGE(TAG, "wifi stop failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = esp_wifi_deinit();
+    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT) {
+        ESP_LOGE(TAG, "wifi deinit failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (sta) {
+        esp_netif_destroy_default_wifi(sta);
+    }
+
+    ESP_LOGI(TAG, "Wi-Fi torn down");
     return ESP_OK;
 }

@@ -17,6 +17,15 @@ Images shipped here:
 The cluster **arm** merged image bundles the vendor database (`data/eui.bin`) at
 `0x310000`, so scanned devices resolve to real vendor names and categories.
 
+> **The three Dog Park cluster images are from an earlier source snapshot than
+> the `main/` source in this repo.** The cluster projects compile several files
+> out of `main/` (the arm builds `analyzer.c`, `wifi_scanner.c` and others; the
+> brain embeds the report viewer), and `main/` has moved ahead of them. Building
+> a cluster role from this tree will therefore produce a binary that differs
+> from the one shipped here. The standalone `sniffcheck-merged.bin` **is** built
+> from the source in this repo. The cluster images will be refreshed in their
+> own release, once they can be re-verified on the four-board rig.
+
 `checksums.txt` holds a `sha256` for every `.bin`; the S3-node image is the only
 ESP32-S3 build (the flasher checks the chip family before writing).
 

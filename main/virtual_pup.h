@@ -37,6 +37,8 @@ typedef struct {
     uint32_t   lifetime_scans;
     uint32_t   pets;
     uint32_t   treats;
+    uint32_t   high_score;
+    uint32_t   plays;
     uint32_t   last_scan_xp;
     vp_mood_t  mood;
 } vp_status_t;
@@ -55,6 +57,8 @@ vp_feed_result_t virtual_pup_grant_xp(uint32_t xp);
 
 void virtual_pup_get(vp_status_t *out);
 
+void virtual_pup_sync_level(uint16_t level, uint32_t scans);
+
 uint16_t virtual_pup_level_for_xp(uint64_t xp);
 
 vp_title_t  virtual_pup_title_for_level(uint16_t level);
@@ -66,6 +70,8 @@ void virtual_pup_set_name(const char *name);
 
 void virtual_pup_pet(void);
 void virtual_pup_treat(void);
+
+uint32_t virtual_pup_record_play(uint32_t score);
 
 const char *virtual_pup_mood_label(void);
 

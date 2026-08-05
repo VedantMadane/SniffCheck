@@ -2,10 +2,11 @@
 
 #include "esp_err.h"
 #include "drone_rid.h"
+#include "sc_profile.h"
 #include <stdint.h>
 #include <stdbool.h>
 
-#define BLE_MAX_DEVICES  192
+#define BLE_MAX_DEVICES  SC_BLE_MAX_DEVICES
 
 #define BLE_SCAN_MS       2000
 
@@ -93,6 +94,7 @@ typedef struct {
     uint8_t            name_rule_kind;
 
     bool               is_airtag;
+    bool               find_my_separated;
     bool               scannable;
     bool               suppressed;
 
@@ -120,6 +122,8 @@ typedef struct {
 } ble_results_t;
 
 esp_err_t ble_scanner_init(void);
+
+esp_err_t ble_scanner_deinit(void);
 
 const char *ble_proximity_label(uint16_t distance_dm);
 

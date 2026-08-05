@@ -50,7 +50,7 @@ static void write_global_header(void)
 
 #define RT_PRESENT  ((1u << 1) | (1u << 3) | (1u << 5))
 #define RT_LEN      15
-#define RT_F_FCS    0x10 
+#define RT_F_FCS    0x10
 
 static uint16_t chan_to_freq(uint8_t ch, bool band5)
 {

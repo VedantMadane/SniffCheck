@@ -321,7 +321,7 @@ _Static_assert(sizeof(TROPHIES) / sizeof(TROPHIES[0]) == PUP_TROPHY_COUNT,
                "trophy table must hold exactly PUP_TROPHY_COUNT entries");
 
 #define EARNED_BYTES  32
-#define BLOOM_BYTES   256 
+#define BLOOM_BYTES   256
 
 static uint32_t s_counts[TC_COUNT]          = {0};
 static uint8_t  s_earned[EARNED_BYTES]      = {0};

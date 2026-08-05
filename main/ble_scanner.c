@@ -57,7 +57,7 @@ static ble_addr_subtype_t classify_addr(uint8_t nimble_type, const uint8_t *addr
 
 #define BLE_REF_1M_RSSI    -59
 #define BLE_DIST_CAP_DM    1000
-#define BLE_PATHLOSS_DEN   25.0f 
+#define BLE_PATHLOSS_DEN   25.0f
 
 static uint16_t estimate_distance_dm(int8_t tx_power, int8_t rssi)
 {
@@ -147,6 +147,10 @@ static void score_ble_device(ble_device_t *d)
     if (airtag && !d->name[0]) {
         strlcpy(d->name, "Find My tag", sizeof(d->name));
     }
+
+    d->find_my_separated =
+        (airtag && !(d->apple_state & 0x20)) ||
+        (d->apple_subtype == APPLE_SUB_FIND_MY_SEP);
 
     bool find_my_short = (d->mfg_company_id == 0x004C &&
                           d->mfg_payload[0] == 0x12 &&
@@ -288,8 +292,7 @@ static void score_ble_device(ble_device_t *d)
 
     uint8_t tl = THREAT_NONE;
     #define BUMP(lvl) do { if ((lvl) > tl) tl = (lvl); } while (0)
-    bool find_my_separated =
-        d->is_airtag || (d->apple_subtype == APPLE_SUB_FIND_MY_SEP);
+    bool find_my_separated = d->find_my_separated;
     if (combined & EUI_FLAG_KNOWN_MALICIOUS)            BUMP(THREAT_HIGH);
     if (combined & EUI_FLAG_INVESTIGATION)              BUMP(THREAT_HIGH);
     if (attack_uuid)                                    BUMP(THREAT_HIGH);
@@ -638,7 +641,11 @@ esp_err_t ble_scanner_init(void)
     s_done_sem = xSemaphoreCreateBinary();
     if (!s_sync_sem || !s_done_sem) return ESP_ERR_NO_MEM;
 
-    ESP_ERROR_CHECK(nimble_port_init());
+    esp_err_t nerr = nimble_port_init();
+    if (nerr != ESP_OK) {
+        ESP_LOGE(TAG, "nimble_port_init failed: %s", esp_err_to_name(nerr));
+        return nerr;
+    }
 
     ble_hs_cfg.sync_cb         = on_sync;
     ble_hs_cfg.reset_cb        = on_reset;
@@ -653,6 +660,28 @@ esp_err_t ble_scanner_init(void)
     }
 
     ESP_LOGI(TAG, "BLE stack ready");
+    return ESP_OK;
+}
+
+esp_err_t ble_scanner_deinit(void)
+{
+    int rc = nimble_port_stop();
+    if (rc != 0) {
+        ESP_LOGE(TAG, "nimble_port_stop failed: %d", rc);
+        return ESP_FAIL;
+    }
+
+    esp_err_t err = nimble_port_deinit();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "nimble_port_deinit failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    if (s_sync_sem) { vSemaphoreDelete(s_sync_sem); s_sync_sem = NULL; }
+    if (s_done_sem) { vSemaphoreDelete(s_done_sem); s_done_sem = NULL; }
+    s_results = NULL;
+
+    ESP_LOGI(TAG, "BLE stack torn down");
     return ESP_OK;
 }
 

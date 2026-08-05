@@ -1,6 +1,6 @@
 {
   "name": "SniffCheck",
-  "version": "0.0.0-staging",
+  "version": "87.0.111",
   "new_install_prompt_erase": true,
   "builds": [
     {

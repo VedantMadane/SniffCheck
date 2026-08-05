@@ -2,6 +2,8 @@
 #include "eui_db.h"
 #include "apple_continuity.h"
 #include "wifi_sniffer.h"
+#include "sc_profile.h"
+#include "esp_attr.h"
 #include "esp_log.h"
 #include <string.h>
 #include <stdio.h>
@@ -468,6 +470,141 @@ static bool same_administered_wlan(const ap_score_t *a, const ap_score_t *b)
     return same_public_oui || same_router || same_vendor;
 }
 
+static bool likely_sibling_virtual_bssid(const ap_score_t *a, const ap_score_t *b)
+{
+    if (!a || !b) return false;
+    if (!a->ssid[0] || !b->ssid[0]) return false;
+    if (strcmp(a->ssid, b->ssid) == 0) return false;
+    if (strcmp(a->ssid, "<hidden>") == 0 ||
+        strcmp(b->ssid, "<hidden>") == 0) return false;
+    if (!mac_is_laa(a->bssid) || !mac_is_laa(b->bssid)) return false;
+    return same_physical_router(a->bssid, b->bssid);
+}
+
+
+static EXT_RAM_BSS_ATTR twin_finding_t s_twin[SC_TWIN_MAX_FINDINGS];
+static uint16_t                        s_twin_n;
+
+static bool twin_peer_pref(int32_t cand, const uint8_t cand_bssid[6],
+                           int32_t cur,  const uint8_t cur_bssid[6], bool have_cur)
+{
+    if (!have_cur)   return true;
+    if (cand != cur) return cand > cur;
+    return memcmp(cand_bssid, cur_bssid, 6) < 0;
+}
+
+static void twin_record(const uint8_t a[6], const uint8_t b[6],
+                        twin_trigger_t trigger, twin_relationship_t rel,
+                        twin_decision_t decision, uint32_t evidence,
+                        int16_t weight, bool symmetric)
+{
+    if (!a || !b || memcmp(a, b, 6) == 0) return;
+
+    const uint8_t *lo = a, *hi = b;
+    if (memcmp(a, b, 6) > 0) { lo = b; hi = a; }
+
+    for (uint16_t i = 0; i < s_twin_n; i++) {
+        twin_finding_t *f = &s_twin[i];
+        if (memcmp(f->target, lo, 6) != 0 || memcmp(f->peer, hi, 6) != 0) continue;
+        if (f->trigger != (uint8_t)trigger) continue;
+        f->evidence |= evidence;
+        if (decision > f->decision) f->decision = (uint8_t)decision;
+        return;
+    }
+
+    if (s_twin_n >= SC_TWIN_MAX_FINDINGS) return;
+
+    twin_finding_t *f = &s_twin[s_twin_n++];
+    memcpy(f->target, lo, 6);
+    memcpy(f->peer,   hi, 6);
+    f->trigger      = (uint8_t)trigger;
+    f->relationship = (uint8_t)rel;
+    f->decision     = (uint8_t)decision;
+    f->symmetric    = symmetric;
+    f->evidence     = evidence;
+    f->weight       = weight;
+}
+
+static uint32_t twin_pair_evidence(const uint8_t a_bssid[6], const char *a_ssid,
+                                    wifi_auth_mode_t a_auth, uint8_t a_channel,
+                                    const uint8_t b_bssid[6], const char *b_ssid,
+                                    wifi_auth_mode_t b_auth, uint8_t b_channel)
+{
+    uint32_t ev = 0;
+    if (a_ssid && b_ssid && strcmp(a_ssid, b_ssid) == 0) ev |= TWIN_EV_EXACT_SSID_MATCH;
+    if ((a_auth == WIFI_AUTH_OPEN) != (b_auth == WIFI_AUTH_OPEN))
+        ev |= TWIN_EV_SECURITY_MISMATCH;
+    if (a_channel == b_channel) ev |= TWIN_EV_SAME_CHANNEL;
+    if (same_physical_router(a_bssid, b_bssid)) ev |= TWIN_EV_CONSERVED_MAC_STRUCTURE;
+    if (mac_is_laa(a_bssid) && mac_is_laa(b_bssid)) ev |= TWIN_EV_BOTH_LAA;
+    if (!mac_is_laa(a_bssid) && !mac_is_laa(b_bssid) &&
+        memcmp(a_bssid, b_bssid, 3) == 0) ev |= TWIN_EV_SAME_PUBLIC_OUI;
+    if ((a_ssid && is_chain_ssid(a_ssid)) || (b_ssid && is_chain_ssid(b_ssid)))
+        ev |= TWIN_EV_CHAIN_SSID;
+    return ev;
+}
+
+static bool same_administered_wlan_records(const ap_record_t *a, const ap_record_t *b)
+{
+    if (!a || !b) return false;
+    if (strcmp(a->ssid, b->ssid) != 0) return false;
+    if (strcmp(a->ssid, "<hidden>") == 0) return false;
+    bool same_public_oui = !mac_is_laa(a->bssid) && !mac_is_laa(b->bssid) &&
+                            memcmp(a->bssid, b->bssid, 3) == 0;
+    return same_public_oui || same_physical_router(a->bssid, b->bssid);
+}
+
+uint16_t analyzer_twin_finding_count(void) { return s_twin_n; }
+
+const twin_finding_t *analyzer_twin_finding(uint16_t idx)
+{
+    return idx < s_twin_n ? &s_twin[idx] : NULL;
+}
+
+const twin_finding_t *analyzer_twin_finding_for(const uint8_t bssid[6],
+                                                 twin_trigger_t trigger)
+{
+    if (!bssid) return NULL;
+    for (uint16_t i = 0; i < s_twin_n; i++) {
+        const twin_finding_t *f = &s_twin[i];
+        if (trigger != TWIN_TRIGGER_NONE && f->trigger != (uint8_t)trigger) continue;
+        if (memcmp(f->target, bssid, 6) == 0 || memcmp(f->peer, bssid, 6) == 0)
+            return f;
+    }
+    return NULL;
+}
+
+const char *analyzer_twin_trigger_label(uint8_t t)
+{
+    switch (t) {
+    case TWIN_TRIGGER_OPEN_CLONE:        return "open_security_downgrade";
+    case TWIN_TRIGGER_TIER1_SCORE:       return "tier1_peer_score";
+    case TWIN_TRIGGER_TIER2_FINGERPRINT: return "beacon_fingerprint_conflict";
+    case TWIN_TRIGGER_RELATIONSHIP_ONLY: return "relationship_only_no_twin";
+    default:                             return "none";
+    }
+}
+
+const char *analyzer_twin_relationship_label(uint8_t r)
+{
+    switch (r) {
+    case TWIN_REL_LIKELY_SIBLING_VIRTUAL_BSSID: return "likely_sibling_virtual_bssid";
+    case TWIN_REL_LIKELY_MANAGED_ESS_PEER:      return "likely_managed_ess_peer";
+    case TWIN_REL_KNOWN_SERVICE_FAMILY_PEER:    return "known_service_family_peer";
+    case TWIN_REL_UNRELATED_SAME_SSID_PEER:     return "unrelated_same_ssid_peer";
+    default:                                    return "unknown_same_ssid_peer";
+    }
+}
+
+const char *analyzer_twin_decision_label(uint8_t d)
+{
+    switch (d) {
+    case TWIN_DECISION_SUSPECT:         return "twin_suspect";
+    case TWIN_DECISION_HIGH_CONFIDENCE: return "high_confidence_clone";
+    default:                            return "no_twin_evidence";
+    }
+}
+
 static uint8_t twin_score(
         const scan_results_t *results,
         uint16_t              i,
@@ -505,6 +642,10 @@ static uint8_t twin_score(
     bool     same_physical_peer = false;
     uint32_t max_suffix_delta   = 0;
 
+    const ap_record_t *downgrade_peer = NULL;
+    const ap_record_t *rssi_peer      = NULL;
+    const ap_record_t *suffix_peer    = NULL;
+
     for (uint16_t j = 0; j < results->count; j++) {
         const ap_record_t *peer = &results->entries[j];
         if (strcmp(peer->ssid, ap->ssid) != 0) continue;
@@ -514,6 +655,15 @@ static uint8_t twin_score(
 
         if (j == i) continue;
         peer_count++;
+
+        if ((peer->auth == WIFI_AUTH_OPEN) != (ap->auth == WIFI_AUTH_OPEN) &&
+            (!downgrade_peer || memcmp(peer->bssid, downgrade_peer->bssid, 6) < 0))
+            downgrade_peer = peer;
+
+        if (twin_peer_pref(peer->rssi, peer->bssid,
+                           rssi_peer ? rssi_peer->rssi : 0,
+                           rssi_peer ? rssi_peer->bssid : NULL, rssi_peer != NULL))
+            rssi_peer = peer;
 
         if (peer->rssi > best_peer_rssi) best_peer_rssi = peer->rssi;
 
@@ -538,6 +688,11 @@ static uint8_t twin_score(
                 uint32_t peer_sfx = bssid_suffix(peer->bssid);
                 uint32_t delta    = my_sfx > peer_sfx ? my_sfx - peer_sfx
                                                        : peer_sfx - my_sfx;
+                if (twin_peer_pref((int32_t)delta, peer->bssid,
+                                   (int32_t)max_suffix_delta,
+                                   suffix_peer ? suffix_peer->bssid : NULL,
+                                   suffix_peer != NULL))
+                    suffix_peer = peer;
                 if (delta > max_suffix_delta) max_suffix_delta = delta;
             }
 
@@ -581,6 +736,18 @@ static uint8_t twin_score(
         s->twin_detected = true;
         s->auto_fail     = true;
         s->open_clone    = true;
+
+        if (downgrade_peer) {
+            uint32_t ev = twin_pair_evidence(ap->bssid, ap->ssid, ap->auth, ap->channel,
+                                             downgrade_peer->bssid, downgrade_peer->ssid,
+                                             downgrade_peer->auth, downgrade_peer->channel);
+            twin_record(ap->bssid, downgrade_peer->bssid,
+                        TWIN_TRIGGER_OPEN_CLONE,
+                        same_administered_wlan_records(ap, downgrade_peer)
+                            ? TWIN_REL_LIKELY_MANAGED_ESS_PEER
+                            : TWIN_REL_UNKNOWN_SAME_SSID_PEER,
+                        TWIN_DECISION_HIGH_CONFIDENCE, ev, 0, false);
+        }
         return 0;
     }
     if (same_oui_peer && !diff_oui_peer)
@@ -607,6 +774,35 @@ static uint8_t twin_score(
     }
 
     if (mod <= -10) s->twin_detected = true;
+
+    if (mod <= -10) {
+        int rssi_term   = 0;
+        int suffix_term = 0;
+        if (diff_oui_peer && peer_count >= 1 &&
+            (int)ap->rssi - (int)best_peer_rssi >= 20) rssi_term = 10;
+        if (same_physical_peer) {
+            if      (max_suffix_delta > 32) suffix_term = 10;
+            else if (max_suffix_delta >  8) suffix_term = 5;
+        }
+
+        const ap_record_t *cause = NULL;
+        uint32_t extra_ev = 0;
+        if (suffix_term > rssi_term)       { cause = suffix_peer; extra_ev = TWIN_EV_SUFFIX_DELTA; }
+        else if (rssi_term > 0)            { cause = rssi_peer;   extra_ev = TWIN_EV_RSSI_GAP; }
+        else if (suffix_term > 0)          { cause = suffix_peer; extra_ev = TWIN_EV_SUFFIX_DELTA; }
+        if (!cause) cause = rssi_peer;
+
+        if (cause) {
+            uint32_t ev = twin_pair_evidence(ap->bssid, ap->ssid, ap->auth, ap->channel,
+                                             cause->bssid, cause->ssid,
+                                             cause->auth, cause->channel) | extra_ev;
+            twin_record(ap->bssid, cause->bssid, TWIN_TRIGGER_TIER1_SCORE,
+                        same_administered_wlan_records(ap, cause)
+                            ? TWIN_REL_LIKELY_MANAGED_ESS_PEER
+                            : TWIN_REL_UNKNOWN_SAME_SSID_PEER,
+                        TWIN_DECISION_SUSPECT, ev, (int16_t)mod, true);
+        }
+    }
 
     int result = base + mod;
     if (result < 0)  result = 0;
@@ -653,6 +849,26 @@ static void tier2_twin_adjust(ap_score_t *scores, uint16_t n)
 
             scores[i].twin_detected = true;
             scores[j].twin_detected = true;
+
+            uint32_t ev = twin_pair_evidence(
+                scores[i].bssid, scores[i].ssid, scores[i].auth, scores[i].channel,
+                scores[j].bssid, scores[j].ssid, scores[j].auth, scores[j].channel);
+            if (si->has_rsn != sj->has_rsn)                        ev |= TWIN_EV_RSN_MISMATCH;
+            else if (si->rsn_pmf_required != sj->rsn_pmf_required) ev |= TWIN_EV_PMF_MISMATCH;
+            if (si->has_wps != sj->has_wps)                        ev |= TWIN_EV_WPS_MISMATCH;
+            if (si->beacon_interval && sj->beacon_interval) {
+                uint16_t lo = si->beacon_interval < sj->beacon_interval
+                                ? si->beacon_interval : sj->beacon_interval;
+                uint16_t hi = si->beacon_interval > sj->beacon_interval
+                                ? si->beacon_interval : sj->beacon_interval;
+                ev |= (hi > lo + lo / 5) ? TWIN_EV_BEACON_INTERVAL_CONFLICT
+                                          : TWIN_EV_SAME_BEACON_INTERVAL;
+            }
+
+            twin_record(scores[i].bssid, scores[j].bssid,
+                        TWIN_TRIGGER_TIER2_FINGERPRINT,
+                        TWIN_REL_UNRELATED_SAME_SSID_PEER,
+                        TWIN_DECISION_SUSPECT, ev, (int16_t)penalty, true);
         }
     }
 }
@@ -676,6 +892,8 @@ esp_err_t analyzer_run(const scan_results_t *results,
                         ap_score_t *scores, uint16_t *count_out)
 {
     if (!results || !scores || !count_out) return ESP_ERR_INVALID_ARG;
+
+    s_twin_n = 0;
 
     uint16_t n = results->count;
     *count_out = 0;
@@ -798,6 +1016,40 @@ esp_err_t analyzer_run(const scan_results_t *results,
         s->identity_score = wifi_identity_score(s);
         s->identity_conf  = wifi_identity_conf(s);
         s->threat_level   = wifi_threat_level(s, ble);
+    }
+
+    for (uint16_t i = 0; i < n; i++) {
+        if (scores[i].suppressed) continue;
+        for (uint16_t j = i + 1; j < n; j++) {
+            if (scores[j].suppressed) continue;
+            if (!likely_sibling_virtual_bssid(&scores[i], &scores[j])) continue;
+
+            if (!scores[i].sibling_service_peer) {
+                scores[i].sibling_service_peer = true;
+                memcpy(scores[i].sibling_service_bssid, scores[j].bssid, 6);
+            }
+            if (!scores[j].sibling_service_peer) {
+                scores[j].sibling_service_peer = true;
+                memcpy(scores[j].sibling_service_bssid, scores[i].bssid, 6);
+            }
+
+            twin_record(scores[i].bssid, scores[j].bssid,
+                        TWIN_TRIGGER_RELATIONSHIP_ONLY,
+                        TWIN_REL_LIKELY_SIBLING_VIRTUAL_BSSID,
+                        TWIN_DECISION_NO_EVIDENCE,
+                        twin_pair_evidence(
+                            scores[i].bssid, scores[i].ssid, scores[i].auth, scores[i].channel,
+                            scores[j].bssid, scores[j].ssid, scores[j].auth, scores[j].channel),
+                        0, true);
+
+            ESP_LOGI(TAG,
+                "sibling virtual BSSID: \"%s\" %02X:%02X:%02X:%02X:%02X:%02X ch%u"
+                " <-> \"%s\" %02X:%02X:%02X:%02X:%02X:%02X ch%u (no twin evidence)",
+                scores[i].ssid, scores[i].bssid[0], scores[i].bssid[1], scores[i].bssid[2],
+                scores[i].bssid[3], scores[i].bssid[4], scores[i].bssid[5], scores[i].channel,
+                scores[j].ssid, scores[j].bssid[0], scores[j].bssid[1], scores[j].bssid[2],
+                scores[j].bssid[3], scores[j].bssid[4], scores[j].bssid[5], scores[j].channel);
+        }
     }
 
     for (uint16_t i = 0; i < n; i++) {
@@ -1003,8 +1255,6 @@ static bool crowd_dev_is_person(const ble_device_t *d)
 
 static crowd_bucket_t crowd_bucket_for(uint16_t evidence)
 {
-    /* Loose bands: dense residential (townhouses/apartments) normally hears
-     * dozens of neighbour stations, which is expected, not crowded. */
     if (evidence == 0)   return CROWD_QUIET;
     if (evidence <= 10)  return CROWD_FEW;
     if (evidence <= 30)  return CROWD_SOME;

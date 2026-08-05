@@ -98,6 +98,18 @@ body.dark{
 #expsheet .exstat.ok{color:var(--safe)}
 #expsheet .exback{background:none;border:none;color:var(--acc2);font:inherit;
   font-weight:800;padding:0;margin-bottom:8px;cursor:pointer;box-shadow:none}
+/* Generate-report builder: preset/format segmented buttons + section checkboxes */
+#expsheet .repsegs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px}
+#expsheet .repseg{flex:1 1 auto;border:2px solid var(--line2);background:var(--panel);
+  color:var(--txt);border-radius:9px;padding:8px 10px;font:inherit;font-size:12.5px;
+  font-weight:700;cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
+#expsheet .repseg.on{background:var(--acc);color:var(--onacc,#3f2a14);border-color:var(--line)}
+#expsheet .repseg:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+#expsheet .repsecs{display:flex;flex-direction:column;gap:4px;margin-bottom:4px}
+#expsheet .repchk{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;
+  margin:0;cursor:pointer}
+#expsheet .repchk input{width:16px;height:16px;flex:none;accent-color:var(--acc)}
+#expsheet .repdescrow{margin:10px 0 2px}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;color:var(--txt);
@@ -435,6 +447,15 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .envclass{display:flex;gap:6px;margin-top:6px}
 .envclass input{flex:1;min-width:0;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;
   background:var(--panelw);color:var(--txt);font-size:13px}
+.envlm{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+.envlm:last-child{border-bottom:0}
+.envlmbtn,.envlearn,.envdanger{font:inherit;font-size:11.5px;border:2px solid var(--line);background:none;
+  color:var(--txt);border-radius:8px;padding:3px 8px;cursor:pointer;margin-left:6px}
+.envdanger{color:var(--avoid);border-color:var(--avoid);width:100%;margin:10px 0 0}
+.envlearn{margin-left:auto;font-weight:700}
+.envchk{display:flex;gap:7px;align-items:center;margin-top:6px;font-size:12.5px}
+.envdet input[type=number]{width:80px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;
+  background:var(--panelw);color:var(--txt);font-size:13px}
 /* Generic popup overlay for the sentinel/environment sheets (mirrors #clov). */
 #epov{position:fixed;inset:0;z-index:43;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center}
 #epov[hidden]{display:none}
@@ -530,6 +551,12 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   color:var(--dim)}
 .crowd .evid .e .ic{width:1.05em;height:1.05em;vertical-align:-.18em;opacity:.85}
 .crowd .evid .e span{color:var(--txt);font-weight:700}
+/* clickable evidence chip (Privacy / Clusters summary cards drill into a device) */
+.crowd .evid button.e{border:2px solid var(--line2);background:var(--panelw);
+  border-radius:9px;padding:3px 8px;font:inherit;font-size:12px;cursor:pointer;
+  box-shadow:2px 2px 0 var(--sh)}
+.crowd .evid button.e:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+.crowd .smmore{margin-top:8px}
 .crowd .disc{font-size:11px;color:var(--dim);line-height:1.4}
 .crowd.tone-safe{border-color:var(--safe)}
 .crowd.tone-ok{border-color:var(--ok)}
@@ -597,6 +624,44 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   cursor:pointer}
 .smgear:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
 .smgear svg{width:15px;height:15px}
+/* Tabbed RF Env Summary: a left rail of user-named tabs + the active tab's blocks.
+   Collapses to a horizontal scroll strip on narrow screens so it never adds vertical
+   scroll of its own. */
+.smwrap{display:grid;grid-template-columns:minmax(140px,180px) 1fr;gap:14px;align-items:start}
+.smtabs{display:flex;flex-direction:column;gap:6px;position:sticky;top:72px}
+.smtab{text-align:left;background:var(--panel);border:2px solid var(--line);
+  border-radius:11px;padding:9px 11px;font:inherit;font-weight:800;font-size:13px;
+  color:var(--txt);box-shadow:2px 2px 0 var(--sh);cursor:pointer;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.smtab.act{background:var(--acc);color:var(--onacc,#3f2a14);border-color:var(--line)}
+.smtab:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+.smcontent{min-width:0}
+.smcontent>.charts:not(:first-child),.smcontent>.stats:not(:first-child){margin-top:14px}
+@media(max-width:620px){
+  .smwrap{grid-template-columns:1fr;gap:10px}
+  .smtabs{flex-direction:row;overflow-x:auto;position:static;padding-bottom:2px;
+    scrollbar-width:thin}
+  .smtab{flex:none}
+}
+/* customize sheet: tab manager + per-tab block groups */
+.smtabmgr{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.smtabrow{display:flex;align-items:center;gap:7px;border:2px solid var(--line2);
+  border-radius:10px;padding:6px 8px;background:var(--panelw)}
+.smtabrow input{flex:1;min-width:0;background:var(--panel);border:2px solid var(--line2);
+  border-radius:8px;color:var(--txt);padding:6px 8px;font:inherit;font-weight:700;font-size:13px}
+.smtabrow .smgrip{flex:none;color:var(--dim);cursor:grab;font-size:15px}
+.smtabrow button{flex:none;border:2px solid var(--line2);background:var(--panel);
+  color:var(--txt);border-radius:8px;width:30px;height:30px;font:inherit;font-weight:800;
+  cursor:pointer;padding:0}
+.smtabrow button:disabled{opacity:.35;cursor:not-allowed}
+.smaddtab{width:100%;border:2px dashed var(--line);background:none;color:var(--acc2);
+  border-radius:10px;padding:8px;font:inherit;font-weight:800;cursor:pointer;margin-bottom:12px}
+.smgrp{margin:0 0 5px;font-size:11px;font-weight:900;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--dim)}
+.smgrp.off{color:var(--avoid)}
+.smblk .smmove{flex:none;border:2px solid var(--line2);background:var(--panel);
+  color:var(--txt);border-radius:8px;padding:4px 6px;font:inherit;font-size:11px;font-weight:700;
+  max-width:96px}
 #smov,#wlov{position:fixed;inset:0;z-index:41;background:rgba(0,0,0,.45);
   display:flex;align-items:flex-end;justify-content:center}
 #smov[hidden],#wlov[hidden]{display:none}
@@ -832,6 +897,75 @@ button.mcard:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
 .prow .pm{margin-top:7px;font-size:12px;color:var(--dim);display:flex;
   flex-wrap:wrap;gap:4px 14px}
 .prow .pm b{color:var(--acc);opacity:.8;font-weight:600;margin-right:4px}
+.prow.acked{opacity:.6}
+.pill.done{background:var(--safe);color:var(--onacc,#173);border:0}
+/* per-device privacy actions: watch / locate / mark reviewed */
+.prow .pact{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px}
+.pa{border:2px solid var(--line2);background:var(--panelw);color:var(--txt);
+  border-radius:9px;padding:5px 10px;font:inherit;font-size:11.5px;font-weight:700;
+  cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
+.pa:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+.pa.on{border-color:var(--acc);color:var(--acc)}
+.pa.done{border-color:var(--safe);color:var(--safe)}
+/* "what you can do" guidance strip + triage toolbar */
+.pguide{font-size:12.5px;line-height:1.5;color:var(--txt);background:var(--panelw);
+  border:2px solid var(--line2);border-left:5px solid var(--acc2);border-radius:9px;
+  padding:9px 11px;margin-bottom:9px}
+.pguide b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--acc2);margin-bottom:2px}
+.ptoolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+.ptoolbar .small{color:var(--dim)}
+/* Guided locate sheet */
+#locov{position:fixed;inset:0;z-index:44;background:rgba(0,0,0,.5);
+  display:flex;align-items:flex-end;justify-content:center}
+#locov[hidden]{display:none}
+@media(min-width:560px){#locov{align-items:center}}
+#locsheet{width:100%;max-width:440px;max-height:90vh;overflow:auto;background:var(--panel);
+  border:3px solid var(--line);border-radius:16px 16px 0 0;padding:16px}
+@media(min-width:560px){#locsheet{border-radius:16px;box-shadow:5px 5px 0 var(--sh)}}
+.lochd{display:flex;justify-content:space-between;align-items:center;gap:8px;
+  font-size:16px;margin-bottom:12px}
+.locx{border:2px solid var(--line2);background:var(--panel);color:var(--txt);
+  border-radius:9px;width:34px;height:34px;font:inherit;font-weight:800;cursor:pointer}
+.locsig{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.locbar{flex:1;height:16px;background:var(--panelw);border:2px solid var(--line2);
+  border-radius:9px;overflow:hidden}
+.locbar i{display:block;height:100%;background:var(--safe);
+  transition:width .3s ease}
+.locsig.weak .locbar i{background:var(--avoid)}
+.locdbm{flex:none;font-weight:800;font-size:15px;min-width:74px;text-align:right;font-variant-numeric:tabular-nums}
+.loctemp{text-align:center;font-size:22px;font-weight:900;letter-spacing:1px;
+  padding:10px;border-radius:12px;margin-bottom:10px}
+.loctemp.twarm{background:var(--safe);color:var(--onacc,#173)}
+.loctemp.tcold{background:var(--avoid);color:#fff}
+.loctemp.thold{background:var(--panelw);color:var(--dim)}
+.locclose{text-align:center;font-weight:800;color:var(--safe);margin-bottom:10px}
+.locwarn{background:var(--panelw);border:2px solid var(--avoid);border-radius:10px;
+  padding:10px 12px;font-size:12.5px;line-height:1.45;margin-bottom:10px}
+.locstep{font-size:12.5px;color:var(--dim);margin-bottom:8px;line-height:1.4}
+.locdirs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.locdir{border:2px solid var(--line2);background:var(--panel);color:var(--txt);
+  border-radius:11px;padding:12px;font:inherit;font-weight:800;font-size:14px;cursor:pointer;
+  box-shadow:2px 2px 0 var(--sh);display:flex;justify-content:center;align-items:baseline;gap:6px}
+.locdir:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+.locdir.done{border-color:var(--acc)}
+.locdir .dv{font-size:11px;color:var(--dim);font-weight:700}
+.locbest{background:var(--panelw);border:2px solid var(--acc);border-radius:10px;
+  padding:9px 11px;font-size:13px;margin-top:2px}
+.locbest .locre{margin-left:6px;border:2px solid var(--line2);background:var(--panel);
+  color:var(--txt);border-radius:8px;padding:2px 8px;font:inherit;font-size:11px;cursor:pointer}
+.locfoot{font-size:11px;color:var(--dim);line-height:1.4;margin:10px 0}
+.locact{display:flex;margin-top:4px}
+.locact .prim{flex:1;border:2.5px solid var(--line);background:var(--acc);
+  color:var(--onacc,#3f2a14);border-radius:11px;padding:11px;font:inherit;font-weight:800;
+  cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
+.locact .prim:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+#toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,14px);z-index:60;
+  max-width:min(92vw,460px);background:var(--panel);color:var(--txt);
+  border:2.5px solid var(--line);border-radius:12px;padding:11px 15px;font-size:13px;
+  font-weight:600;line-height:1.4;box-shadow:4px 4px 0 var(--sh);opacity:0;
+  pointer-events:none;transition:opacity .18s,transform .18s}
+#toast.show{opacity:1;transform:translate(-50%,0)}
 
 .rrec{margin:8px 0;border:2.5px solid var(--line);border-radius:8px;overflow:hidden;
   box-shadow:3px 3px 0 var(--sh)}
@@ -1121,7 +1255,7 @@ addEventListener("storage",e=>{if(e&&/^sc-(theme|custom|font)$/.test(e.key||""))
       accept=".json,.jsonl,.ndjson,.txt,.csv,.log,application/json" multiple>
   </div>
   <div id="app">
-    <section id="s-banner"><h2>RF Env Summary</h2><div id="banner"></div></section>
+    <section id="s-banner"><h2>RF Env Summary</h2><div id="smhost"></div></section>
     <section id="s-wifi"><h2>Wi-Fi networks<span class="seg" id="wtog"></span></h2><div id="wifi"></div></section>
     <section id="s-ble"><h2>BLE devices<span class="seg" id="btog"></span></h2><div id="ble"></div></section>
     <section id="s-clusters"><h2>Device clusters</h2><div id="clusters"></div></section>
@@ -1183,7 +1317,7 @@ const PRES_KINDS={wifi_ap:["wifi",r=>r.bssid],ble_device:["ble",r=>r.addr],
 function buildModel(recs,bad){
   const m={bad,total:recs.length,header:null,footer:null,codebook:null,
     wifi:new Map(),ble:new Map(),clusters:[],trackers:new Map(),
-    drones:new Map(),alerts:new Map(),logs:{},unknown:new Map(),
+    drones:new Map(),alerts:new Map(),twins:new Map(),logs:{},unknown:new Map(),
     addrStats:null,envInd:null,lawEnf:null,medResp:null,chanAct:null,pcap:null,maxScan:0,
     pres:new Map(),slots:[]};
 
@@ -1223,8 +1357,26 @@ function buildModel(recs,bad){
     case "pcap_capture":m.pcap=r;break;
     case "tracker":  latest(m.trackers,(r.addr||"?")+"|"+(r.tracker_kind||""),r);break;
     case "drone_rid":latest(m.drones,(r.addr||"?")+"|"+(r.id||""),r);break;
+    // Pair-level Evil Twin findings. Keyed by the unordered pair
+    // rather than finding_id, because finding_id carries the scan index: the
+    // same pair re-observed each scan would otherwise pile up as new findings.
+    case "wifi_twin_finding":{
+      const a=r.target_ref||"",b=r.peer_ref||"";
+      const k=(a<b?a+"|"+b:b+"|"+a)+"|"+(r.trigger||"");
+      const cur=m.twins.get(k);
+      if(cur){cur.n++;if((r.ts_us||0)>=(cur.rec.ts_us||0))cur.rec=r;}
+      else m.twins.set(k,{rec:r,n:1});
+      break;}
     case "alert":{
-      const k=(r.rule_id||"?")+"|"+(r.target_ref||"");
+      // Twin alerts group by PAIR, not by rule+target. Both members
+      // of one pair raise the same rule, so keying on target alone showed a
+      // single relationship as two unexplained notifications. Pair grouping is
+      // what makes "six alerts" legible as one conclusion seen six times.
+      let k;
+      if(r.peer_ref&&r.target_ref){
+        const a=r.target_ref,b=r.peer_ref;
+        k=(r.rule_id||"?")+"|pair:"+(a<b?a+"|"+b:b+"|"+a);
+      }else k=(r.rule_id||"?")+"|"+(r.target_ref||"");
       const cur=m.alerts.get(k);
       if(cur){cur.n++;if((r.ts_us||0)>=(cur.rec.ts_us||0))cur.rec=r;}
       else m.alerts.set(k,{rec:r,n:1});
@@ -2062,8 +2214,31 @@ function wifiDetail(r){
     " · "+seen.n+" record(s) · scans "+(r.first_seen_scan??"?")+"–"+
     (r.last_seen_scan??"?")+" · hits "+(r.hit_count??"?")+"</div>"+
     presDetail("wifi",r.bssid)+
+    twinPairsForAp(r.bssid)+
     '<div class="ev"><b>threat rules:</b> '+ruleList(r.threat_rule_ids)+"</div>"+
     kvGrid(r);
+}
+
+// Every pair this AP took part in, including the ones that were
+// CLEARED. A cleared pair raises no notification, so without this it is
+// invisible, and "examined and found innocent" looks exactly like "never
+// considered" — the ambiguity that made the Xfinity field report unauditable.
+function twinPairsForAp(bssid){
+  if(!bssid||!M.twins||!M.twins.size)return "";
+  const me=bssid.toLowerCase();
+  let h="";
+  for(const {rec} of M.twins.values()){
+    const t=(rec.target_ref||"").toLowerCase(),p=(rec.peer_ref||"").toLowerCase();
+    if(t!==me&&p!==me)continue;
+    const other=t===me?rec.peer_ref:rec.target_ref;
+    const cleared=rec.decision==="no_twin_evidence";
+    h+='<div class="ev"><b>'+(cleared?"paired and cleared:":"pair finding:")+
+       "</b> "+macLink(other,"wifi")+
+       (cleared?" — no impersonation evidence":
+                " — "+esc(rec.decision||"?"))+"</div>"+
+       twinEvidenceHtml(rec);
+  }
+  return h;
 }
 
 function renderBle(){
@@ -2244,8 +2419,10 @@ function blkTopThreat(){
 }
 // ---- Summary blocks (each returns HTML; "" when it has no data to show) ----
 function blkVerdict(){
+  const all=[...FW,...FB,...FT,...FD];
+  if(!all.length)return "";                 // nothing to judge — skip the hero
   let worst=0;
-  for(const r of [...FW,...FB,...FT,...FD])worst=Math.max(worst,r.threat_level||0);
+  for(const r of all)worst=Math.max(worst,r.threat_level||0);
   const lbl=cb("threat_level",worst);
   const cls=THREAT_CLS[lbl]||"p"+Math.min(worst,3);
   const VMAP={p0:"var(--safe)",p1:"var(--ok)",p2:"var(--caution)",p3:"var(--avoid)"};
@@ -2375,6 +2552,78 @@ function blkPcap(){
     ' <a class="mono" href="'+esc(p.download||"/api/pcap/latest")+
     '">download .pcap</a></div></div>';
 }
+// Privacy exposure at a glance — how many devices leaked a re-linkable identifier,
+// broken down by leak type, with the worst offenders drilling into the privacy
+// clusters. Logs are aggregate (not device-scoped), so it hides under a filter.
+function blkPrivacy(){
+  if(filterActive())return "";
+  const arr=(k,f)=>{const r=M.logs[k];const d=r&&(r.detail||r.stations);
+    return Array.isArray(d)?(f?d.filter(f):d):[];};
+  const probe=arr("probe_req_log").length;
+  const link=arr("seq_fingerprint_log",r=>r.linked).length+
+             arr("ie_signature_log",r=>r.mismatch).length+
+             arr("anqp_log",r=>r.universal).length;
+  const cam=arr("station_log",s=>s.camera).length;
+  if(!PV.length&&!probe&&!link&&!cam)return "";
+  const newN=PV.filter(e=>!ackHas(e.mac)).length,rev=PV.length-newN;
+  const rows=[
+    ["Devices leaking identity",newN+" new"+(rev?" · "+rev+" reviewed":""),
+      newN?"c-caution":"c-safe"],
+    ...(probe?[["Probe-request names",probe+" broadcast"]]:[]),
+    ...(link?[["Linkable despite random MAC",link+" device"+(link===1?"":"s"),"c-caution"]]:[]),
+    ...(cam?[["Camera-vendor MACs",cam+" — hidden-camera check","c-avoid"]]:[])];
+  const top=PV.map((e,i)=>({e,i}))
+    .sort((a,b)=>(ackHas(a.e.mac)?1:0)-(ackHas(b.e.mac)?1:0)||
+      b.e.items.length-a.e.items.length).slice(0,4);
+  const ev=top.length?'<div class="evid">'+top.map(({e,i})=>{
+    const nm=String(e.ident?e.ident.s:e.mac).slice(0,18);
+    return '<button type="button" class="e clk" title="'+esc((e.ident?e.ident.s:e.mac)+
+      " — "+e.items.length+" leak"+(e.items.length>1?"s":"")+" — view")+
+      '" onclick="event.stopPropagation();gotoCluster(\'pv\','+i+')">'+
+      '<svg class="ic"><use href="#ic-privacy"/></svg><span>'+esc(nm)+" ·"+e.items.length+
+      "</span></button>";}).join("")+"</div>":"";
+  return '<div class="crowd tone-'+(newN?"caution":"safe")+'"><div class="ttl">Privacy exposure'+
+    '<span class="tt">'+(newN||PV.length)+" device"+((newN||PV.length)===1?"":"s")+"</span></div>"+
+    '<div class="est">'+rows.map(([k,v,cc])=>'<div class="r"><b>'+esc(k)+
+      '</b><span class="v'+(cc?" "+cc:"")+'">'+esc(String(v))+"</span></div>").join("")+"</div>"+
+    ev+
+    '<div class="disc">Passive identifiers that can re-link a device across randomized '+
+    "MACs, or reveal remembered networks. Tap a device to inspect it.</div>"+
+    '<div class="smmore"><button type="button" class="fchip" data-act="privacy">'+
+    "Open Privacy analyzers →</button></div></div>";
+}
+// Identity grouping at a glance — separate addresses that evidence ties to one
+// device/product (NIC + radio + rotation-chain clusters), worst rotation chains
+// drilling into the Clusters section.
+function blkClusters(){
+  if(filterActive())return "";
+  const P=clusterParts();
+  const nic=P.net.length+P.bt.length,radio=P.mr.length,chains=RC.length,veh=P.veh.length;
+  const total=nic+radio+chains+veh;
+  if(!total)return "";
+  const rows=[
+    ["Identity (NIC) clusters",nic+" — Wi-Fi "+P.net.length+" · BLE "+P.bt.length],
+    ...(radio?[["Multi-radio access points",radio+" grouped"]]:[]),
+    ...(chains?[["Address-rotation chains",chains+" same-device","c-rot"]]:[]),
+    ...(veh?[["Vehicles",veh+" grouped"]]:[])];
+  const top=RC.slice(0,4);
+  const ev=top.length?'<div class="evid">'+top.map((c,i)=>
+    '<button type="button" class="e clk" title="'+esc(c.evidence+" — "+c.conf+
+      "% confidence, "+c.members.length+" addresses — view")+
+    '" onclick="event.stopPropagation();gotoCluster(\'rc\','+i+')">'+
+    '<svg class="ic"><use href="#ic-chain"/></svg><span>'+c.members.length+" addrs ·"+
+    c.conf+"%</span></button>").join("")+"</div>":"";
+  return '<div class="crowd tone-info"><div class="ttl">Clusters'+
+    '<span class="tt">'+total+" group"+(total===1?"":"s")+"</span></div>"+
+    '<div class="est">'+rows.map(([k,v,cc])=>'<div class="r"><b>'+esc(k)+
+      '</b><span class="v'+(cc?" "+cc:"")+'">'+esc(String(v))+"</span></div>").join("")+"</div>"+
+    ev+
+    '<div class="disc">Separate addresses that evidence says belong to one device. '+
+    (chains?"Rotation chains defeat MAC randomization — worth a closer look. ":"")+
+    "Tap a chain to inspect it.</div>"+
+    '<div class="smmore"><button type="button" class="fchip" data-act="clusters">'+
+    "Open Clusters →</button></div></div>";
+}
 
 // ---- Watchlist: user-entered MACs / names flagged when detected ----
 // Viewer-side (this browser). Never hides data — it only adds a flag.
@@ -2476,7 +2725,8 @@ function dpRowHtml(o){
     '<span class="dpnm">'+esc(dpIdOf(o))+(arm?' <span class="dparm">·'+esc(arm)+"</span>":"")+"</span>"+
     dpSig(o.rssi)+'<span class="dpt">'+esc(dpTime(o))+"</span></div>";
 }
-function dpVis(){const w=$("dpwrap");if(w)w.style.display="";}
+function dpVis(){const w=$("dpwrap");if(w)w.style.display="";
+  const sw=$("sentwrap");if(sw)sw.style.display=(DP.cluster===false)?"none":"";}
 function dpPaintCtrl(){
   const a=$("dp-arms"),c=$("dp-ctrl");if(!a||!c)return;
   if(DP.cluster===false){
@@ -2532,7 +2782,7 @@ function dpPoll(){
     .then(j=>{if(DP.paused)return;   // Refresh started mid-flight — abort before repaint/socket
       DP.cluster=true;DP.status=j;accStart();dpVis();dpPaintCtrl();epPaint();envPaint();healthPaint();
       DP.sc=(DP.sc|0)+1;
-      if(DP.sc%2)epSentFetch();          // sentinel changes rarely — poll every other cycle (~4 s)
+      if(DP.sc%2){epSentFetch();epHowlFetch();}  // sentinel + tracker safety — every other cycle (~4 s)
       else envFetch();                    // environments change rarely too — alternate cycle
       if(DP.sc%3===0)actFetch();          // activity log — every third cycle (~6 s)
       if(!epTimeSynced||DP.sc%30===0)epTimeSync();   // keep the head's clock set (survives its reboot)
@@ -2553,7 +2803,7 @@ function dpPoll(){
 function dpStart(){
   if(DP.started)return;DP.started=true;
   DP.seen=new Set();DP.law=new Set();DP.rows=[];
-  dpPoll();epSentFetch();envFetch();epTimeSync();
+  dpPoll();epSentFetch();epHowlFetch();envFetch();epTimeSync();
 }
 function blkDogpark(){
   return '<div class="dpwrap" id="dpwrap">'+
@@ -2676,8 +2926,17 @@ function blkEpup(){
     'ePup <span class="epsub" id="ep-sub">learning…</span></div>'+
     '<div class="epsprite stand" id="ep-sprite" title="ePup" role="img" aria-label="ePup mascot"></div>'+
     '<div class="epbody" id="ep-body"></div>'+
-    '<div id="ep-class"></div>'+
-    '<div class="epsent" id="ep-sent" hidden></div></div>';
+    '<div id="ep-class"></div></div>';
+}
+
+// ---- Sentinel block (own card, separated from ePup) with tracker safety (Bark/Howl) ----
+// #ep-sent hosts the flagged-signature watchlist controls (painted by epSentPaint);
+// #ep-howl hosts the tracker safety-sound controls (painted by epHowlPaint).
+function blkSentinel(){
+  return '<div class="epwrap" id="sentwrap" style="display:none">'+
+    '<div class="ephead"><svg class="ic epico"><use href="#ic-alert"/></svg>Guard Dog</div>'+
+    '<div class="epsent" id="ep-sent" hidden style="border-top:none;margin-top:0;padding-top:0"></div>'+
+    '<div class="epsent" id="ep-howl" hidden></div></div>';
 }
 
 // ---- Hostile-gadget sentinel controls (105i), hosted in the ePup card ----
@@ -2716,8 +2975,8 @@ function epSentPaint(){
   if(DP.cluster===false||!d||!d.cats){w.hidden=true;return;}
   w.hidden=false;
   if(w.dataset.built!=="1"){
-    w.innerHTML='<div class="epshd"><svg class="ic"><use href="#ic-alert"/></svg>Hostile-gadget sentinel</div>'+
-      '<label class="epsent-arm"><input type="checkbox" id="eps-arm"> <b id="eps-armt">Sentinel</b>'+
+    w.innerHTML='<div class="epshd"><svg class="ic"><use href="#ic-alert"/></svg>Watch List</div>'+
+      '<label class="epsent-arm"><input type="checkbox" id="eps-arm"> <b id="eps-armt">Guard Dog</b>'+
       ' <span class="epsub">master switch</span></label>'+
       '<div class="epsbody" id="eps-body"><div class="epscount" id="eps-count"></div>'+
       '<div class="epsbtns">'+
@@ -2734,7 +2993,7 @@ function epSentPaint(){
   }
   const armed=d.armed!==false;   // default on if an older head omits the field
   const arm=$("eps-arm");if(arm&&document.activeElement!==arm)arm.checked=armed;
-  $("eps-armt").textContent="Sentinel "+(armed?"armed":"disarmed");
+  $("eps-armt").textContent="Guard Dog "+(armed?"armed":"disarmed");
   $("eps-body").classList.toggle("off",!armed);
   const last=d.last&&d.last.label?(" · last: "+esc(d.last.label)):"";
   const life=(d.life!=null)?(" · <b>"+(d.life|0)+"</b> lifetime · "+(d.life_uniq|0)+" unique"+
@@ -2747,6 +3006,56 @@ function epSentPaint(){
     epSentPost({byoi_en:{i:+cb.dataset.sen,on:cb.checked?1:0}}));
   by.querySelectorAll("button[data-sdel]").forEach(b=>b.onclick=()=>
     epSentPost({byoi_del:+b.dataset.sdel}));
+}
+
+// ---- Tracker safety-sound (Bark / Howl), hosted in the Sentinel block ----
+// The head rings DULT / Find My tags via /api/cluster/tracker/{sound,burst}. The brain
+// reports currently-ringable trackers in /api/cluster/tracker's "nearby" array (harvested,
+// non-Tile), so we render one Bark button per tag plus a Howl-all button. Transmits.
+let DP_TRK=null;
+function epHowlFetch(){
+  fetch("/api/cluster/tracker",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();})
+    .then(j=>{DP_TRK=j;epHowlPaint();}).catch(()=>{});
+}
+function epTrkPost(url,body){
+  return fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},
+    body:body?JSON.stringify(body):undefined}).then(()=>setTimeout(epHowlFetch,300)).catch(()=>{});
+}
+function epBark(t){
+  if(!confirm("Bark at "+t.mac+"?\n\nThis TRANSMITS a non-owner anti-stalking sound. Best-effort — only DULT / Find My tags respond, and an accepted command is not proof of audible sound."))return;
+  epTrkPost("/api/cluster/tracker/sound",{mac:t.mac,addr_type:t.at|0,proto:0,action:0});
+}
+function epHowl(list){
+  if(!list.length){alert("No ringable trackers seen yet. Start a walk or rescan first.");return;}
+  if(!confirm("Howl: ring up to "+list.length+" nearby tracker(s), one at a time?\n\nThis TRANSMITS. You can Stop anytime."))return;
+  epTrkPost("/api/cluster/tracker/burst",{targets:list.map(t=>({mac:t.mac,addr_type:t.at|0,proto:0}))});
+}
+function epHowlPaint(){
+  const w=$("ep-howl");if(!w)return;
+  const d=DP_TRK;
+  if(DP.cluster===false||!d){w.hidden=true;return;}
+  w.hidden=false;
+  const b=d.burst||{},s3=d.s3||{},near=Array.isArray(d.nearby)?d.nearby:[];
+  const busy=s3.busy?'<b style="color:var(--avoid)">transmitting…</b>':"idle";
+  const last=(s3.last&&s3.last!=="none")?" · last: "+esc(s3.last):"";
+  let h='<div class="epshd"><svg class="ic"><use href="#ic-tracker"/></svg>Trackers</div>'+
+    '<div class="epscount">'+near.length+" ringable tracker(s) nearby · "+busy+last+"</div>"+
+    '<div class="epslbl">Rings Find My / DULT tags (Tiles are detect-only). Transmits a non-owner safety sound — best-effort.</div>'+
+    '<div class="epsbtns">';
+  h+=b.active?'<button id="ep-howlstop" type="button"><svg class="ic"><use href="#ic-alert"/></svg>Stop howl ('+(b.done|0)+"/"+(b.total|0)+')</button>'
+            :'<button id="ep-howlgo" type="button"><svg class="ic"><use href="#ic-signal"/></svg>Howl (ring all)</button>';
+  h+="</div>";
+  if(near.length){h+='<div class="epslbl">Bark a single tag:</div>';
+    near.forEach((t,i)=>{h+='<div class="epsrow">'+iconSpan(["ic-tracker",t.mac])+"<span>"+esc(t.mac)+"</span>"+
+      '<button class="epsdel" type="button" data-bark="'+i+'" title="Bark" '+
+      'style="margin-left:auto;color:var(--acc);font-weight:800;font-size:12px">Bark</button></div>';});}
+  const aud=Array.isArray(s3.audit)?s3.audit.slice(0,5):[];
+  if(aud.length)h+='<div class="epsub" style="margin-top:6px">Recent: '+
+    aud.map(a=>esc(a.mac)+"→"+esc(a.result)).join(" · ")+"</div>";
+  w.innerHTML=h;
+  const go=$("ep-howlgo");if(go)go.onclick=()=>epHowl(near);
+  const st=$("ep-howlstop");if(st)st.onclick=()=>epTrkPost("/api/cluster/tracker/burst/stop",null);
+  w.querySelectorAll("button[data-bark]").forEach(btn=>btn.onclick=()=>epBark(near[+btn.dataset.bark]));
 }
 
 // ---- Cluster health card (S4d): "how is everything performing" ----
@@ -2787,7 +3096,7 @@ function healthPaint(){
 
 // ---- Sentinel lifetime stats card (S4d): the watchlist scoreboard ----
 function blkSentStat(){
-  return '<div class="smlist" id="ss-card"><h4>Sentinel stats</h4><div id="ss-body"></div></div>';
+  return '<div class="smlist" id="ss-card"><h4>Guard Dog stats</h4><div id="ss-body"></div></div>';
 }
 function sentStatPaint(){
   const b=$("ss-body");if(!b)return;
@@ -2914,7 +3223,8 @@ function epSentHitsOpen(){
 function blkEnviron(){
   return '<div class="envwrap" id="envwrap">'+
     '<div class="ephead"><svg class="ic epico"><use href="#ic-home"/></svg>'+
-    'Environments <span class="epsub" id="env-sub">learning…</span></div>'+
+    'Environments <span class="epsub" id="env-sub">learning…</span>'+
+    '<button type="button" id="env-learn" class="envlearn">Learn this place</button></div>'+
     '<div class="envgrid" id="env-grid"></div></div>';
 }
 function envFetch(){
@@ -2940,6 +3250,7 @@ function envPaint(){
   g.innerHTML=ps.length?ps.map(envTileHtml).join(""):
     '<div class="epsub">The brain hasn’t fingerprinted a place yet — it needs a couple of persistent Wi-Fi landmarks nearby.</div>';
   g.querySelectorAll("button[data-eidx]").forEach(b=>b.onclick=()=>envOpen(+b.dataset.eidx));
+  const lb=$("env-learn");if(lb)lb.onclick=envLearnSheet;
 }
 function envOpen(idx){
   const ps=(DP.places&&DP.places.places)||[];const p=ps.find(x=>x.idx===idx);if(!p)return;
@@ -2949,16 +3260,20 @@ function envOpen(idx){
     '<div class="epplace tone-'+tone+'"><svg class="ic"><use href="#ic-home"/></svg><span>'+state+'</span></div>'+
     '<div class="kv2">'+
       '<div><b>'+(p.scans|0)+'</b>visits</div>'+
-      '<div><b>'+(p.landmarks|0)+'</b>Wi-Fi landmarks</div>'+
+      '<div><b>'+(p.landmarks|0)+'</b>landmarks</div>'+
       '<div><b>'+(p.known?"known":"learning")+'</b>status</div>'+
       '<div><b>#'+p.idx+'</b>place index</div>'+
     '</div>'+
+    '<div class="epslbl">Landmarks <span class="epsub" id="env-q"></span></div>'+
+    '<div id="env-lms"><div class="epsub">loading…</div></div>'+
     '<div class="epslbl">Name this environment</div>'+
     '<div class="envclass"><input id="env-lin" maxlength="15" autocomplete="off" placeholder="'+
       (p.label?("Rename “"+esc(p.label)+"”"):"e.g. Home, Office, Gym")+'">'+
       '<button id="env-lbtn" type="button">Save</button></div>'+
-    '<div class="epsub" id="env-msg">Letters, numbers, spaces, - and _ (max 15).</div></div>';
+    '<div class="epsub" id="env-msg">Letters, numbers, spaces, - and _ (max 15).</div>'+
+    '<button id="env-forget" type="button" class="envdanger">Forget this environment</button></div>';
   openSheet(envName(p),body,sh=>{
+    envLoadLandmarks(sh,idx);
     const send=()=>{const v=(sh.querySelector("#env-lin").value||"").trim();if(!v)return;
       fetch("/api/cluster/place/label",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({idx:idx,label:v})})
@@ -2967,7 +3282,59 @@ function envOpen(idx){
           sh.querySelector("#env-msg").textContent="Could not save.";});};
     sh.querySelector("#env-lbtn").onclick=send;
     sh.querySelector("#env-lin").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();send();}};
+    sh.querySelector("#env-forget").onclick=()=>{
+      if(!confirm("Forget this environment and all its landmarks? This can’t be undone."))return;
+      envPost({idx:idx,op:"forget",unit:"0"}).then(()=>{envFetch();epSheetClose();});};
   });
+}
+// POST a landmark/environment edit op {idx,op:pin|unpin|delete|forget,unit}.
+function envPost(o){return fetch("/api/cluster/place/landmark",
+  {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)}).catch(()=>{});}
+// Load a place's real landmark records into the open sheet, with pin/remove per landmark.
+function envLoadLandmarks(sh,idx){
+  fetch("/api/cluster/place/detail?idx="+idx,{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    const q=d.quality|0,qel=sh.querySelector("#env-q");
+    if(qel)qel.textContent=q?("· spatial confidence "+q+"%"+(q<60?" (learned from one spot)":"")):"";
+    const el=sh.querySelector("#env-lms");if(!el)return;
+    const lms=(d.landmarks||[]).slice().sort((a,b)=>(b.scans|0)-(a.scans|0));
+    el.innerHTML=lms.length?lms.map(l=>'<div class="envlm">'+
+      '<span>'+(l.confirmed?"★":"·")+' '+esc(l.name)+' <span class="epsub">'+(l.scans|0)+'×</span>'+
+        (l.pinned?' <span class="epsub">pinned</span>':'')+'</span>'+
+      '<span><button type="button" class="envlmbtn" data-op="'+(l.pinned?"unpin":"pin")+'" data-u="'+l.unit+'">'+
+        (l.pinned?"unpin":"pin")+'</button>'+
+      '<button type="button" class="envlmbtn" data-op="delete" data-u="'+l.unit+'">remove</button></span></div>'
+      ).join(""):'<div class="epsub">No landmarks yet — the ePup needs a few persistent Wi-Fi fixtures here.</div>';
+    el.querySelectorAll("button[data-op]").forEach(b=>b.onclick=()=>
+      envPost({idx:idx,op:b.dataset.op,unit:b.dataset.u}).then(()=>{envLoadLandmarks(sh,idx);envFetch();}));
+  }).catch(()=>{});}
+// Guided "Learn Environment": N scans spaced by a reposition delay, or stationary (lower confidence).
+function envLearnSheet(){
+  const body='<div class="envdet">'+
+    '<div class="epsub">The ePup takes several scans to map the fixed Wi-Fi here and build landmarks for this place.</div>'+
+    '<div class="epslbl">Number of scans</div><input id="lz-n" type="number" min="1" max="20" value="4">'+
+    '<div class="epslbl">Seconds between scans (to reposition)</div><input id="lz-t" type="number" min="0" max="120" value="20">'+
+    '<label class="envchk"><input id="lz-s" type="checkbox"> I’ll stay in one spot (no repositioning)</label>'+
+    '<div class="epsub" id="lz-note">Repositioning between scans lets the ePup tell fixed landmarks from people passing through.</div>'+
+    '<button id="lz-go" type="button" class="envlmbtn" style="margin:12px 0 0;width:100%">Start learning</button>'+
+    '<div class="epsub" id="lz-msg"></div></div>';
+  openSheet("Learn Environment",body,sh=>{
+    const s=sh.querySelector("#lz-s");
+    s.onchange=()=>{sh.querySelector("#lz-note").textContent=s.checked
+      ?"Staying put means the ePup can’t separate fixtures from passers-by, so this place is marked lower confidence."
+      :"Repositioning between scans lets the ePup tell fixed landmarks from people passing through.";};
+    sh.querySelector("#lz-go").onclick=()=>{
+      const n=Math.max(1,Math.min(20,+sh.querySelector("#lz-n").value||4));
+      const gap=Math.max(0,Math.min(120,+sh.querySelector("#lz-t").value||20));
+      fetch("/api/cluster/learn",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({scans:n,reposition:!s.checked,fresh:true})}).then(()=>envRunLearn(n,gap,sh));};
+  });
+}
+function envRunLearn(n,gap,sh){let done=0;const msg=sh&&sh.querySelector("#lz-msg");
+  (function step(){
+    if(done>=n){if(msg)msg.textContent="Done — landmarks saved.";setTimeout(envFetch,400);return;}
+    fetch("/api/cluster/scan",{method:"POST"}).then(()=>{done++;
+      if(msg)msg.textContent="Scan "+done+" of "+n+((done<n&&gap)?" — reposition now":"");
+      setTimeout(step,done<n?Math.max(1,gap)*1000+2600:500);}).catch(()=>{if(msg)msg.textContent="Scan failed.";});})();
 }
 
 // One-shot browser→head clock sync so flagged detections get real date/time stamps.
@@ -2981,9 +3348,10 @@ function epTimeSync(){
 const SUMMARY_BLOCKS=[
   {id:"dogpark",   label:"Dog Park (cluster control)",def:false,render:blkDogpark},
   {id:"epup",      label:"ePup (learning brain)",  def:false, render:blkEpup},
+  {id:"sentinel",  label:"Guard Dog (watch list & trackers)",def:true,render:blkSentinel},
   {id:"environ",   label:"Environments (place memory)",def:false,render:blkEnviron},
   {id:"health",    label:"Cluster health (nodes / traffic)",def:false,render:blkHealth},
-  {id:"sentstat",  label:"Sentinel stats (lifetime)",def:false,isList:true,render:blkSentStat},
+  {id:"sentstat",  label:"Guard Dog stats (lifetime)",def:false,isList:true,render:blkSentStat},
   {id:"activity",  label:"Activity log (cluster history)",def:false,isList:true,render:blkActivity},
   {id:"verdict",   label:"Worst-threat verdict",   def:true,  render:blkVerdict},
   {id:"tiles",     label:"Count tiles",            def:true,  render:blkTiles},
@@ -2999,45 +3367,105 @@ const SUMMARY_BLOCKS=[
   {id:"c_cat",     label:"Chart: device categories",def:false,isChart:true,render:chartCategories},
   {id:"top_signal",label:"List: strongest signals",def:false, isList:true,render:blkTopSignal},
   {id:"top_threat",label:"List: top threats",      def:false, isList:true,render:blkTopThreat},
-  {id:"watchlist", label:"Watchlist (MAC / name)", def:false, isList:true,render:blkWatch},
+  {id:"privsum",   label:"Privacy exposure",       def:false, render:blkPrivacy},
+  {id:"clustersum",label:"Clusters (identity grouping)",def:false,render:blkClusters},
+  {id:"watch",     label:"Watchlist (your flags)", def:false, isList:true,render:blkWatch},
 ];
 const BLK={};SUMMARY_BLOCKS.forEach(b=>BLK[b.id]=b);
+// Cluster-only summary blocks: live controls that only work against a SniffCheck cluster
+// backend (/api/cluster/*) — Dog Park, ePup, Guard Dog / Watch List + tracker safety-sound,
+// Environments, cluster health/stats/activity. A standalone node and an offline capture have
+// no such backend, so these are suppressed entirely (not listed, not rendered) rather than
+// shown as dead cards. Only a confirmed live cluster reveals them.
+const CLUSTER_BLOCKS=new Set(["dogpark","epup","sentinel","environ","health","sentstat","activity"]);
+function clusterOn(){return DP.cluster===true;}
+// Probe once whether a live cluster backs this report, independent of which cards happen to
+// be placed, so the cluster blocks stay hidden on a standalone node until one is confirmed.
+let clusterProbed=false;
+function clusterProbe(){
+  if(clusterProbed||!deviceOnline())return;clusterProbed=true;
+  fetch("/api/cluster/status",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();})
+    .then(j=>{DP.cluster=true;DP.status=j;dpStart();renderBanner();})
+    .catch(()=>{DP.cluster=false;});   // standalone / offline — leave cluster blocks hidden
+}
 const SM_KEY="sc-summary-layout";
-function defaultLayout(){return SUMMARY_BLOCKS.map(b=>({id:b.id,on:!!b.def}));}
-// Persisted order/visibility, reconciled with the registry so new blocks appear
-// and removed ones drop out without wiping the user's arrangement.
-function summaryLayout(){
+// Default tab arrangement (v2). Any def:true block not placed here is folded into the
+// first tab on load, so a newly added default block still shows up somewhere.
+function defaultTabs(){return [
+  {name:"Overview",         blocks:["verdict","tiles","crowd","env"]},
+  {name:"Signals",          blocks:["channels","crossscan","pcap"]},
+  {name:"Privacy & groups", blocks:["privsum","clustersum"]},
+  {name:"Guard Dog",        blocks:["sentinel","watch"]},
+];}
+// Persisted {v:2,active,tabs:[{name,blocks:[id,...]}]}, reconciled with the registry so
+// new/removed blocks never wipe the user's arrangement. Migrates the old flat
+// [{id,on}] layout into a single "Summary" tab.
+function summaryCfg(){
   let saved=null;
   try{saved=JSON.parse(localStorage.getItem(SM_KEY));}catch(e){}
-  if(!Array.isArray(saved))return defaultLayout();
-  const out=[],seen=new Set();
-  for(const s of saved)if(s&&BLK[s.id]&&!seen.has(s.id)){out.push({id:s.id,on:!!s.on});seen.add(s.id);}
-  for(const b of SUMMARY_BLOCKS)if(!seen.has(b.id))out.push({id:b.id,on:!!b.def});
-  return out;
+  let tabs,hide=null;
+  if(saved&&saved.v===2&&Array.isArray(saved.tabs)){
+    tabs=saved.tabs.map(t=>({name:String(t&&t.name||"Tab").slice(0,24),
+      blocks:Array.isArray(t&&t.blocks)?t.blocks.slice():[]}));
+  }else if(Array.isArray(saved)){                       // v1 -> v2 migration
+    tabs=[{name:"Summary",blocks:saved.filter(s=>s&&BLK[s.id]&&s.on).map(s=>s.id)}];
+    hide=new Set(saved.filter(s=>s&&BLK[s.id]&&!s.on).map(s=>s.id)); // keep prior "off"
+  }else{
+    tabs=defaultTabs();
+  }
+  const seen=new Set();                                  // drop unknown ids, dedupe
+  for(const t of tabs)t.blocks=t.blocks.filter(id=>BLK[id]&&!seen.has(id)&&seen.add(id));
+  if(!tabs.length)tabs=[{name:"Summary",blocks:[]}];
+  for(const b of SUMMARY_BLOCKS)                          // place any orphaned default block
+    if(b.def&&!seen.has(b.id)&&!(hide&&hide.has(b.id))){tabs[0].blocks.push(b.id);seen.add(b.id);}
+  let active=saved&&typeof saved.active==="number"?saved.active:0;
+  if(active<0||active>=tabs.length)active=0;
+  return {v:2,active,tabs};
 }
-function saveSummaryLayout(arr){
-  try{if(arr)localStorage.setItem(SM_KEY,JSON.stringify(arr.map(x=>({id:x.id,on:!!x.on}))));
+function saveSummaryCfg(cfg){
+  try{if(cfg)localStorage.setItem(SM_KEY,JSON.stringify(
+      {v:2,active:cfg.active|0,tabs:cfg.tabs.map(t=>({name:t.name,blocks:t.blocks.slice()}))}));
     else localStorage.removeItem(SM_KEY);}catch(e){}
 }
-
-function renderBanner(){
-  const layout=summaryLayout();
-  let h='<div class="smbar"><button class="smgear" id="smgear" type="button" '+
-    'aria-haspopup="dialog" title="Customize the RF Env Summary">'+
-    '<svg><use href="#ic-gear"/></svg>Customize</button></div>';
-  let run=[];
+// Registry blocks not currently in any tab (i.e. hidden / available to add).
+function offBlocks(cfg){
+  const used=new Set();cfg.tabs.forEach(t=>t.blocks.forEach(id=>used.add(id)));
+  return SUMMARY_BLOCKS.filter(b=>!used.has(b.id)&&
+    (clusterOn()||!CLUSTER_BLOCKS.has(b.id))).map(b=>b.id);
+}
+// Render one tab's blocks (consecutive charts grouped into a responsive grid).
+function renderTabBlocks(tab){
+  let h="",run=[];
   const flush=()=>{if(run.length){const inner=run.join("");
     if(inner)h+='<div class="charts">'+inner+"</div>";run=[];}};
-  for(const b of layout){
-    if(!b.on)continue;const def=BLK[b.id];if(!def)continue;
+  for(const id of (tab?tab.blocks:[])){
+    const def=BLK[id];if(!def)continue;
+    if(CLUSTER_BLOCKS.has(id)&&!clusterOn())continue;   // no cluster backend → don't render
     const html=def.render()||"";if(!html)continue;
     if(def.isChart)run.push(html);else{flush();h+=html;}
   }
   flush();
+  if(!h)h='<div class="chempty">This tab is empty. Tap <b>Customize</b> to add blocks.</div>';
+  return h;
+}
+function renderBanner(){
+  const cfg=summaryCfg();
+  let bar='<div class="smbar"><button class="smgear" id="smgear" type="button" '+
+    'aria-haspopup="dialog" title="Customize the RF Env Summary">'+
+    '<svg><use href="#ic-gear"/></svg>Customize</button></div>';
+  let side='<div class="smtabs" role="tablist" aria-label="Summary tabs">';
+  cfg.tabs.forEach((t,i)=>{side+='<button class="smtab'+(i===cfg.active?" act":"")+
+    '" type="button" role="tab" aria-selected="'+(i===cfg.active?"true":"false")+
+    '" data-tab="'+i+'">'+esc(t.name)+"</button>";});
+  side+="</div>";
+  let content=renderTabBlocks(cfg.tabs[cfg.active]);
   if(!filterActive()&&M.bad)
-    h+='<div class="stats"><div><b>skipped lines</b>'+M.bad+"</div></div>";
-  $("banner").innerHTML=h;
+    content+='<div class="stats"><div><b>skipped lines</b>'+M.bad+"</div></div>";
+  $("smhost").innerHTML=bar+'<div class="smwrap">'+side+
+    '<div id="banner" class="smcontent">'+content+"</div></div>";
   $("smgear").onclick=openSummaryCfg;
+  $("smhost").querySelectorAll(".smtab").forEach(b=>b.onclick=()=>{
+    const c=summaryCfg();c.active=+b.dataset.tab;saveSummaryCfg(c);renderBanner();});
   wireSummaryActs();
 }
 // Route a summary drill-in to the right filtered result list / tab.
@@ -3140,46 +3568,110 @@ function openSummaryCfg(){
   renderSummaryCfg();smov.hidden=false;
 }
 function renderSummaryCfg(){
-  const layout=summaryLayout();
-  let h='<h3>Customize summary</h3><div class="smsub">Turn blocks on/off, and drag '+
-    "the grip (or use ↑↓) to reorder. Charts and lists link into filtered results. "+
-    "Changes save on this device.</div>";
-  layout.forEach((b,i)=>{
-    const def=BLK[b.id];if(!def)return;
-    h+='<div class="smblk '+(b.on?"on":"off")+'" draggable="true" data-i="'+i+'">'+
-      '<span class="smgrip" title="Drag to reorder">⠿</span>'+
-      '<span class="smname">'+esc(def.label)+'</span>'+
-      (def.isChart?'<span class="smtag">chart</span>':
-        def.isList?'<span class="smtag">list</span>':"")+
-      '<span class="smmv"><button data-mv="up"'+(i===0?" disabled":"")+
-      ' aria-label="Move up">↑</button><button data-mv="down"'+
-      (i===layout.length-1?" disabled":"")+' aria-label="Move down">↓</button></span>'+
-      '<button class="smtog" data-tog="'+b.id+'">'+(b.on?"On":"Off")+"</button></div>";
+  const cfg=summaryCfg();
+  const apply=c=>{saveSummaryCfg(c);renderSummaryCfg();renderBanner();};
+  let h='<h3>Customize summary</h3><div class="smsub">Group blocks into tabs to cut '+
+    'scrolling. Rename a tab, use ↑↓ (or drag the grip) to reorder within a tab, and '+
+    '"Move to" to send a block to another tab or hide it. Saved on this device.</div>';
+  // ---- tab manager ----
+  h+='<div class="smtabmgr">';
+  cfg.tabs.forEach((t,i)=>{
+    h+='<div class="smtabrow" draggable="true" data-ti="'+i+'">'+
+      '<span class="smgrip" title="Drag to reorder tabs">⠿</span>'+
+      '<input data-tname="'+i+'" value="'+esc(t.name)+'" maxlength="24" aria-label="Tab name">'+
+      '<button data-tmv="up:'+i+'"'+(i===0?" disabled":"")+' aria-label="Move tab up">↑</button>'+
+      '<button data-tmv="down:'+i+'"'+(i===cfg.tabs.length-1?" disabled":"")+' aria-label="Move tab down">↓</button>'+
+      '<button data-tdel="'+i+'"'+(cfg.tabs.length<=1?" disabled":"")+' aria-label="Delete tab">✕</button>'+
+      "</div>";
   });
+  h+='</div><button class="smaddtab" data-addtab="1">+ Add tab</button>';
+  // ---- per-tab block groups ----
+  const tag=def=>def.isChart?'<span class="smtag">chart</span>':
+    def.isList?'<span class="smtag">list</span>':"";
+  const tabOpts=cur=>cfg.tabs.map((t,i)=>'<option value="'+i+'"'+(i===cur?" selected":"")+
+    ">"+esc(t.name)+"</option>").join("");
+  cfg.tabs.forEach((t,i)=>{
+    h+='<div class="smgrp">'+esc(t.name)+"</div>";
+    if(!t.blocks.length)h+='<div class="chempty" style="margin:0 0 8px">(empty)</div>';
+    t.blocks.forEach((id,bi)=>{const def=BLK[id];if(!def)return;
+      if(CLUSTER_BLOCKS.has(id)&&!clusterOn())return;   // don't surface cluster blocks off-cluster
+      h+='<div class="smblk on" draggable="true" data-bid="'+id+'" data-ti="'+i+'" data-bi="'+bi+'">'+
+        '<span class="smgrip" title="Drag to reorder">⠿</span>'+
+        '<span class="smname">'+esc(def.label)+'</span>'+tag(def)+
+        '<span class="smmv"><button data-bmv="up"'+(bi===0?" disabled":"")+' aria-label="Move up">↑</button>'+
+        '<button data-bmv="down"'+(bi===t.blocks.length-1?" disabled":"")+' aria-label="Move down">↓</button></span>'+
+        '<select class="smmove" data-move="'+id+'" aria-label="Move to tab">'+tabOpts(i)+
+        '<option value="off">Hide</option></select></div>';
+    });
+  });
+  const off=offBlocks(cfg);
+  if(off.length){
+    h+='<div class="smgrp off">Hidden — pick a tab to show</div>';
+    off.forEach(id=>{const def=BLK[id];if(!def)return;
+      h+='<div class="smblk off" data-bid="'+id+'">'+
+        '<span class="smname">'+esc(def.label)+'</span>'+tag(def)+
+        '<select class="smmove" data-move="'+id+'" aria-label="Add to tab">'+
+        '<option value="off" selected>Hidden</option>'+tabOpts(-1)+"</select></div>";
+    });
+  }
   h+='<div class="smact"><button data-sm="reset">Reset to default</button>'+
     '<button class="prim" data-sm="done">Done</button></div>';
   smsheet.innerHTML=h;
-  const apply=L=>{saveSummaryLayout(L);renderSummaryCfg();renderBanner();};
-  smsheet.querySelectorAll("[data-tog]").forEach(b=>b.onclick=()=>{
-    const L=summaryLayout(),it=L.find(x=>x.id===b.dataset.tog);
-    if(it){it.on=!it.on;apply(L);}});
-  smsheet.querySelectorAll("[data-mv]").forEach(b=>b.onclick=()=>{
-    const i=+b.closest(".smblk").dataset.i,L=summaryLayout();
-    const j=b.dataset.mv==="up"?i-1:i+1;if(j<0||j>=L.length)return;
-    const t=L[i];L[i]=L[j];L[j]=t;apply(L);});
+  // ---- wiring ----
+  smsheet.querySelectorAll("[data-tname]").forEach(inp=>inp.onchange=()=>{
+    const c=summaryCfg(),i=+inp.dataset.tname;
+    if(c.tabs[i]){c.tabs[i].name=(inp.value.trim()||"Tab").slice(0,24);apply(c);}});
+  smsheet.querySelectorAll("[data-tmv]").forEach(b=>b.onclick=()=>{
+    const[dir,is]=b.dataset.tmv.split(":"),i=+is,c=summaryCfg();
+    const j=dir==="up"?i-1:i+1;if(j<0||j>=c.tabs.length)return;
+    const t=c.tabs[i];c.tabs[i]=c.tabs[j];c.tabs[j]=t;
+    if(c.active===i)c.active=j;else if(c.active===j)c.active=i;apply(c);});
+  smsheet.querySelectorAll("[data-tdel]").forEach(b=>b.onclick=()=>{
+    const c=summaryCfg(),i=+b.dataset.tdel;if(c.tabs.length<=1)return;
+    const moved=c.tabs[i].blocks;c.tabs.splice(i,1);
+    (c.tabs[i>0?i-1:0].blocks).push(...moved);          // fold blocks into a neighbour
+    if(c.active>=c.tabs.length)c.active=c.tabs.length-1;apply(c);});
+  smsheet.querySelector("[data-addtab]").onclick=()=>{
+    const c=summaryCfg();c.tabs.push({name:"Tab "+(c.tabs.length+1),blocks:[]});apply(c);};
+  smsheet.querySelectorAll("[data-bmv]").forEach(b=>b.onclick=()=>{
+    const row=b.closest(".smblk"),ti=+row.dataset.ti,bi=+row.dataset.bi,c=summaryCfg();
+    const t=c.tabs[ti];if(!t)return;const j=b.dataset.bmv==="up"?bi-1:bi+1;
+    if(j<0||j>=t.blocks.length)return;
+    const tmp=t.blocks[bi];t.blocks[bi]=t.blocks[j];t.blocks[j]=tmp;apply(c);});
+  smsheet.querySelectorAll("[data-move]").forEach(sel=>sel.onchange=()=>{
+    const id=sel.dataset.move,to=sel.value,c=summaryCfg();
+    c.tabs.forEach(t=>{const k=t.blocks.indexOf(id);if(k>=0)t.blocks.splice(k,1);});
+    if(to!=="off"&&c.tabs[+to])c.tabs[+to].blocks.push(id);apply(c);});
   smsheet.querySelectorAll("[data-sm]").forEach(b=>b.onclick=()=>{
     if(b.dataset.sm==="reset")apply(null);else smov.hidden=true;});
-  let dragI=null;
-  smsheet.querySelectorAll(".smblk").forEach(el=>{
-    el.ondragstart=e=>{dragI=+el.dataset.i;el.classList.add("dragging");
-      e.dataTransfer.effectAllowed="move";};
+  // drag: reorder blocks within the same tab, and reorder tabs
+  let dragBid=null,dragBti=null;
+  smsheet.querySelectorAll(".smblk[data-ti]").forEach(el=>{
+    el.ondragstart=e=>{dragBid=el.dataset.bid;dragBti=el.dataset.ti;
+      el.classList.add("dragging");e.dataTransfer.effectAllowed="move";};
     el.ondragend=()=>{el.classList.remove("dragging");
       smsheet.querySelectorAll(".smblk").forEach(x=>x.classList.remove("dragover"));};
+    el.ondragover=e=>{if(el.dataset.ti===dragBti){e.preventDefault();el.classList.add("dragover");}};
+    el.ondragleave=()=>el.classList.remove("dragover");
+    el.ondrop=e=>{e.preventDefault();
+      if(dragBid==null||el.dataset.ti!==dragBti)return;
+      const c=summaryCfg(),t=c.tabs[+dragBti];if(!t)return;
+      const from=t.blocks.indexOf(dragBid),to=+el.dataset.bi;
+      if(from<0||from===to)return;
+      const m=t.blocks.splice(from,1)[0];t.blocks.splice(to,0,m);apply(c);};
+  });
+  let dragTi=null;
+  smsheet.querySelectorAll(".smtabrow").forEach(el=>{
+    el.ondragstart=e=>{dragTi=+el.dataset.ti;el.classList.add("dragging");
+      e.dataTransfer.effectAllowed="move";};
+    el.ondragend=()=>{el.classList.remove("dragging");
+      smsheet.querySelectorAll(".smtabrow").forEach(x=>x.classList.remove("dragover"));};
     el.ondragover=e=>{e.preventDefault();el.classList.add("dragover");};
     el.ondragleave=()=>el.classList.remove("dragover");
-    el.ondrop=e=>{e.preventDefault();const to=+el.dataset.i;
-      if(dragI==null||dragI===to)return;
-      const L=summaryLayout(),m=L.splice(dragI,1)[0];L.splice(to,0,m);apply(L);};
+    el.ondrop=e=>{e.preventDefault();const to=+el.dataset.ti;
+      if(dragTi==null||dragTi===to)return;
+      const c=summaryCfg(),m=c.tabs.splice(dragTi,1)[0];c.tabs.splice(to,0,m);
+      c.active=to;apply(c);};
   });
 }
 
@@ -3854,13 +4346,82 @@ function renderDrones(){
 }
 
 function subjLink(r){
-  const ref=r.target_ref||"";
-  if(/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(ref)){
-    const kind=r.target_kind==="wifi_ap"?"wifi":"ble";
+  return macLink(r.target_ref||"",r.target_kind==="wifi_ap"?"wifi":"ble");
+}
+function macLink(ref,kind){
+  if(/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(ref))
     return '<a class="mono" style="cursor:pointer" data-go="'+anchorId(kind,ref)+
       '" data-tab="s-'+kind+'">'+esc(ref)+"</a>";
-  }
   return ref?esc(ref):'<span class="dim">—</span>';
+}
+
+// ---- Evil Twin pair evidence on a notification ----------------------------
+// An Evil Twin conclusion is about a PAIR, so the notification has to reach both
+// members and show what the detector actually weighed. Everything here comes off
+// the record; nothing is inferred in the browser.
+const TWIN_TRIGGER_TEXT={
+  open_security_downgrade:"an open network sharing a protected network's SSID",
+  tier1_peer_score:"an unrelated-identity peer with a large signal gap",
+  beacon_fingerprint_conflict:"a peer whose security/beacon profile disagrees",
+  relationship_only_no_twin:"a related pair with no impersonation evidence"
+};
+const TWIN_REL_TEXT={
+  likely_sibling_virtual_bssid:"coordinated virtual BSSIDs on one radio",
+  likely_managed_ess_peer:"peers in one managed network",
+  known_service_family_peer:"same service family",
+  unrelated_same_ssid_peer:"unrelated identities",
+  unknown_same_ssid_peer:"relationship unknown"
+};
+// Label, and whether the bit argues FOR impersonation or against it. A finding is
+// only auditable if the suppressing evidence is as visible as the supporting kind.
+const TWIN_EV_TEXT={
+  exact_ssid_match:["identical SSID","for"],
+  security_mismatch:["security profiles differ","for"],
+  rssi_gap:["large signal gap","for"],
+  rsn_mismatch:["encryption differs","for"],
+  pmf_mismatch:["management-frame protection differs","for"],
+  wps_mismatch:["WPS differs","for"],
+  beacon_interval_conflict:["beacon timing differs","for"],
+  suffix_delta:["distant MAC suffix","for"],
+  conserved_mac_structure:["conserved MAC structure","against"],
+  same_public_oui:["same vendor OUI","against"],
+  both_laa:["both locally administered","against"],
+  same_channel:["same channel","against"],
+  same_beacon_interval:["matching beacon timing","against"],
+  chain_ssid:["recognised public/chain SSID","against"]
+};
+function twinEvidenceHtml(f){
+  if(!f)return "";
+  const ev=f.evidence||{};
+  const fors=[],againsts=[];
+  for(const k in TWIN_EV_TEXT){
+    if(!(k in ev))continue;               // absent key = not evaluated in that build
+    if(!ev[k])continue;                   // false = evaluated, not present
+    (TWIN_EV_TEXT[k][1]==="for"?fors:againsts).push(TWIN_EV_TEXT[k][0]);
+  }
+  let h="";
+  const trig=TWIN_TRIGGER_TEXT[f.trigger]||f.trigger||"";
+  const rel=TWIN_REL_TEXT[f.relationship_class]||f.relationship_class||"";
+  if(trig)h+='<div class="ev"><b>triggered by:</b> '+esc(trig)+"</div>";
+  if(rel) h+='<div class="ev"><b>relationship:</b> '+esc(rel)+"</div>";
+  if(fors.length)
+    h+='<div class="ev"><b>points to impersonation:</b> '+esc(fors.join(", "))+"</div>";
+  if(againsts.length)
+    h+='<div class="ev"><b>points away from it:</b> '+esc(againsts.join(", "))+"</div>";
+  if(f.symmetric)
+    h+='<div class="ev dim">Neither network can be named as the impostor from this '+
+       "evidence — treat both as unconfirmed.</div>";
+  return h;
+}
+// Find the pair record behind an alert, so the notification can show its evidence.
+function twinFindingFor(r){
+  if(!r||!r.peer_ref||!r.target_ref)return null;
+  const a=r.target_ref,b=r.peer_ref,want=(a<b?a+"|"+b:b+"|"+a);
+  for(const {rec} of M.twins.values()){
+    const x=rec.target_ref||"",y=rec.peer_ref||"";
+    if((x<y?x+"|"+y:y+"|"+x)===want)return rec;
+  }
+  return null;
 }
 // Notification display filter — tailor the noise without touching the capture.
 // The raw records ("alert" in the schema) stay in the data/export; these prefs
@@ -3908,10 +4469,20 @@ function renderAlerts(){
       '<button data-al="applyfilter">Apply filter</button></div>';
   h+=shown.length?'<div class="dlist">'+shown.map(a=>{
     const r=a.rec;
+    // A pair notification links BOTH members — the peer is half the
+    // finding, and a conclusion you cannot navigate to is a conclusion you
+    // cannot check.
     const meta=span("mono",esc(r.rule_id||"?"))+
-      (r.target_ref?subjLink(r):"")+(a.n>1?span("",a.n+"×"):"");
+      (r.target_ref?subjLink(r):"")+
+      (r.peer_ref?span("dim","↔")+macLink(r.peer_ref,"wifi"):"")+
+      (a.n>1?span("",a.n+"×"):"");
+    let why=twinEvidenceHtml(twinFindingFor(r));
+    if(!why&&Array.isArray(r.limitations)&&
+       r.limitations.indexOf("legacy_unattributed_alert")>=0)
+      why='<div class="ev dim">This capture predates pair evidence, so the peer '+
+          "that triggered it was not recorded. It cannot be audited here.</div>";
     return devCard("alert",null,esc(r.message||r.rule_id||"notification"),
-      sevPill(r.severity),meta,null,iconSpan(ICON_BY_KIND.alert));
+      sevPill(r.severity),meta,why||null,iconSpan(ICON_BY_KIND.alert));
   }).join("")+"</div>":
     '<div class="note">All '+rows.length+" notification"+(rows.length>1?"s":"")+
     " hidden by your filter.</div>";
@@ -3925,64 +4496,206 @@ function renderAlerts(){
     alertPrefsSet(p);renderAlerts();});
   el.querySelectorAll("[data-al]").forEach(b=>b.onclick=()=>{
     alertShowAll=b.dataset.al==="showall";renderAlerts();});
-  el.querySelectorAll("a[data-go]").forEach(a=>{
-    a.onclick=e=>{e.preventDefault();gotoDevice(a.dataset.tab,a.dataset.go);};
-  });
+  // data-go links are handled by the delegated document listener (113f), so
+  // links inside lazily-rendered card details work too.
 }
 
+// ---- privacy triage + per-device actions (viewer-side; never alters the data) ----
+// Acknowledge = "I've reviewed this device"; stored in this browser so a repeat scan
+// can surface only NEW privacy findings. Watch reuses the existing watchlist.
+const PACK_KEY="sc-priv-ack";
+function ackGet(){try{const a=JSON.parse(localStorage.getItem(PACK_KEY));
+  return Array.isArray(a)?a:[];}catch(e){return [];}}
+function ackSet(a){try{localStorage.setItem(PACK_KEY,JSON.stringify(a));}catch(e){}}
+function ackHas(mac){const m=normMac(mac);return !!m&&ackGet().indexOf(m)>=0;}
+function ackToggle(mac){const m=normMac(mac);if(!m)return;
+  const a=ackGet(),i=a.indexOf(m);if(i>=0)a.splice(i,1);else a.push(m);ackSet(a);}
+let privNewOnly=false;
+function toast(msg){
+  let t=$("toast");
+  if(!t){t=document.createElement("div");t.id="toast";document.body.appendChild(t);}
+  t.textContent=msg;t.classList.add("show");
+  clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove("show"),3600);
+}
+function macWatched(mac){const m=normMac(mac);
+  return watchGet().some(w=>w.t==="mac"&&normMac(w.v)===m);}
+// Watch / Locate / Reviewed buttons for one leaking device.
+function privActions(mac,rssi){
+  if(!mac)return "";
+  const watched=macWatched(mac),acked=ackHas(mac);
+  const loc='<button type="button" class="pa" data-ploc="'+esc(mac)+'"'+
+    ' title="Guided RSSI hunt — the arms help you home in on this device">locate</button>';
+  return '<button type="button" class="pa'+(watched?" on":"")+'" data-pwatch="'+esc(mac)+
+      '" title="Flag this MAC on your watchlist">'+(watched?"★ watching":"☆ watch")+
+      "</button>"+loc+
+    '<button type="button" class="pa'+(acked?" done":"")+'" data-pack="'+esc(mac)+
+      '" title="Mark reviewed — hidden under ‘new only’">'+
+      (acked?"✓ reviewed":"mark reviewed")+"</button>";
+}
+// ---- Guided RSSI locate (cluster only): warmer/colder hunt driven by the arms ----
+// The arms measure the target's signal strength; the browser turns the user's moves +
+// signal change into direction. No compass/AoA — honest about being a gradient hunt.
+let LOC=null;
+function locBarPct(r){return r==null?0:Math.max(0,Math.min(100,Math.round((r+90)/60*100)));}
+function locTrend(){const h=LOC.hist;if(h.length<3)return 0;
+  return h[h.length-1]-h[Math.max(0,h.length-4)];}
+function locateOpen(mac,kind,channel,name){
+  const ov=$("locov");if(!ov)return;
+  LOC={mac:mac,kind:kind==null?1:kind,channel:channel||0,name:name||mac,
+    ema:null,hist:[],dirs:{},phase:"start",fails:0,found:false,age:255,samples:0,timer:null};
+  if(!ov._w){ov._w=1;
+    ov.addEventListener("click",e=>{if(e.target===ov)locateClose();});
+    addEventListener("keydown",e=>{if(e.key==="Escape"&&!ov.hidden)locateClose();});}
+  ov.hidden=false;locateRender();
+  fetch("/api/cluster/locate/start",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({mac:LOC.mac,kind:LOC.kind,channel:LOC.channel})})
+   .then(r=>{if(!r.ok)throw 0;if(LOC){LOC.phase="hunt";locatePoll();}})
+   .catch(()=>{if(LOC){LOC.phase="offline";locateRender();}});
+}
+function locatePoll(){
+  if(!LOC||LOC.phase==="offline")return;
+  fetch("/api/cluster/locate",{cache:"no-store"}).then(r=>r.json()).then(s=>{
+    if(!LOC)return;
+    LOC.found=!!s.found;LOC.age=s.age_ds;LOC.samples=s.samples;
+    if(s.found&&s.age_ds<20){
+      LOC.ema=LOC.ema==null?s.rssi:Math.round(LOC.ema*0.6+s.rssi*0.4);
+      LOC.hist.push(LOC.ema);if(LOC.hist.length>30)LOC.hist.shift();LOC.fails=0;
+    }else LOC.fails++;
+    locateRender();
+  }).catch(()=>{if(LOC)LOC.fails++;})
+    .finally(()=>{if(LOC&&LOC.phase!=="offline")LOC.timer=setTimeout(locatePoll,700);});
+}
+const LOC_DIRS=[["forward","▲ Fwd"],["back","▼ Back"],["left","◀ Left"],["right","▶ Right"]];
+function locateRender(){
+  const sh=$("locsheet");if(!sh||!LOC)return;
+  let h='<div class="lochd"><span><b>Locate</b> '+esc(String(LOC.name).slice(0,22))+
+    '</span><button class="locx" data-loc="close" aria-label="Stop">✕</button></div>';
+  if(LOC.phase==="offline"){
+    h+='<div class="locwarn">Live locate needs a running SniffCheck cluster. Join the '+
+      "cluster’s Wi-Fi and open this report there to hunt.</div>"+
+      '<div class="locact"><button class="prim" data-loc="close">Close</button></div>';
+    sh.innerHTML=h;locBind();return;
+  }
+  const rssi=LOC.ema,pct=locBarPct(rssi);
+  const weak=LOC.fails>3||LOC.age>30||!LOC.found||rssi==null;
+  const trend=locTrend();
+  h+='<div class="locsig'+(weak?" weak":"")+'"><div class="locbar"><i style="width:'+
+    pct+'%"></i></div><div class="locdbm">'+(rssi==null?"—":rssi+" dBm")+"</div></div>";
+  if(weak){
+    h+='<div class="locwarn">Weak / intermittent signal — this device isn’t transmitting '+
+      "often enough to lock reliably (probe-only or rotating-MAC devices are the hardest). "+
+      "Move toward where you last saw it and keep watching."+
+      (LOC.samples?" · samples: "+LOC.samples:"")+"</div>";
+  }else{
+    const w=trend>3?"warm":trend<-3?"cold":"hold";
+    h+='<div class="loctemp t'+w+'">'+(w==="warm"?"WARMER ↑":w==="cold"?"COLDER ↓":"hold")+"</div>";
+    if(rssi>-45)h+='<div class="locclose">Very strong — it’s right near you. Look around.</div>';
+  }
+  const rec=Object.keys(LOC.dirs).length;
+  h+='<div class="locguide">';
+  if(rec<4)h+='<div class="locstep">Stand still, step a few feet one way, then tap that '+
+    "arrow — it snapshots the signal in that direction.</div>";
+  h+='<div class="locdirs">'+LOC_DIRS.map(([d,lbl])=>{const v=LOC.dirs[d];
+    return '<button class="locdir'+(v!=null?" done":"")+'" data-dir="'+d+'">'+lbl+
+      (v!=null?'<span class="dv">'+v+"</span>":"")+"</button>";}).join("")+"</div>";
+  if(rec>=2){let best=null,bv=-999;for(const d in LOC.dirs)if(LOC.dirs[d]>bv){bv=LOC.dirs[d];best=d;}
+    const lbl={forward:"forward",back:"back",left:"left",right:"right"}[best];
+    h+='<div class="locbest">Strongest so far: <b>'+lbl+"</b> — head that way, then re-check."+
+      ' <button class="locre" data-loc="recal">reset</button></div>';}
+  h+="</div>";
+  h+='<div class="locfoot">Relative to your last move — this reads signal strength, not a '+
+    "compass bearing.</div>"+
+    '<div class="locact"><button class="prim" data-loc="close">Stop &amp; close</button></div>';
+  sh.innerHTML=h;locBind();
+}
+function locBind(){
+  const sh=$("locsheet");
+  sh.querySelectorAll('[data-loc="close"]').forEach(b=>b.onclick=locateClose);
+  const re=sh.querySelector('[data-loc="recal"]');if(re)re.onclick=()=>{LOC.dirs={};locateRender();};
+  sh.querySelectorAll("[data-dir]").forEach(b=>b.onclick=()=>{
+    if(LOC.ema==null){toast("No signal yet — wait for a reading.");return;}
+    LOC.dirs[b.dataset.dir]=LOC.ema;locateRender();});
+}
+function locateClose(){
+  const ov=$("locov");
+  if(LOC&&LOC.timer)clearTimeout(LOC.timer);
+  fetch("/api/cluster/locate/stop",{method:"POST"}).catch(()=>{});
+  LOC=null;if(ov)ov.hidden=true;
+}
 function pmac(m){return '<span class="mono">'+esc(m||"?")+"</span>";}
 function pkv(k,v){return "<span><b>"+esc(k)+"</b>"+esc(v??"—")+"</span>";}
 function pflag(cls,txt){return '<span class="pill '+cls+'">'+esc(txt)+"</span>";}
-function prow(cat,title,parts,flag){
-  return '<div class="prow" style="--cat:'+cat+'"><div class="pt"><span>'+title+
-    "</span>"+(flag||"")+'</div><div class="pm">'+parts.join("")+"</div></div>";
+function prow(cat,title,parts,flag,mac,rssi){
+  const acked=mac&&ackHas(mac);
+  return '<div class="prow'+(acked?" acked":"")+'" style="--cat:'+cat+'"><div class="pt"><span>'+
+    title+"</span>"+(flag||"")+(acked?'<span class="pill done">reviewed</span>':"")+
+    '</div><div class="pm">'+parts.join("")+"</div>"+
+    (mac?'<div class="pact">'+privActions(mac,rssi)+"</div>":"")+"</div>";
 }
 const PRIV=[
  {k:"probe_req_log",label:"Probe requests",cat:"var(--wifi)",
   exp:"Devices broadcast the names of Wi-Fi networks they remember. Each "+
       "probed name can hint at places that device has connected before.",
+  act:"On your own phone, ‘forget’ Wi-Fi networks you no longer use so it stops "+
+      "broadcasting their names. For other devices this is a privacy heads-up — "+
+      "watch or locate it if it keeps reappearing.",
   row:r=>prow("var(--wifi)",
     r.ssid?esc(r.ssid):'<span class="hid">(broadcast — any network)</span>',
     [pmac(r.src_mac),pkv("category",r.category||"—"),pkv("hits",r.hit_count),
      pkv("scans",(r.first_seen_scan??"?")+"–"+(r.last_seen_scan??"?")),
-     pkv("locally visible",r.local_visible?"yes":"no"),privLinks(r.src_mac)],""),
+     pkv("locally visible",r.local_visible?"yes":"no"),privLinks(r.src_mac)],"",r.src_mac),
   risk:r=>r.hit_count||0},
  {k:"seq_fingerprint_log",label:"Sequence fingerprint",cat:"var(--ble)",
   exp:"Even with a randomized MAC, a device's 802.11 sequence counter can "+
       "chain its frames together over time — defeating the randomization.",
+  act:"Sequence-counter linking is a firmware trait you can't change from here. "+
+      "If a ‘linkable’ device concerns you, watch it and use locate to identify it.",
   row:r=>prow("var(--ble)",pmac(r.src_mac),
     [pkv("seq range",(r.first_seq??"?")+"–"+(r.last_seq??"?")),pkv("hits",r.hit_count),
      privLinks(r.src_mac)],
-    r.linked?pflag("p2","linkable"):""),
+    r.linked?pflag("p2","linkable"):"",r.src_mac),
   risk:r=>r.linked?1:0},
  {k:"ie_signature_log",label:"IE signatures",cat:"var(--track)",
   exp:"The set of capability tags a device advertises forms a fingerprint. "+
       "When the IE-implied vendor disagrees with the MAC's vendor, that can "+
       "flag a spoofed or cloned address.",
+  act:"A vendor mismatch can mean a spoofed or cloned MAC. Flag it with watch and "+
+      "open its result row to cross-check the hardware against what it claims to be.",
   row:r=>prow("var(--track)",pmac(r.src_mac),
     [pkv("IE vendor",r.ie_vendor||"—"),pkv("MAC vendor",r.mac_vendor||"—"),
      pkv("hash",r.ie_hash),pkv("hits",r.hit_count),privLinks(r.src_mac)],
-    r.mismatch?pflag("p2","vendor mismatch"):""),
+    r.mismatch?pflag("p2","vendor mismatch"):"",r.src_mac),
   risk:r=>r.mismatch?1:0},
  {k:"anqp_log",label:"ANQP / GAS",cat:"var(--drone)",
   exp:"Hotspot 2.0 / ANQP queries can leak a device's identity and its "+
       "preferred (home) networks to anyone listening.",
+  act:"A universal (non-randomized) MAC is stable and easy to track. On your own "+
+      "device, turn off Hotspot 2.0 / Passpoint auto-join. Otherwise, watch it.",
   row:r=>prow("var(--drone)",pmac(r.src_mac),
     [pkv("universal MAC",r.universal?"yes":"no"),pkv("hits",r.hit_count),
      privLinks(r.src_mac)],
-    r.universal?pflag("p1","universal MAC"):""),
+    r.universal?pflag("p1","universal MAC"):"",r.src_mac),
   risk:r=>r.universal?1:0},
  {k:"station_log",label:"Stations",cat:"var(--wifi)",
   exp:"Client devices (phones, laptops, cameras) talking on nearby networks. "+
       "Pulled from cleartext MAC headers — no decryption. Camera-vendor MACs "+
       "are flagged for the hotel-room / Airbnb hidden-camera check.",
+  act:"Camera-vendor MACs are the hidden-camera signal — use locate and walk the "+
+      "room while re-scanning; the signal climbs as you close in. Randomized MACs "+
+      "can't be vendor-identified, so a camera may hide behind one.",
   panel:rec=>{
-    const det=Array.isArray(rec.stations)?rec.stations.slice():[];
-    let h='<div class="pexp" style="--cat:var(--wifi)">'+esc(PRIV_EXP.station_log)+"</div>";
+    let det=Array.isArray(rec.stations)?rec.stations.slice():[];
+    let h='<div class="pexp" style="--cat:var(--wifi)">'+esc(PRIV_EXP.station_log)+"</div>"+
+      pguide("Camera-vendor MACs are the hidden-camera signal — use locate and walk the "+
+      "room while re-scanning; the signal climbs as you close in. Randomized MACs "+
+      "can't be vendor-identified.");
+    if(privNewOnly)det=det.filter(s=>!ackHas(s.mac));
     h+='<div class="pchips"><span class="pchip">stations<b>'+(rec.total||det.length)+
        "</b></span>"+(rec.cameras?'<span class="pchip">cameras<b>'+rec.cameras+
        "</b></span>":"")+"</div>";
-    if(!det.length)return h+'<div class="note">No client stations recorded.</div>';
+    if(!det.length)return h+'<div class="note">'+(privNewOnly?
+      "No un-reviewed stations.":"No client stations recorded.")+"</div>";
     det.sort((a,b)=>(b.camera?1:0)-(a.camera?1:0)||(b.frames||0)-(a.frames||0));
     return h+'<div class="plist">'+det.map(stationRow).join("")+"</div>";
   }},
@@ -4011,7 +4724,8 @@ function stationRow(s){
     [pkv("vendor",s.vendor||"—"),pkv("frames",s.frames),
      pkv("up/dn",(s.up||0)+"/"+(s.dn||0)),pkv("ch",s.channel),
      pkv("rssi",s.rssi_best),pkv("BSSID",s.bssid),privLinks(s.mac)],
-    (s.camera?pflag("p1","camera"):"")+(s.randomized?pflag("p2","randomized"):""));
+    (s.camera?pflag("p1","camera"):"")+(s.randomized?pflag("p2","randomized"):""),
+    s.mac,typeof s.rssi_best==="number"?s.rssi_best:undefined);
 }
 
 const PRIV_EXP={
@@ -4020,44 +4734,74 @@ const PRIV_EXP={
     "signal; a randomized MAC can't be vendor-identified.",
   csi:"A short receive-only CSI capture window. GO means the radio delivered CSI "+
     "callbacks; NO-GO means none arrived in the window."};
+// "What you can do" guidance strip shown at the top of an analyzer panel.
+function pguide(txt){return txt?'<div class="pguide"><b>What you can do</b>'+esc(txt)+
+  "</div>":"";}
 function privPanel(p){
   const rec=M.logs[p.k];
   if(p.panel)return p.panel(rec);
-  let h='<div class="pexp" style="--cat:'+p.cat+'">'+esc(p.exp)+"</div>";
+  let h='<div class="pexp" style="--cat:'+p.cat+'">'+esc(p.exp)+"</div>"+pguide(p.act);
   const chips=o=>o?'<div class="pchips">'+Object.entries(o).map(([k,v])=>
     '<span class="pchip">'+esc(k)+"<b>"+esc(v)+"</b></span>").join("")+"</div>":"";
   h+=chips(rec.totals)+chips(rec.by_category);
-  const det=Array.isArray(rec.detail)?rec.detail.slice():null;
+  let det=Array.isArray(rec.detail)?rec.detail.slice():null;
   if(!det||!det.length)
     return h+'<div class="note">This capture holds totals only — no per-device '+
       "rows were recorded.</div>";
+  if(privNewOnly)det=det.filter(r=>!ackHas(r.src_mac));
+  if(!det.length)return h+'<div class="note">No un-reviewed devices in this analyzer.</div>';
   det.sort((a,b)=>p.risk(b)-p.risk(a));
   return h+'<div class="plist">'+det.map(p.row).join("")+"</div>";
 }
+let privActiveTab=0;
 function renderPrivacy(){
   const avail=PRIV.filter(p=>M.logs[p.k]);
   if(!avail.length){$("privacy").innerHTML=empty("No analyzer log records.");return;}
+  if(privActiveTab>=avail.length)privActiveTab=0;
   let h="";
   if(filterActive())
     h+='<div class="note">Aggregate analyzer logs are not device-scoped — '+
        "the filter above does not narrow this section.</div>";
+  const reviewed=ackGet().length;
+  h+='<div class="ptoolbar"><button type="button" class="fchip'+(privNewOnly?" on":"")+
+     '" id="pnew" title="Hide devices you’ve marked reviewed">'+
+     (privNewOnly?"New only ✓":"New only")+"</button>"+
+     (reviewed?'<button type="button" class="fchip" id="pclr" title="Un-review everything">'+
+       "Clear "+reviewed+" reviewed</button>":"")+
+     '<span class="small">Watch flags a MAC · locate helps you home in · reviewed hides '+
+     "it under “new only” — all stored in this browser.</span></div>";
   h+='<div class="ctabs" id="ptabs">'+avail.map((p,i)=>{
     const rec=M.logs[p.k];
     const det=rec.detail||rec.stations;
     const n=Array.isArray(det)?det.length:0;
-    return '<button class="ctab'+(i?"":" act")+'" data-i="'+i+'">'+esc(p.label)+
-      (n?' <span class="tn">'+n+"</span>":"")+"</button>";
+    return '<button class="ctab'+(i===privActiveTab?" act":"")+'" data-i="'+i+'">'+
+      esc(p.label)+(n?' <span class="tn">'+n+"</span>":"")+"</button>";
   }).join("")+"</div>";
   h+='<div id="ppanels">'+avail.map((p,i)=>
-    '<div class="ppanel" data-i="'+i+'"'+(i?' style="display:none"':"")+">"+
+    '<div class="ppanel" data-i="'+i+'"'+(i===privActiveTab?"":' style="display:none"')+">"+
     privPanel(p)+"</div>").join("")+"</div>";
   $("privacy").innerHTML=h;
   const tabs=$("ptabs"),panels=$("ppanels");
   tabs.querySelectorAll(".ctab").forEach(b=>b.onclick=()=>{
+    privActiveTab=+b.dataset.i;
     tabs.querySelectorAll(".ctab").forEach(x=>x.classList.toggle("act",x===b));
     panels.querySelectorAll(".ppanel").forEach(pn=>
       pn.style.display=pn.dataset.i===b.dataset.i?"":"none");
   });
+  $("pnew").onclick=()=>{privNewOnly=!privNewOnly;renderPrivacy();};
+  const clr=$("pclr");if(clr)clr.onclick=()=>{ackSet([]);renderPrivacy();renderBanner();};
+  $("privacy").querySelectorAll("[data-pwatch]").forEach(b=>b.onclick=e=>{
+    e.stopPropagation();const mac=b.dataset.pwatch;
+    if(macWatched(mac)){watchSet(watchGet().filter(w=>
+      !(w.t==="mac"&&normMac(w.v)===normMac(mac))));toast("Removed from watchlist");}
+    else{watchAdd("mac",mac);toast("Added to watchlist ★");}
+    renderPrivacy();renderBanner();renderWifi();renderBle();});
+  $("privacy").querySelectorAll("[data-pack]").forEach(b=>b.onclick=e=>{
+    e.stopPropagation();ackToggle(b.dataset.pack);
+    toast(ackHas(b.dataset.pack)?"Marked reviewed ✓":"Reopened");
+    renderPrivacy();renderBanner();});
+  $("privacy").querySelectorAll("[data-ploc]").forEach(b=>b.onclick=e=>{
+    e.stopPropagation();locateOpen(b.dataset.ploc,1,0,b.dataset.ploc);});
 }
 
 let chBest=6;
@@ -4334,6 +5078,15 @@ function renderNav(){
   showTab();
 }
 
+// Delegated so a data-go link works wherever it is rendered,
+// including inside a card detail that did not exist when the section was wired.
+document.addEventListener("click",e=>{
+  const a=e.target.closest&&e.target.closest("a[data-go]");
+  if(!a||!a.dataset.tab)return;
+  e.preventDefault();
+  gotoDevice(a.dataset.tab,a.dataset.go);
+});
+
 function gotoDevice(tab,elId){
   curTab=tab;showTab();
   const t=$(elId);
@@ -4578,7 +5331,7 @@ function download(name,text,mime){
   setTimeout(()=>URL.revokeObjectURL(u),1500);
 }
 
-// ---------- Phase 86: multi-format export ----------
+// ---------- multi-format export ----------
 // Everything here works on the records already loaded in this browser tab; the
 // friendlier formats (CSV/WiGLE) are honest lossy summaries of the same rows the
 // report shows, and never invent location the capture did not carry.
@@ -4630,8 +5383,8 @@ function toSummaryCSV(){
 
 // WiGLE / WigleWifi-1.6 CSV — same column contract dp_wigle.c writes on the X4,
 // so device-scan exports land in WiGLE/WDGWars the same way walk exports do.
-const WIGLE_PRE="WigleWifi-1.6,appRelease=1.30.0,model=SniffCheck-C5,"+
-  "release=1.30.0,device=esp32c5,display=st7735,board=t-dongle-c5,brand=SniffCheck";
+const WIGLE_PRE="WigleWifi-1.6,appRelease=1.31.0,model=SniffCheck-C5,"+
+  "release=1.31.0,device=esp32c5,display=st7735,board=t-dongle-c5,brand=SniffCheck";
 const WIGLE_COLS="MAC,SSID,AuthMode,FirstSeen,Channel,Frequency,RSSI,"+
   "CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,RCOIs,MfgrId,Type";
 function chanFreq(ch,band5){
@@ -4721,6 +5474,7 @@ function renderExportMenu(){
   const filt=filterActive();
   let h="<h3>Export</h3><div class=exsub>"+n+" device"+(n===1?"":"s")+
     (filt?" (current filter)":"")+" · everything stays local unless you upload.</div>";
+  h+=expOptHTML("report","ic-privacy","Generate report","Tailored, navigable report with presets — HTML, PDF, or JSON.","report");
   h+=expOptHTML("json","ic-download","JSON","Full SniffCheck capture — recommended for re-import / BYOS.","jsonl");
   h+=expOptHTML("csv","ic-download","CSV","Spreadsheet-friendly device summary. Lossy.","csv");
   h+=expOptHTML("wigle","ic-download","WiGLE","WigleWifi-1.6 CSV for wardrive tools. Location only if you add it.","csv");
@@ -4747,6 +5501,283 @@ function expRoute(act){
   if(act==="wigle"){renderWigleForm();return;}
   if(act==="html"){saveReportHTML();expClose();return;}
   if(act==="wdgwars"){renderWdgForm();return;}
+  if(act==="report"){renderReportForm();return;}
+}
+
+// ===================== Generate Report (tailored HTML / PDF / JSON) =====================
+// A clean, navigable document built from the parsed capture — distinct from the "HTML"
+// option (which clones the whole interactive app). Presets pick sensible section sets;
+// the user can then tweak sections, descriptions, and format. Everything is built
+// client-side and stays local; PDF is the browser's print-to-PDF on a self-contained doc.
+const REP_SECTIONS=[
+  {id:"overview",label:"Overview & verdict",has:()=>true},
+  {id:"wifi",    label:"Wi-Fi networks",     has:()=>FW.length>0},
+  {id:"ble",     label:"BLE devices",        has:()=>FB.length>0},
+  {id:"trackers",label:"Trackers",           has:()=>FT.length>0},
+  {id:"drones",  label:"Drones (Remote ID)", has:()=>FD.length>0},
+  {id:"clusters",label:"Device clusters",    has:()=>{const P=clusterParts();
+    return (P.net.length+P.bt.length+P.mr.length+P.veh.length+RC.length)>0;}},
+  {id:"privacy", label:"Privacy exposure",   has:()=>PV.length>0||PRIV.some(p=>M.logs[p.k])},
+  {id:"alerts",  label:"Notifications",      has:()=>FA.length>0},
+  {id:"timeline",label:"Scan timeline & device transference",has:()=>M.slots.length>1},
+];
+const REP_PRESETS={
+  full:    {label:"Full report",           secs:null},
+  privacy: {label:"Privacy report",        secs:["overview","privacy","timeline"]},
+  wifible: {label:"Wi-Fi / BLE report",    secs:["overview","wifi","ble","timeline"]},
+  rfenv:   {label:"RF environment report", secs:["overview","wifi","ble","trackers","drones","clusters","timeline"]},
+  sentinel:{label:"Sentinel report",       secs:["overview","alerts","trackers","privacy"]},
+};
+let repOpts={preset:"full",secs:null,desc:true,fmt:"html"};
+function repAvail(){return REP_SECTIONS.filter(s=>s.has());}
+function repPresetSecs(preset){
+  const avail=repAvail().map(s=>s.id),p=REP_PRESETS[preset];
+  return (p&&p.secs?p.secs:avail).filter(id=>avail.indexOf(id)>=0);
+}
+function repSelected(){
+  const avail=new Set(repAvail().map(s=>s.id)),order=REP_SECTIONS.map(s=>s.id);
+  return (repOpts.secs||[]).filter(id=>avail.has(id))
+    .sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+}
+// ---- small static-HTML table helpers (all cells pre-escaped by the caller) ----
+function repTable(cols,rows){
+  if(!rows.length)return '<p class="desc">None.</p>';
+  return '<div class="tw"><table><thead><tr>'+cols.map(c=>"<th>"+esc(c[0])+"</th>").join("")+
+    "</tr></thead><tbody>"+rows.map(r=>"<tr>"+cols.map(c=>"<td>"+
+      (r[c[1]]==null?"":r[c[1]])+"</td>").join("")+"</tr>").join("")+"</tbody></table></div>";
+}
+function repKV(rows){return '<div class="tw"><table class="kv"><tbody>'+
+  rows.map(r=>"<tr><th>"+esc(r[0])+"</th><td>"+esc(String(r[1]))+"</td></tr>").join("")+
+  "</tbody></table></div>";}
+// ---- per-section builders: each returns {id,title,html} ----
+function repOverview(desc){
+  let worst=0;for(const r of [...FW,...FB,...FT,...FD])worst=Math.max(worst,r.threat_level||0);
+  const rows=[["Wi-Fi networks",FW.length],["BLE devices",FB.length],["Trackers",FT.length],
+    ["Drones",FD.length],["Privacy findings",PV.length],
+    ["Notifications",FA.reduce((s,a)=>s+(a.n||1),0)],
+    ["Worst threat",cb("threat_level",worst).toUpperCase()],
+    ["Scans in report",M.slots.length]];
+  return {id:"rep-overview",title:"Overview & verdict",
+    html:(desc?'<p class="desc">Everything SniffCheck observed passively during this '+
+      "capture. Counts reflect "+(filterActive()?"the active filter":"the full capture")+
+      ".</p>":"")+repKV(rows)};
+}
+function repWifi(desc){
+  return {id:"rep-wifi",title:"Wi-Fi networks ("+FW.length+")",
+    html:(desc?'<p class="desc">Access points and Wi-Fi networks observed.</p>':"")+
+    repTable([["SSID","ssid"],["BSSID","bssid"],["Band","band"],["Ch","ch"],["RSSI","rssi"],
+      ["Threat","threat"],["Vendor","vendor"]],
+      FW.slice(0,600).map(r=>({ssid:esc(r.ssid||"(hidden)"),bssid:esc(r.bssid||""),
+        band:r.band_5g?"5 GHz":"2.4 GHz",ch:r.channel==null?"":r.channel,
+        rssi:r.rssi==null?"":r.rssi,threat:esc(cb("threat_level",r.threat_level||0)),
+        vendor:esc(r.vendor||r.company_name||"")})))};
+}
+function repBle(desc){
+  return {id:"rep-ble",title:"BLE devices ("+FB.length+")",
+    html:(desc?'<p class="desc">Bluetooth Low Energy devices observed.</p>':"")+
+    repTable([["Name","name"],["Address","addr"],["Category","cat"],["RSSI","rssi"],
+      ["Threat","threat"],["Vendor","vendor"]],
+      FB.slice(0,600).map(r=>({name:esc(r.name||r.fastpair_name||"—"),addr:esc(r.addr||""),
+        cat:esc(fCat(r)||""),rssi:r.rssi==null?"":r.rssi,
+        threat:esc(cb("threat_level",r.threat_level||0)),
+        vendor:esc(r.vendor||r.company_name||"")})))};
+}
+function repTrackers(desc){
+  return {id:"rep-trackers",title:"Trackers ("+FT.length+")",
+    html:(desc?'<p class="desc">Find My / DULT-class and other trackers. “Separated” '+
+      "tags are away from their owner.</p>":"")+
+    repTable([["Name","name"],["Address","addr"],["Kind","kind"],["RSSI","rssi"]],
+      FT.slice(0,300).map(r=>({name:esc(r.name||"—"),addr:esc(r.addr||fMac(r)||""),
+        kind:esc(r.tracker_kind||""),rssi:r.rssi==null?"":r.rssi})))};
+}
+function repDrones(desc){
+  return {id:"rep-drones",title:"Drones ("+FD.length+")",
+    html:(desc?'<p class="desc">Remote ID broadcasts from nearby drones.</p>':"")+
+    repTable([["ID","id"],["Address","addr"],["RSSI","rssi"]],
+      FD.slice(0,200).map(r=>({id:esc(r.uas_id||r.id||r.description||"—"),
+        addr:esc(fMac(r)||r.mac||""),rssi:r.rssi==null?"":r.rssi})))};
+}
+function repClusters(desc){
+  const P=clusterParts();
+  let h=(desc?'<p class="desc">Separate addresses that evidence ties to one device or '+
+    "product. Rotation chains show a single device changing its MAC across scans.</p>":"")+
+    repKV([["Wi-Fi (NIC) clusters",P.net.length],["BLE (NIC) clusters",P.bt.length],
+      ["Multi-radio access points",P.mr.length],["Vehicles",P.veh.length],
+      ["Address-rotation chains",RC.length]].filter(r=>r[1]));
+  if(RC.length)h+="<h3>Address-rotation chains (device transference)</h3>"+
+    repTable([["Addresses","n"],["Evidence","e"],["Confidence","c"]],
+      RC.map(c=>({n:c.members.length,e:esc(c.evidence),c:c.conf+"%"})));
+  return {id:"rep-clusters",title:"Device clusters",html:h};
+}
+function repPrivacy(desc){
+  let h=(desc?'<p class="desc">Passive identifiers that can re-link a device across '+
+    "randomized MACs, or reveal remembered networks.</p>":"");
+  const anlz=PRIV.filter(p=>M.logs[p.k]).map(p=>{const d=M.logs[p.k],det=d&&(d.detail||d.stations);
+    return [p.label,Array.isArray(det)?det.length:0];});
+  h+=repKV([["Devices leaking identity",PV.length],...anlz]);
+  if(PV.length)h+="<h3>Devices with leaks</h3>"+
+    repTable([["Identity","id"],["MAC","mac"],["Leaks","n"]],
+      PV.slice(0,300).map(e=>({id:esc(e.ident?e.ident.s:"—"),mac:esc(e.mac),n:e.items.length})));
+  if(desc){const g=PRIV.filter(p=>M.logs[p.k]&&p.act);
+    if(g.length)h+='<h3>What you can do</h3><ul class="guide">'+
+      g.map(p=>"<li><b>"+esc(p.label)+".</b> "+esc(p.act)+"</li>").join("")+"</ul>";}
+  return {id:"rep-privacy",title:"Privacy exposure",html:h};
+}
+function repAlerts(desc){
+  return {id:"rep-alerts",title:"Notifications ("+FA.reduce((s,a)=>s+(a.n||1),0)+")",
+    html:(desc?'<p class="desc">Rule-based notifications raised during the capture.</p>':"")+
+    repTable([["Severity","sev"],["Message","msg"],["Rule","rule"],["Count","n"]],
+      FA.map(a=>({sev:esc(a.rec.severity||""),msg:esc(a.rec.message||a.rec.rule_id||""),
+        rule:esc(a.rec.rule_id||""),n:a.n||1})))};
+}
+function repTimeline(desc){
+  const tot=M.slots.length;
+  const per=new Array(tot).fill(0),first=new Array(tot).fill(0),last=new Array(tot).fill(0);
+  let stable=0,transient=0;
+  for(const p of M.pres.values()){
+    for(const s of p.slots)per[s]++;
+    first[p.slots[0]]++;last[p.slots[p.slots.length-1]]++;
+    const n=p.slots.length;
+    if(n>=Math.max(2,Math.ceil(tot*0.8)))stable++;if(n===1)transient++;}
+  let h=(desc?'<p class="desc">How the device population changed across '+tot+" scans. "+
+    "“New” and “Left after” are the discrepancies between consecutive passes; "+
+    "rotation chains are the same device changing address (transference).</p>":"");
+  h+=repTable([["Scan","s"],["Devices","d"],["New","n"],["Left after","l"]],
+    M.slots.map((k,i)=>({s:"#"+(i+1),d:per[i],n:i>0?"+"+first[i]:"—",
+      l:i<tot-1?"−"+last[i]:"—"})));
+  h+=repKV([["Stable devices (≥80% of scans)",stable],["Transient (seen once)",transient],
+    ["Address-rotation chains",RC.length]]);
+  if(SESSIONS.length>1)h+='<p class="desc">Captures aggregated: '+
+    esc(SESSIONS.map(s=>String(s.label).split(" · ")[0]).join(", "))+".</p>";
+  return {id:"rep-timeline",title:"Scan timeline & device transference",html:h};
+}
+const REP_BUILD={overview:repOverview,wifi:repWifi,ble:repBle,trackers:repTrackers,
+  drones:repDrones,clusters:repClusters,privacy:repPrivacy,alerts:repAlerts,timeline:repTimeline};
+function repHead(label){
+  const h=M.header||{},d=h.device||{},s=h.session||{};
+  return '<header id="top"><h1>'+esc(label)+"</h1>"+
+    '<p class="meta">SniffCheck · '+esc((d.model||"?")+" / "+(d.chip||"?"))+
+    " · fw "+esc(d.fw_version||"?")+"</p>"+
+    '<p class="meta">Session '+esc(s.session_id||"?")+" · "+esc(fmtTs(s.start_us))+
+    " · "+M.slots.length+" scan"+(M.slots.length===1?"":"s")+
+    (SESSIONS.length>1?" · "+SESSIONS.length+" captures":"")+"</p>"+
+    '<p class="meta gen">Generated '+esc(new Date().toLocaleString())+
+    (filterActive()?" · filtered view":"")+"</p></header>";
+}
+function reportCss(){return "*{box-sizing:border-box}body{margin:0 auto;max-width:900px;"+
+  "padding:24px;font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"+
+  "color:#1a1a1a;background:#fff}header{border-bottom:3px solid #b45309;padding-bottom:12px}"+
+  "h1{margin:0 0 4px;font-size:24px}.meta{margin:2px 0;color:#666;font-size:13px}"+
+  ".meta.gen{font-size:12px}.toc{background:#faf7f2;border:1px solid #d8d2c8;border-radius:8px;"+
+  "padding:12px 18px;margin:16px 0}.toc h2{margin:0 0 6px;font-size:13px;text-transform:uppercase;"+
+  "letter-spacing:.5px;color:#666}.toc ol{margin:0;padding-left:20px}.toc a{color:#b45309;"+
+  "text-decoration:none}.toc a:hover{text-decoration:underline}section{margin:22px 0}"+
+  "section h2{font-size:19px;border-bottom:2px solid #d8d2c8;padding-bottom:4px}"+
+  "section h3{font-size:15px;margin:16px 0 6px}.desc{color:#555;font-size:13.5px}"+
+  ".tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px;margin:8px 0}"+
+  "th,td{border:1px solid #d8d2c8;padding:5px 8px;text-align:left;vertical-align:top;"+
+  "word-break:break-word}thead th{background:#f3efe9}table.kv th{width:44%;background:#faf7f2}"+
+  ".guide{font-size:13.5px}.backtop{font-size:12px;margin:6px 0 0}.backtop a{color:#888;"+
+  "text-decoration:none}footer{margin-top:28px;border-top:1px solid #d8d2c8;padding-top:10px;"+
+  "color:#666;font-size:12px}@media print{body{padding:0;max-width:none}.backtop{display:none}"+
+  ".toc{break-inside:avoid}tr{break-inside:avoid}@page{margin:14mm}}";}
+function reportDoc(){
+  const secs=repSelected(),desc=repOpts.desc,preset=REP_PRESETS[repOpts.preset]||{label:"Report"};
+  const parts=secs.map(id=>REP_BUILD[id](desc)).filter(Boolean);
+  const toc='<nav class="toc"><h2>Contents</h2><ol>'+parts.map(p=>
+    '<li><a href="#'+p.id+'">'+esc(p.title)+"</a></li>").join("")+"</ol></nav>";
+  const body=repHead(preset.label)+toc+parts.map(p=>'<section id="'+p.id+'"><h2>'+
+    esc(p.title)+"</h2>"+p.html+'<p class="backtop"><a href="#top">↑ back to top</a></p></section>').join("")+
+    "<footer>Generated by SniffCheck — observation-only passive RF report. "+
+    "All data stayed on your device.</footer>";
+  return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"+
+    '<meta name="viewport" content="width=device-width,initial-scale=1">'+
+    "<title>"+esc(preset.label)+" — SniffCheck</title><style>"+reportCss()+
+    "</style></head><body>"+body+"</body></html>";
+}
+function reportJSON(){
+  const secs=repSelected(),h=M.header||{},d=h.device||{},s=h.session||{};
+  const pick=(r,f)=>{const o={};for(const k of f)o[k]=r[k];return o;};
+  const o={tool:"SniffCheck",generated:new Date().toISOString(),preset:repOpts.preset,
+    filtered:filterActive(),device:{model:d.model,chip:d.chip,fw:d.fw_version},
+    session:{id:s.session_id,start_us:s.start_us,scans:M.slots.length,captures:SESSIONS.length},
+    sections:{}};
+  const S=o.sections;
+  if(secs.includes("overview")){let w=0;for(const r of [...FW,...FB,...FT,...FD])w=Math.max(w,r.threat_level||0);
+    S.overview={wifi:FW.length,ble:FB.length,trackers:FT.length,drones:FD.length,
+      privacy:PV.length,notifications:FA.reduce((a,x)=>a+(x.n||1),0),worst_threat:cb("threat_level",w)};}
+  if(secs.includes("wifi"))S.wifi=FW.map(r=>pick(r,["ssid","bssid","channel","band_5g","rssi","threat_level","vendor"]));
+  if(secs.includes("ble"))S.ble=FB.map(r=>pick(r,["name","addr","rssi","threat_level","vendor"]));
+  if(secs.includes("trackers"))S.trackers=FT.map(r=>pick(r,["name","addr","rssi","tracker_kind"]));
+  if(secs.includes("drones"))S.drones=FD.map(r=>pick(r,["uas_id","id","mac","rssi"]));
+  if(secs.includes("clusters")){const P=clusterParts();
+    S.clusters={nic_wifi:P.net.length,nic_ble:P.bt.length,radio:P.mr.length,vehicles:P.veh.length,
+      rotation_chains:RC.map(c=>({addresses:c.members.length,evidence:c.evidence,confidence:c.conf}))};}
+  if(secs.includes("privacy"))S.privacy={
+    devices:PV.map(e=>({mac:e.mac,identity:e.ident?e.ident.s:null,leaks:e.items.length})),
+    analyzers:PRIV.filter(p=>M.logs[p.k]).map(p=>{const dd=M.logs[p.k],det=dd&&(dd.detail||dd.stations);
+      return {label:p.label,records:Array.isArray(det)?det.length:0};})};
+  if(secs.includes("alerts"))S.notifications=FA.map(a=>({severity:a.rec.severity,
+    message:a.rec.message||a.rec.rule_id,rule:a.rec.rule_id,count:a.n||1}));
+  if(secs.includes("timeline")){const tot=M.slots.length,per=new Array(tot).fill(0),
+    first=new Array(tot).fill(0),last=new Array(tot).fill(0);
+    for(const p of M.pres.values()){for(const sl of p.slots)per[sl]++;
+      first[p.slots[0]]++;last[p.slots[p.slots.length-1]]++;}
+    S.timeline={scans:tot,per_scan_devices:per,new_by_scan:first,left_by_scan:last,rotation_chains:RC.length};}
+  return o;
+}
+function reportPrint(doc){
+  const w=window.open("","_blank");
+  if(!w){toast("Allow pop-ups to print/PDF — or use HTML export instead.");return;}
+  w.document.open();w.document.write(doc);w.document.close();w.focus();
+  const go=()=>{try{w.print();}catch(e){}};
+  if(w.document.readyState==="complete")setTimeout(go,350);
+  else w.addEventListener("load",()=>setTimeout(go,350));
+}
+function buildReport(){
+  if(repOpts.fmt==="json"){
+    download(expBase()+"-report.json",JSON.stringify(reportJSON(),null,2),"application/json");
+    expClose();return;}
+  const doc=reportDoc();
+  if(repOpts.fmt==="pdf"){reportPrint(doc);return;}   // keep sheet open in case of popup block
+  download(expBase()+"-report.html",doc,"text/html");expClose();
+}
+function renderReportForm(){
+  const avail=repAvail();
+  if(!repOpts.secs)repOpts.secs=repPresetSecs(repOpts.preset);
+  let h='<button class="exback" data-act=back>‹ Export</button><h3>Generate report</h3>'+
+    '<div class=exsub>A clean, navigable report — pick a preset, choose sections, export.</div>';
+  h+='<label>Preset</label><div class="repsegs">'+Object.keys(REP_PRESETS).filter(k=>
+    k!=="sentinel"||clusterOn())    // "Sentinel report" is cluster-branded — hide off-cluster
+    .map(k=>
+    '<button type="button" class="repseg'+(repOpts.preset===k?" on":"")+'" data-preset="'+k+
+    '">'+esc(REP_PRESETS[k].label.replace(" report",""))+"</button>").join("")+"</div>";
+  h+='<label>Sections</label><div class="repsecs">'+avail.map(s=>
+    '<label class="repchk"><input type="checkbox" data-sec="'+s.id+'"'+
+    (repOpts.secs.indexOf(s.id)>=0?" checked":"")+"> "+esc(s.label)+"</label>").join("")+"</div>";
+  h+='<label class="repchk repdescrow"><input type="checkbox" id="repdesc"'+
+    (repOpts.desc?" checked":"")+"> Include descriptions &amp; guidance</label>";
+  h+='<label>Format</label><div class="repsegs">'+
+    [["html","HTML"],["pdf","PDF (print)"],["json","JSON"]].map(f=>
+      '<button type="button" class="repseg'+(repOpts.fmt===f[0]?" on":"")+'" data-fmt="'+
+      f[0]+'">'+f[1]+"</button>").join("")+"</div>";
+  h+='<button class="exgo" data-act=gen>Generate report</button>';
+  h+='<div class=exnote>HTML is one self-contained file. PDF opens a print view — choose '+
+    "“Save as PDF”. JSON is structured data. Everything stays on your device.</div>";
+  expsheet.innerHTML=h;
+  expsheet.querySelector("[data-act=back]").onclick=renderExportMenu;
+  expsheet.querySelectorAll("[data-preset]").forEach(b=>b.onclick=()=>{
+    repOpts.preset=b.dataset.preset;repOpts.secs=repPresetSecs(repOpts.preset);renderReportForm();});
+  expsheet.querySelectorAll("[data-sec]").forEach(c=>c.onchange=()=>{
+    const id=c.dataset.sec;
+    if(c.checked){if(repOpts.secs.indexOf(id)<0)repOpts.secs.push(id);}
+    else repOpts.secs=repOpts.secs.filter(x=>x!==id);});
+  expsheet.querySelector("#repdesc").onchange=e=>{repOpts.desc=e.target.checked;};
+  expsheet.querySelectorAll("[data-fmt]").forEach(b=>b.onclick=()=>{
+    repOpts.fmt=b.dataset.fmt;renderReportForm();});
+  expsheet.querySelector("[data-act=gen]").onclick=()=>{
+    if(!repSelected().length){toast("Pick at least one section.");return;}
+    buildReport();};
 }
 
 // Shared device-location capture (browser geolocation or manual entry), used by
@@ -4890,6 +5921,7 @@ function renderAll(){
   populateFilters();
   readFilters();
   applyFilter();
+  clusterProbe();   // reveal cluster-only blocks only when a live cluster backend answers
 }
 
 function loadText(text,label){
@@ -5252,6 +6284,7 @@ addEventListener("visibilitychange",()=>{if(!document.hidden)pollConn();});
 <div id="expov" hidden><div id="expsheet" role="dialog" aria-modal="true" aria-label="Export"></div></div>
 <div id="smov" hidden><div id="smsheet" role="dialog" aria-modal="true" aria-label="Customize summary"></div></div>
 <div id="wlov" hidden><div id="wlsheet" role="dialog" aria-modal="true" aria-label="Watchlist"></div></div>
+<div id="locov" hidden><div id="locsheet" role="dialog" aria-modal="true" aria-label="Locate device"></div></div>
 <div id="clov" hidden><div id="clsheet" role="dialog" aria-modal="true" aria-label="Cluster detail"></div></div>
 <div id="epov" hidden><div id="epsheet" role="dialog" aria-modal="true" aria-label="Detail"></div></div>
 <div id="rcov"><div id="rcbox">

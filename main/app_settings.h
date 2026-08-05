@@ -15,8 +15,6 @@ bool app_settings_set_led(bool enabled);
 
 void app_request_scan_after_download(void);
 
-/* Rough upper-bound seconds a WebAP-triggered full rescan will take, so the
- * browser can show a reconnect countdown while the AP is down. */
 int app_scan_eta_seconds(void);
 
 void app_request_walk_after_download(void);

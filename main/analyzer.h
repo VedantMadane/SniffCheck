@@ -87,6 +87,9 @@ typedef struct {
     uint8_t  radio_count;
     bool     same_oui_multiband;
 
+    bool     sibling_service_peer;
+    uint8_t  sibling_service_bssid[6];
+
     radio_sibling_t siblings[AP_MAX_SIBLINGS];
     uint8_t  sibling_count;
 
@@ -114,6 +117,66 @@ const char *analyzer_threat_label(uint8_t lvl);
 uint8_t analyzer_threat_to_verdict(uint8_t threat_level);
 
 const char *analyzer_twin_class(const ap_score_t *s);
+
+
+typedef enum {
+    TWIN_TRIGGER_NONE = 0,
+    TWIN_TRIGGER_OPEN_CLONE,
+    TWIN_TRIGGER_TIER1_SCORE,
+    TWIN_TRIGGER_TIER2_FINGERPRINT,
+    TWIN_TRIGGER_RELATIONSHIP_ONLY,
+} twin_trigger_t;
+
+typedef enum {
+    TWIN_REL_UNKNOWN_SAME_SSID_PEER = 0,
+    TWIN_REL_LIKELY_SIBLING_VIRTUAL_BSSID,
+    TWIN_REL_LIKELY_MANAGED_ESS_PEER,
+    TWIN_REL_KNOWN_SERVICE_FAMILY_PEER,
+    TWIN_REL_UNRELATED_SAME_SSID_PEER,
+} twin_relationship_t;
+
+typedef enum {
+    TWIN_DECISION_NO_EVIDENCE = 0,
+    TWIN_DECISION_SUSPECT,
+    TWIN_DECISION_HIGH_CONFIDENCE,
+} twin_decision_t;
+
+#define TWIN_EV_EXACT_SSID_MATCH         (1u <<  0)
+#define TWIN_EV_SECURITY_MISMATCH        (1u <<  2)
+#define TWIN_EV_SAME_CHANNEL             (1u <<  3)
+#define TWIN_EV_CONSERVED_MAC_STRUCTURE  (1u <<  4)
+#define TWIN_EV_SAME_PUBLIC_OUI          (1u <<  5)
+#define TWIN_EV_SAME_VENDOR_FAMILY       (1u <<  6)
+#define TWIN_EV_BOTH_LAA                 (1u <<  7)
+#define TWIN_EV_CHAIN_SSID               (1u <<  8)
+#define TWIN_EV_RSSI_GAP                 (1u <<  9)
+#define TWIN_EV_SUFFIX_DELTA             (1u << 10)
+#define TWIN_EV_RSN_MISMATCH             (1u << 11)
+#define TWIN_EV_PMF_MISMATCH             (1u << 12)
+#define TWIN_EV_WPS_MISMATCH             (1u << 13)
+#define TWIN_EV_BEACON_INTERVAL_CONFLICT (1u << 14)
+#define TWIN_EV_SAME_BEACON_INTERVAL     (1u << 15)
+
+typedef struct {
+    uint8_t  target[6];
+    uint8_t  peer[6];
+    uint8_t  trigger;
+    uint8_t  relationship;
+    uint8_t  decision;
+    bool     symmetric;
+    uint32_t evidence;
+    int16_t  weight;
+} twin_finding_t;
+
+uint16_t analyzer_twin_finding_count(void);
+const twin_finding_t *analyzer_twin_finding(uint16_t idx);
+
+const twin_finding_t *analyzer_twin_finding_for(const uint8_t bssid[6],
+                                                 twin_trigger_t trigger);
+
+const char *analyzer_twin_trigger_label(uint8_t t);
+const char *analyzer_twin_relationship_label(uint8_t r);
+const char *analyzer_twin_decision_label(uint8_t d);
 
 typedef enum {
     CROWD_QUIET = 0,

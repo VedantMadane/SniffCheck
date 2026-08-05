@@ -3,6 +3,7 @@
 #include "eui_db.h"
 #include "ble_advise.h"
 #include "apple_continuity.h"
+#include "infra_cluster.h"
 #include "esp_attr.h"
 #include "esp_log.h"
 
@@ -47,6 +48,21 @@ static uint32_t suffix_delta(const uint8_t a[6], const uint8_t b[6])
 {
     uint32_t sa = mac_suffix(a), sb = mac_suffix(b);
     return sa > sb ? sa - sb : sb - sa;
+}
+
+static bool pdc_same_unit(const ap_score_t *a, const ap_score_t *b)
+{
+    return infra_unit_key(a->bssid, a->ie_pattern_hash) ==
+           infra_unit_key(b->bssid, b->ie_pattern_hash);
+}
+
+static bool pdc_same_system(const ap_score_t *a, const ap_score_t *b)
+{
+    if (!a->ssid[0] || !b->ssid[0]) return false;
+    if (strcmp(a->ssid, "<hidden>") == 0 || strcmp(b->ssid, "<hidden>") == 0) return false;
+    uint64_t sa = infra_system_key(a->bssid, a->ssid, (int)strlen(a->ssid), a->ie_pattern_hash);
+    uint64_t sb = infra_system_key(b->bssid, b->ssid, (int)strlen(b->ssid), b->ie_pattern_hash);
+    return sa == sb;
 }
 
 static bool l2l3_id_is_generic(const char *id)
@@ -231,7 +247,7 @@ static uint8_t adjacency_conf(uint32_t delta)
 }
 
 #define PDC_RSSI_GAP_SAME_RADIO 10
-#define PDC_RSSI_GAP_CROSS_BAND 25 
+#define PDC_RSSI_GAP_CROSS_BAND 25
 
 static bool pdc_one_box_rf(const ap_score_t *a, const ap_score_t *b)
 {
@@ -325,15 +341,17 @@ static void collect_wifi_wifi(const ap_score_t *scores, uint16_t n)
 
             bool same_oui = !mac_is_laa(a->bssid) && !mac_is_laa(b->bssid) &&
                             memcmp(a->bssid, b->bssid, 3) == 0;
+            bool nic_adj  = pdc_same_physical_router(a->bssid, b->bssid) &&
+                            (same_oui || mac_is_laa(a->bssid) || mac_is_laa(b->bssid));
+            bool same_unit = pdc_same_unit(a, b);
             bool one_box  = false;
 
-            if (pdc_same_physical_router(a->bssid, b->bssid) &&
-                (same_oui || mac_is_laa(a->bssid) || mac_is_laa(b->bssid)) &&
-                pdc_one_box_rf(a, b)) {
+            if ((nic_adj || same_unit) && pdc_one_box_rf(a, b)) {
                 uint32_t d = suffix_delta(a->bssid, b->bssid);
+                uint8_t conf = same_unit ? 95 : (d <= 4 ? 90 : 80);
 
                 add_edge(PDC_NODE_WIFI, i, PDC_NODE_WIFI, j,
-                         PDC_EV_SAME_PHYSICAL_ROUTER, d <= 4 ? 90 : 80,
+                         PDC_EV_SAME_PHYSICAL_ROUTER, conf,
                          pdc_wifi_union_ok(a, b, PDC_EV_SAME_PHYSICAL_ROUTER,
                                            false));
                 one_box = true;
@@ -349,8 +367,7 @@ static void collect_wifi_wifi(const ap_score_t *scores, uint16_t n)
 
             if (one_box) {
                 uint16_t cand = pdc_one_box_rf(a, b) ? PDC_CAND_RF : 0;
-                cand |= pdc_same_physical_router(a->bssid, b->bssid)
-                          ? PDC_CAND_NIC : PDC_CAND_ADJ;
+                cand |= (nic_adj || same_unit) ? PDC_CAND_NIC : PDC_CAND_ADJ;
 
                 if (ssid_related(a->ssid, b->ssid)) cand |= PDC_CAND_SSID;
                 uint16_t conf = 0;
@@ -361,7 +378,8 @@ static void collect_wifi_wifi(const ap_score_t *scores, uint16_t n)
                 if (ssid_is_public_chain(a->ssid) || ssid_is_public_chain(b->ssid))
                     conf |= PDC_CONF_CHAIN;
                 if (s_ssid_group[i] >= PDC_MESH_MIN_GROUP ||
-                    s_ssid_group[j] >= PDC_MESH_MIN_GROUP)
+                    s_ssid_group[j] >= PDC_MESH_MIN_GROUP ||
+                    pdc_same_system(a, b))
                     conf |= PDC_CONF_MESH;
                 edge_or_facts(PDC_NODE_WIFI, i, PDC_NODE_WIFI, j, cand, conf);
             }
@@ -507,7 +525,7 @@ static void collect_ecosystem(const ble_results_t *ble)
     }
 }
 
-#define PDC_MAX_VEH_NODES 32 
+#define PDC_MAX_VEH_NODES 32
 
 static bool node_is_vehicle_cls(uint8_t cls)
 {

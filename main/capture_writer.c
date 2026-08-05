@@ -23,14 +23,14 @@
 static const char *TAG = "sc_capwrt";
 
 #ifndef SNIFFCHECK_FW_VERSION
-#define SNIFFCHECK_FW_VERSION  "87.0.110"
+#define SNIFFCHECK_FW_VERSION  "87.0.111"
 #endif
 #ifndef SNIFFCHECK_FW_COMMIT
 #define SNIFFCHECK_FW_COMMIT   "dev"
 #endif
 
 #ifndef SNIFFCHECK_SCHEMA_VER
-#define SNIFFCHECK_SCHEMA_VER  "1.30.0"
+#define SNIFFCHECK_SCHEMA_VER  "1.31.0"
 #endif
 
 #define LINE_BUF  3072
@@ -48,6 +48,8 @@ const char *capture_writer_schema_version(void) { return SNIFFCHECK_SCHEMA_VER; 
 uint16_t    capture_writer_last_scan(void)      { return s_last_scan; }
 
 static inline int64_t now_us(void) { return esp_timer_get_time(); }
+
+#define JB(x) ((x) ? "true" : "false")
 
 static int append_mac(char *dst, size_t n, const uint8_t m[6])
 {
@@ -164,7 +166,7 @@ static const char *tracker_kind_for(const ble_device_t *d)
 {
     if (!d) return NULL;
 
-    if (d->is_airtag) return "find_my_other";
+    if (d->is_airtag) return d->find_my_separated ? "find_my_other" : "find_my_maintained";
     for (uint8_t i = 0; i < d->num_uuids16; i++) {
         if (d->uuids16[i] == 0xFEED) return "tile";
     }
@@ -1012,16 +1014,16 @@ void capture_emit_tracker_if_applicable(const ble_device_t *d, uint16_t scan_ind
     char vendor_esc[68];
     json_escape(d->vendor, vendor_esc, sizeof(vendor_esc));
 
-    bool find_my_separated =
-        d->is_airtag || (d->apple_subtype == APPLE_SUB_FIND_MY_SEP);
+    bool find_my_separated = d->find_my_separated;
 
     char *line = line_lock();
     if (!line) return;
+    uint8_t addr_type = (d->addr_subtype == BLE_ADDR_SUB_PUBLIC) ? 0 : 1;
     int n = snprintf(line, LINE_BUF,
         "{\"type\":\"tracker\",\"ts_us\":%lld,\"scan_index\":%u,"
-        "\"addr\":\"%s\",\"tracker_kind\":\"%s\",\"name\":\"%s\",\"vendor\":\"%s\","
+        "\"addr\":\"%s\",\"addr_type\":%u,\"tracker_kind\":\"%s\",\"name\":\"%s\",\"vendor\":\"%s\","
         "\"rssi\":%d,\"distance_dm\":%u,\"find_my_separated\":%s}",
-        (long long)now_us(), scan_index, addr, kind, name_esc, vendor_esc,
+        (long long)now_us(), scan_index, addr, addr_type, kind, name_esc, vendor_esc,
         d->rssi, d->distance_dm, find_my_separated ? "true" : "false");
     if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
     line_unlock();
@@ -1452,9 +1454,15 @@ void capture_emit_pcap_capture(const pcap_meta_t *m, uint16_t scan_index)
     line_unlock();
 }
 
+static void twin_finding_id(char *out, size_t sz, uint16_t scan_index, uint16_t idx)
+{
+    snprintf(out, sz, "twin:scan-%u:pair-%u", scan_index, idx);
+}
+
 static void emit_alert(const char *rule, const char *sev,
                        const char *target_kind, const char *target_ref,
-                       const char *msg, uint16_t scan_index)
+                       const char *msg, uint16_t scan_index,
+                       const char *extra)
 {
     char msg_esc[256];
     json_escape(msg ? msg : "", msg_esc, sizeof(msg_esc));
@@ -1463,10 +1471,59 @@ static void emit_alert(const char *rule, const char *sev,
     int n = snprintf(line, LINE_BUF,
         "{\"type\":\"alert\",\"ts_us\":%lld,\"scan_index\":%u,"
         "\"rule_id\":\"%s\",\"severity\":\"%s\","
-        "\"target_kind\":\"%s\",\"target_ref\":\"%s\",\"message\":\"%s\"}",
-        (long long)now_us(), scan_index, rule, sev, target_kind, target_ref, msg_esc);
+        "\"target_kind\":\"%s\",\"target_ref\":\"%s\",\"message\":\"%s\"%s}",
+        (long long)now_us(), scan_index, rule, sev, target_kind, target_ref, msg_esc,
+        extra ? extra : "");
     if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
     line_unlock();
+}
+
+void capture_emit_twin_findings(uint16_t scan_index)
+{
+    uint16_t count = analyzer_twin_finding_count();
+    for (uint16_t i = 0; i < count; i++) {
+        const twin_finding_t *f = analyzer_twin_finding(i);
+        if (!f) continue;
+
+        char target[24], peer[24], fid[48];
+        append_mac(target, sizeof(target), f->target);
+        append_mac(peer,   sizeof(peer),   f->peer);
+        twin_finding_id(fid, sizeof(fid), scan_index, i);
+
+        char *line = line_lock();
+        if (!line) return;
+        int n = snprintf(line, LINE_BUF,
+            "{\"type\":\"wifi_twin_finding\",\"ts_us\":%lld,\"scan_index\":%u,"
+            "\"finding_id\":\"%s\",\"target_ref\":\"%s\",\"peer_ref\":\"%s\","
+            "\"trigger\":\"%s\",\"relationship_class\":\"%s\",\"decision\":\"%s\","
+            "\"symmetric\":%s,\"weight\":%d,\"evidence\":{"
+            "\"exact_ssid_match\":%s,\"security_mismatch\":%s,\"same_channel\":%s,"
+            "\"conserved_mac_structure\":%s,\"same_public_oui\":%s,\"both_laa\":%s,"
+            "\"chain_ssid\":%s,\"rssi_gap\":%s,\"suffix_delta\":%s,"
+            "\"rsn_mismatch\":%s,\"pmf_mismatch\":%s,\"wps_mismatch\":%s,"
+            "\"beacon_interval_conflict\":%s,\"same_beacon_interval\":%s}}",
+            (long long)now_us(), scan_index, fid, target, peer,
+            analyzer_twin_trigger_label(f->trigger),
+            analyzer_twin_relationship_label(f->relationship),
+            analyzer_twin_decision_label(f->decision),
+            f->symmetric ? "true" : "false", (int)f->weight,
+            JB(f->evidence & TWIN_EV_EXACT_SSID_MATCH),
+            JB(f->evidence & TWIN_EV_SECURITY_MISMATCH),
+            JB(f->evidence & TWIN_EV_SAME_CHANNEL),
+            JB(f->evidence & TWIN_EV_CONSERVED_MAC_STRUCTURE),
+            JB(f->evidence & TWIN_EV_SAME_PUBLIC_OUI),
+            JB(f->evidence & TWIN_EV_BOTH_LAA),
+            JB(f->evidence & TWIN_EV_CHAIN_SSID),
+            JB(f->evidence & TWIN_EV_RSSI_GAP),
+            JB(f->evidence & TWIN_EV_SUFFIX_DELTA),
+            JB(f->evidence & TWIN_EV_RSN_MISMATCH),
+            JB(f->evidence & TWIN_EV_PMF_MISMATCH),
+            JB(f->evidence & TWIN_EV_WPS_MISMATCH),
+            JB(f->evidence & TWIN_EV_BEACON_INTERVAL_CONFLICT),
+            JB(f->evidence & TWIN_EV_SAME_BEACON_INTERVAL));
+        if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
+        line_unlock();
+    }
 }
 
 static int collect_ap_threat_rules(const ap_score_t *ap, threat_rule_t *out)
@@ -1494,7 +1551,7 @@ static int collect_ap_threat_rules(const ap_score_t *ap, threat_rule_t *out)
 
     if (ap->twin_detected)
         out[n++] = (threat_rule_t){"twin_detected", "medium", "wifi_ap",
-            "Potential Evil-Twin pattern: same SSID + mismatched peer. Be cautious"};
+            "Possible Evil-Twin pattern. Be cautious"};
     if (ap->eui_flags & (EUI_FLAG_FCC_COVERED | EUI_FLAG_SURVEILLANCE))
         out[n++] = (threat_rule_t){"surveillance_vendor", "medium", "wifi_ap",
             "Vendor on FCC-covered / surveillance list"};
@@ -1578,6 +1635,77 @@ static int append_threat_rule_ids(char *line, int n,
     return n + w;
 }
 
+static const char *twin_message(const twin_finding_t *f, const char *fallback)
+{
+    if (!f) {
+        return "Possible Evil-Twin pattern; the peer was not recorded. Be cautious";
+    }
+
+    bool exact = (f->evidence & TWIN_EV_EXACT_SSID_MATCH) != 0;
+
+    switch (f->trigger) {
+    case TWIN_TRIGGER_OPEN_CLONE:
+        return exact
+            ? "An open network is advertising the same SSID as a protected one — "
+              "joining the open twin would drop your encryption. Verify before joining"
+            : "An open and a protected network are being advertised together. "
+              "Verify before joining";
+    case TWIN_TRIGGER_TIER1_SCORE:
+        return exact
+            ? "Shares this SSID with a peer of unrelated identity and a large signal "
+              "gap. Confirm which one is yours before joining"
+            : "Peer of unrelated identity with a large signal gap. Confirm before joining";
+    case TWIN_TRIGGER_TIER2_FINGERPRINT:
+        return exact
+            ? "Shares this SSID with a peer whose security profile disagrees "
+              "(encryption, management-frame protection, WPS or beacon timing). "
+              "Confirm which one is yours before joining"
+            : "Peer with a conflicting security profile. Confirm before joining";
+    default:
+        return fallback;
+    }
+}
+
+static const char *twin_alert_extra(const char *rule_id, const ap_score_t *ap,
+                                    uint16_t scan_index, char *buf, size_t sz,
+                                    const char **msg_out, const char *msg_in)
+{
+    bool is_twin = (strcmp(rule_id, "twin_detected") == 0) ||
+                   (strcmp(rule_id, "open_clone")    == 0);
+    if (!is_twin) return NULL;
+
+    const twin_finding_t *f = NULL;
+    if (strcmp(rule_id, "open_clone") == 0) {
+        f = analyzer_twin_finding_for(ap->bssid, TWIN_TRIGGER_OPEN_CLONE);
+    } else {
+        f = analyzer_twin_finding_for(ap->bssid, TWIN_TRIGGER_TIER1_SCORE);
+        if (!f) f = analyzer_twin_finding_for(ap->bssid, TWIN_TRIGGER_TIER2_FINGERPRINT);
+    }
+    if (msg_out) *msg_out = twin_message(f, msg_in);
+
+    if (!f) {
+        snprintf(buf, sz, ",\"limitations\":[\"legacy_unattributed_alert\"]");
+        return buf;
+    }
+
+    uint16_t idx = 0, count = analyzer_twin_finding_count();
+    for (; idx < count; idx++) if (analyzer_twin_finding(idx) == f) break;
+
+    char fid[48], peer[24];
+    twin_finding_id(fid, sizeof(fid), scan_index, idx);
+    append_mac(peer, sizeof(peer),
+               memcmp(f->target, ap->bssid, 6) == 0 ? f->peer : f->target);
+
+    snprintf(buf, sz, ",\"finding_id\":\"%s\",\"peer_ref\":\"%s\","
+                      "\"trigger\":\"%s\",\"relationship_class\":\"%s\","
+                      "\"symmetric\":%s",
+             fid, peer,
+             analyzer_twin_trigger_label(f->trigger),
+             analyzer_twin_relationship_label(f->relationship),
+             JB(f->symmetric));
+    return buf;
+}
+
 void capture_emit_alerts_for_ap(const ap_score_t *ap, uint16_t scan_index)
 {
     if (!ap || ap->suppressed) return;
@@ -1585,9 +1713,15 @@ void capture_emit_alerts_for_ap(const ap_score_t *ap, uint16_t scan_index)
     append_mac(bssid, sizeof(bssid), ap->bssid);
     threat_rule_t rules[THREAT_RULES_MAX];
     int count = collect_ap_threat_rules(ap, rules);
-    for (int i = 0; i < count; i++)
+    for (int i = 0; i < count; i++) {
+        char extra[224];
+        const char *msg = rules[i].message;
+        const char *ext = twin_alert_extra(rules[i].rule_id, ap, scan_index,
+                                           extra, sizeof(extra), &msg,
+                                           rules[i].message);
         emit_alert(rules[i].rule_id, rules[i].severity, rules[i].target_kind,
-                   bssid, rules[i].message, scan_index);
+                   bssid, msg, scan_index, ext);
+    }
 }
 
 void capture_emit_alerts_for_ble(const ble_device_t *d, uint16_t scan_index)
@@ -1599,7 +1733,7 @@ void capture_emit_alerts_for_ble(const ble_device_t *d, uint16_t scan_index)
     int count = collect_ble_threat_rules(d, rules);
     for (int i = 0; i < count; i++)
         emit_alert(rules[i].rule_id, rules[i].severity, rules[i].target_kind,
-                   addr, rules[i].message, scan_index);
+                   addr, rules[i].message, scan_index, NULL);
 }
 
 void capture_emit_probe_req_log(const probe_req_log_aggregate_t *agg,

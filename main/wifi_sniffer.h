@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define SNIFF_MAX_APS  128 
+#define SNIFF_MAX_APS  SC_SNIFF_MAX_APS
 
 typedef struct {
     uint8_t  bssid[6];
