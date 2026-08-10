@@ -1,10 +1,8 @@
 #pragma once
 
-
 #include "sdkconfig.h"
 
 #if defined(CONFIG_IDF_TARGET_ESP32C3)
-
 
 #define SC_PLATFORM_X4      1
 #define SC_HAS_PSRAM        0
@@ -31,7 +29,6 @@
 #define SC_TWIN_MAX_FINDINGS   12
 
 #else
-
 
 #define SC_PLATFORM_X4      0
 #define SC_HAS_PSRAM        1

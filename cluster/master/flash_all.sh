@@ -48,6 +48,10 @@ for r in "${ROLES[@]}"; do
     run "build" "$r-build" idf.py -B "$BD" $D build
     [ "$MODE" = "build" ] && continue
     run "flash ($(port "$r"))" "$r-flash" idf.py -B "$BD" -p "$(port "$r")" flash
+    # Arms do the wifi/BLE scanning + vendor/device_class resolution, so they need the
+    # euidb partition (0x310000) populated with data/eui.bin. idf.py flash never writes it;
+    # without it eui_db_init() fails and every device resolves as unknown vendor/class.
+    # parttool hangs on the C5 + IDF 5.5 combo, so esptool direct write (matches root README).
     case "$r" in arm1|arm2)
         run "euidb ($(port "$r"))" "$r-euidb" \
             python -m esptool --chip esp32c5 --port "$(port "$r")" --baud 460800 \

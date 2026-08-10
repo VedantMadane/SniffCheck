@@ -12,6 +12,7 @@ idf_component_register(
         "../../../main/eui_db.c"
         "../../../main/analyzer.c"
         "../../../main/physical_device_cluster.c"
+        "../../../main/infra_cluster.c"
         "../../../main/ble_scanner.c"
         "../../../main/ble_advise.c"
         "../../../main/drone_rid.c"

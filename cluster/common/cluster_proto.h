@@ -24,6 +24,12 @@ typedef enum {
     CL_CMD_GET_HITS    = 0x0E,
     CL_CMD_STATUS_SEL  = 0x0F,
     CL_CMD_SET_CLOCK   = 0x10,
+    CL_CMD_TRACKER_SOUND = 0x11,
+    CL_CMD_GET_TRACKER   = 0x12,
+    CL_CMD_START_LOCATE  = 0x13,
+    CL_CMD_STOP_LOCATE   = 0x14,
+    CL_CMD_GET_LOCATE    = 0x15,
+    CL_CMD_GET_UIEVENT   = 0x16,
 } cl_cmd_t;
 
 typedef enum { CL_SCAN_REGULAR = 0, CL_SCAN_ADV = 1 } cl_scan_mode_t;
@@ -95,6 +101,57 @@ typedef struct __attribute__((packed)) {
     uint16_t crc;
 } cl_places_t;
 
+typedef enum {
+    CL_TSND_START  = 0,
+    CL_TSND_STOP   = 1,
+    CL_TSND_CANCEL = 2,
+} cl_tracker_action_t;
+
+typedef enum {
+    CL_TSND_PROTO_AUTO   = 0,
+    CL_TSND_PROTO_DULT   = 1,
+    CL_TSND_PROTO_FINDMY = 2,
+    CL_TSND_PROTO_AIRTAG = 3,
+} cl_tracker_proto_t;
+
+typedef struct __attribute__((packed)) {
+    uint8_t  magic;
+    uint8_t  cmd;
+    uint8_t  addr_type;
+    uint8_t  action;
+    uint8_t  proto_hint;
+    uint8_t  mac[6];
+    uint16_t crc;
+} cl_tracker_sound_t;
+
+typedef enum {
+    CL_LOCATE_BLE  = 0,
+    CL_LOCATE_WIFI = 1,
+} cl_locate_kind_t;
+
+typedef struct __attribute__((packed)) {
+    uint8_t  magic;
+    uint8_t  cmd;
+    uint8_t  kind;
+    uint8_t  channel;
+    uint8_t  mac[6];
+    uint16_t crc;
+} cl_locate_req_t;
+
+typedef struct __attribute__((packed)) {
+    uint8_t  magic;
+    uint8_t  cmd;
+    uint8_t  active;
+    uint8_t  found;
+    int8_t   rssi;
+    uint8_t  age_ds;
+    uint32_t samples;
+    uint8_t  channel;
+    uint8_t  kind;
+    uint8_t  mac[6];
+    uint16_t crc;
+} cl_locate_state_t;
+
 #define CL_CHUNK_PAYLOAD  240
 
 typedef struct __attribute__((packed)) {
@@ -128,6 +185,53 @@ typedef struct __attribute__((packed)) {
 
 #define CL_PUT_SENTCFG    0x34
 
+#define CL_PUT_UIFRAME    0x36
+
+#define CL_UI_ITEMS   5
+#define CL_UI_TITLE  18
+#define CL_UI_ITEM   18
+#define CL_UI_HINT   24
+#define CL_UI_EXTRA  26
+#define CL_UI_QR     64
+
+typedef enum {
+    CL_UI_SCR_MENU = 0,
+    CL_UI_SCR_QR   = 1,
+} cl_ui_screen_t;
+
+#define CL_UI_F_EXTRA_OK  0x01u
+
+typedef struct __attribute__((packed)) {
+    uint8_t  screen;
+    uint8_t  n_items;
+    int8_t   sel;
+    uint8_t  flags;
+    char     title[CL_UI_TITLE];
+    char     items[CL_UI_ITEMS][CL_UI_ITEM];
+    char     hint[CL_UI_HINT];
+    char     extra[CL_UI_EXTRA];
+    char     qr[CL_UI_QR];
+} cl_uiframe_t;
+
+_Static_assert(sizeof(cl_uiframe_t) <= CL_CHUNK_PAYLOAD,
+               "cl_uiframe_t must fit one cl_chunk_t payload");
+
+typedef enum {
+    CL_UI_EV_NONE   = 0,
+    CL_UI_EV_SINGLE = 1,
+    CL_UI_EV_DOUBLE = 2,
+    CL_UI_EV_LONG   = 3,
+} cl_ui_event_t;
+
+typedef struct __attribute__((packed)) {
+    uint8_t  magic;
+    uint8_t  cmd;
+    uint8_t  ev;
+    uint8_t  has_lcd;
+    uint32_t seq;
+    uint16_t crc;
+} cl_uievent_t;
+
 uint16_t cl_crc16(const uint8_t *data, size_t len);
 
 void cl_status_seal(cl_status_t *s);
@@ -147,8 +251,19 @@ int  cl_places_valid(const cl_places_t *p);
 
 void cl_getreq_build(cl_getreq_t *g, uint32_t offset);
 int  cl_getreq_valid(const cl_getreq_t *g);
+
+void cl_tracker_sound_seal(cl_tracker_sound_t *t);
+int  cl_tracker_sound_valid(const cl_tracker_sound_t *t);
+
+void cl_locate_req_seal(cl_locate_req_t *r);
+int  cl_locate_req_valid(const cl_locate_req_t *r);
+void cl_locate_state_seal(cl_locate_state_t *s);
+int  cl_locate_state_valid(const cl_locate_state_t *s);
 void cl_getreq_build_cmd(cl_getreq_t *g, uint8_t cmd, uint32_t offset);
 int  cl_getreq_valid_cmd(const cl_getreq_t *g, uint8_t cmd);
+
+void cl_uievent_seal(cl_uievent_t *e);
+int  cl_uievent_valid(const cl_uievent_t *e);
 
 void cl_chunk_seal(cl_chunk_t *c);
 int  cl_chunk_valid(const cl_chunk_t *c);

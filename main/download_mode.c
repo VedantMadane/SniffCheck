@@ -165,6 +165,7 @@ static void ap_stop(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
     xSemaphoreTake(s_mutex, portMAX_DELAY);
+
     s_client_count = 0;
     s_deadline_us  = 0;
     s_state = DL_PASSIVE_SCAN;

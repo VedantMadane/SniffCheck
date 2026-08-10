@@ -2,7 +2,9 @@ idf_component_register(
     SRCS
         "brain_main.c"
         "epup_brain.c"
+        "infra_cluster.c"
         "../../common/cluster_proto.c"
+        "../../common/cluster_ui.c"
         "../../common/sentinel.c"
         "../../../dogpark-node/main/node_display.c"
         "../../../main/led.c"
@@ -42,7 +44,7 @@ idf_component_register(
 
 set_source_files_properties(
     "../../../main/download_http.c"
-    PROPERTIES COMPILE_DEFINITIONS "SC_CLUSTER_HEAD=1")
+    PROPERTIES COMPILE_DEFINITIONS "SC_CLUSTER_HEAD=1;SC_EPUP_BRAIN=1")
 
 target_add_binary_data(${COMPONENT_LIB}
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/capture_viewer/index.html" TEXT

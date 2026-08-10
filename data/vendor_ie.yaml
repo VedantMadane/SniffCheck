@@ -1,0 +1,62 @@
+
+ouis:
+  - oui: "00:50:F2"
+    class: standards
+    name: "Microsoft (WPS/WPA)"
+  - oui: "00:0F:AC"
+    class: standards
+    name: "IEEE 802.11"
+  - oui: "00:40:96"
+    class: enterprise_ap
+    name: "Cisco CCX"
+  - oui: "00:0B:86"
+    class: enterprise_ap
+    name: "Aruba"
+  - oui: "00:1A:1E"
+    class: enterprise_ap
+    name: "Aruba"
+  - oui: "00:13:92"
+    class: enterprise_ap
+    name: "Ruckus"
+  - oui: "00:24:6C"
+    class: enterprise_ap
+    name: "Aruba (alt)"
+  - oui: "00:17:F2"
+    class: mobile
+    name: "Apple AirPlay"
+  - oui: "00:9D:30"
+    class: mobile
+    name: "Apple"
+  - oui: "00:A0:F8"
+    class: enterprise_ap
+    name: "Symbol Technologies"
+  - oui: "00:50:43"
+    class: consumer_ap
+    name: "MediaTek"
+  - oui: "50:6F:9A"
+    class: standards
+    name: "Wi-Fi Alliance (P2P / Hotspot 2.0)"
+  - oui: "00:90:4C"
+    class: consumer_ap
+    name: "Epigram (Broadcom HT)"
+  - oui: "00:03:7F"
+    class: consumer_ap
+    name: "Atheros"
+  - oui: "00:E0:4C"
+    class: consumer_ap
+    name: "Realtek"
+  - oui: "00:1B:C5"
+    class: enterprise_ap
+    name: "TIA"
+  - oui: "00:80:F0"
+    class: enterprise_ap
+    name: "Panasonic / SpectraLink"
+  - oui: "00:14:6C"
+    class: enterprise_ap
+    name: "Netgear (vendor IE)"
+  - oui: "00:08:A0"
+    class: consumer_ap
+    name: "Asus (vendor IE)"
+  - oui: "08:00:09"
+    class: enterprise_ap
+    name: "Hewlett Packard"

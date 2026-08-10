@@ -1,0 +1,75 @@
+
+signatures:
+  - name: "Apple iOS"
+    ie_order: [0, 1, 50, 3, 45, 127, 107, 191, 255]
+    class: phone
+    flags: [MOBILE]
+
+  - name: "Apple macOS"
+    ie_order: [0, 1, 50, 3, 45, 127, 191, 255, 221]
+    class: laptop
+    flags: [MOBILE]
+
+  - name: "Samsung Galaxy"
+    ie_order: [0, 1, 50, 3, 45, 127, 191, 221, 255]
+    class: phone
+    flags: [MOBILE]
+
+  - name: "Google Pixel"
+    ie_order: [0, 1, 50, 45, 127, 191, 255]
+    class: phone
+    flags: [MOBILE]
+
+  - name: "Google Pixel (alt)"
+    ie_order: [0, 1, 50, 3, 45, 127, 191, 255]
+    class: phone
+    flags: [MOBILE]
+
+  - name: "Microsoft Surface"
+    ie_order: [0, 1, 50, 45, 127, 191, 255, 221]
+    class: laptop
+    flags: [MOBILE]
+
+  - name: "Intel laptop"
+    ie_order: [0, 1, 50, 3, 45, 127, 191, 255, 221]
+    class: laptop
+    flags: [MOBILE]
+
+  - name: "Realtek laptop"
+    ie_order: [0, 1, 50, 3, 45, 127, 221]
+    class: laptop
+    flags: [IOT]
+
+  - name: "Linux/OpenWrt generic"
+    ie_order: [0, 1, 50, 45, 127, 221]
+    class: unknown
+
+  - name: "ESP32 minimal"
+    ie_order: [0, 1, 50, 3, 45, 127]
+    class: dev_module
+    flags: [DEV_MODULE]
+
+  - name: "Raspberry Pi (Broadcom)"
+    ie_order: [0, 1, 50, 3, 45, 127, 221]
+    class: maker_board
+    flags: [MAKER]
+
+  - name: "Nordic minimal"
+    ie_order: [0, 1, 50, 3]
+    class: dev_module
+    flags: [DEV_MODULE]
+
+  - name: "Flipper Zero"
+    ie_order: [0, 1, 50, 3, 221]
+    class: investigation
+    flags: [INVESTIGATION]
+
+  - name: "Sonos / IoT speaker"
+    ie_order: [0, 1, 50, 3, 127, 221]
+    class: audio
+    flags: [IOT]
+
+  - name: "Smart-TV (generic)"
+    ie_order: [0, 1, 50, 3, 45, 127, 221, 191]
+    class: iot_leaf
+    flags: [IOT]

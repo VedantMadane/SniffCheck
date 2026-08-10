@@ -1,0 +1,97 @@
+
+subtypes:
+
+  tracker:
+    - airtag
+    - findmy
+    - tile
+    - chipolo
+    - pebblebee
+    - samsung_smarttag
+    - google_findmy
+
+  audio:
+    - airpods
+    - airplay_target
+    - jbl
+    - bose
+    - sonos
+    - generic_headset
+
+  wearable:
+    - apple_watch
+    - fitbit
+    - garmin
+    - polar
+    - samsung_watch
+    - generic_band
+
+  phone:
+    - iphone
+    - android
+    - windows_phone
+  tablet:
+    - ipad
+    - android_tablet
+  laptop:
+    - macbook
+    - windows_laptop
+    - chromebook
+
+  iot_sensor:
+    - temperature
+    - humidity
+    - door_window
+    - motion
+    - air_quality
+  iot_appliance:
+    - smart_plug
+    - smart_bulb
+    - smart_lock_hub
+    - thermostat
+    - vacuum
+
+  access_control:
+    - smart_lock
+    - garage_door
+    - rfid_reader
+
+  infrastructure:
+    - wifi_router
+    - mesh_node
+    - access_point
+    - smart_home_hub
+
+  surveillance:
+    - camera_ip
+    - camera_doorbell
+    - dvr_nvr
+
+  vehicle:
+    - tesla
+    - car_kit
+    - obd2_dongle
+
+  medical:
+    - glucose_meter
+    - heart_monitor
+    - cpap
+    - hearing_aid
+
+  pos_payment:
+    - square_reader
+    - shopify_reader
+    - generic_pos
+
+  dev_board:
+    - esp32_devkit
+    - nordic_devkit
+    - raspberry_pi_pico
+    - generic_devkit
+
+  pentest_tool:
+    - flipper_zero
+    - hak5_pineapple
+    - hak5_omg_cable
+    - ubertooth
+    - generic_ble_dongle

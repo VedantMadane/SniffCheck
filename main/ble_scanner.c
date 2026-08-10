@@ -27,6 +27,7 @@ static const char *TAG = "sc_ble";
 static SemaphoreHandle_t s_sync_sem;
 static SemaphoreHandle_t s_done_sem;
 static ble_results_t    *s_results;
+static volatile bool     s_scan_busy;
 
 static void host_task(void *arg)
 {
@@ -626,6 +627,7 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
     }
 
     case BLE_GAP_EVENT_DISC_COMPLETE:
+        s_scan_busy = false;
         xSemaphoreGive(s_done_sem);
         break;
 
@@ -693,10 +695,41 @@ esp_err_t ble_scan_run(ble_results_t *out, uint32_t duration_ms)
 esp_err_t ble_scan_run_ex(ble_results_t *out, uint32_t duration_ms, bool continuous,
                           bool coded_phy)
 {
+    esp_err_t err = ble_scan_start_ex(out, duration_ms, continuous, coded_phy);
+    if (err != ESP_OK) return err;
+
+    if (s_scan_busy &&
+        xSemaphoreTake(s_done_sem, pdMS_TO_TICKS(duration_ms + 1000)) != pdTRUE) {
+        ESP_LOGW(TAG, "scan timeout — cancelling");
+        ble_scan_cancel();
+    }
+    return ble_scan_finish(out);
+}
+
+bool ble_scan_busy(void)
+{
+    return s_scan_busy;
+}
+
+void ble_scan_cancel(void)
+{
+    if (!s_scan_busy) return;
+    ble_gap_disc_cancel();
+
+    s_results   = NULL;
+    s_scan_busy = false;
+}
+
+esp_err_t ble_scan_start_ex(ble_results_t *out, uint32_t duration_ms, bool continuous,
+                            bool coded_phy)
+{
     if (!out) return ESP_ERR_INVALID_ARG;
+    if (s_scan_busy) return ESP_ERR_INVALID_STATE;
 
     out->count = 0;
     s_results  = out;
+
+    if (s_done_sem) xSemaphoreTake(s_done_sem, 0);
 
     uint8_t own_addr_type;
     int rc = ble_hs_id_infer_auto(1, &own_addr_type);
@@ -745,13 +778,16 @@ esp_err_t ble_scan_run_ex(ble_results_t *out, uint32_t duration_ms, bool continu
         s_results = NULL;
         return ESP_FAIL;
     }
+    s_scan_busy = true;
+    return ESP_OK;
+}
 
-    if (xSemaphoreTake(s_done_sem, pdMS_TO_TICKS(duration_ms + 1000)) != pdTRUE) {
-        ESP_LOGW(TAG, "scan timeout — cancelling");
-        ble_gap_disc_cancel();
-    }
+esp_err_t ble_scan_finish(ble_results_t *out)
+{
+    if (!out) return ESP_ERR_INVALID_ARG;
 
-    s_results = NULL;
+    s_results   = NULL;
+    s_scan_busy = false;
 
     for (uint16_t i = 0; i < out->count; i++) {
         ble_device_t *d = &out->devices[i];

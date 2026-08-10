@@ -98,7 +98,7 @@ body.dark{
 #expsheet .exstat.ok{color:var(--safe)}
 #expsheet .exback{background:none;border:none;color:var(--acc2);font:inherit;
   font-weight:800;padding:0;margin-bottom:8px;cursor:pointer;box-shadow:none}
-/* Generate-report builder: preset/format segmented buttons + section checkboxes */
+ 
 #expsheet .repsegs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px}
 #expsheet .repseg{flex:1 1 auto;border:2px solid var(--line2);background:var(--panel);
   color:var(--txt);border-radius:9px;padding:8px 10px;font:inherit;font-size:12.5px;
@@ -117,7 +117,7 @@ body{margin:0;color:var(--txt);
   font-family:var(--font,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif);
   padding-bottom:env(safe-area-inset-bottom);
   background:var(--bg)}
-/* dashboard-authored custom theme: bold/italic accent colors + bg image */
+ 
 strong,b{color:var(--bold,inherit)}
 em,i{color:var(--ital,inherit)}
 body.hasbg::before{content:"";position:fixed;inset:0;z-index:-1;background-image:var(--bgimg);
@@ -311,9 +311,12 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .sigbar .bars i:nth-child(3){height:9px}.sigbar .bars i:nth-child(4){height:12px}
 .sigbar .bars i.on{opacity:1;background:var(--txt)}
 .sigbar .rssi{font-size:9px;color:var(--dim);opacity:.7;line-height:1;font-variant-numeric:tabular-nums}
-/* Dog Park cluster-control summary card */
+ 
+.sigbar.faint .bars i{opacity:.18}
+.sigbar.faint .rssi{opacity:.45}
+ 
 .dpwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 10px}
-/* Paused during a manual Refresh: dim the block and block its controls so it reads as "off". */
+ 
 .dp-busy{opacity:.5;pointer-events:none;filter:grayscale(.4);transition:opacity .15s}
 .dphead{font-weight:800;color:var(--acc);display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
 .dphead .dpico{width:1.15em;height:1.15em;flex:none}
@@ -333,7 +336,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   overflow:hidden;vertical-align:middle;margin-right:4px;border:1.5px solid var(--line)}
 .bar i{display:block;height:100%}
 
-/* ePup learning-brain summary card (B9) */
+ 
 .epwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 10px}
 .ephead{font-weight:800;color:var(--acc);display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
 .ephead .epico{width:1.15em;height:1.15em;flex:none}
@@ -354,10 +357,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .epclass button{padding:6px 12px;border:2px solid var(--line);border-radius:8px;background:var(--panelw);
   color:var(--txt);font-weight:700;cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
 .epclass button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
-/* ePup mascot animation (105l). One embedded 640x800 sprite sheet (/epup_sprites.png),
-   cell 160 native, shown at 120 (background-size 480x600). Each state is a row; walk/
-   sniff/dig cycle via steps(), stand/sit are static poses. The browser does all the
-   animation — the S3 just serves the sheet once. */
+ 
 .epsprite{width:120px;height:120px;margin:2px auto 4px;
   background:url(/epup_sprites.png) no-repeat 0 0;background-size:480px 600px}
 .epsprite.sniff{background-position:0 0;animation:eps-sniff .9s steps(4) infinite}
@@ -369,7 +369,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .epsprite.stand{background-position:0 -360px}
 .epsprite.sit{background-position:0 -480px}
 @media(prefers-reduced-motion:reduce){.epsprite{animation:none!important}}
-/* ePup stats panel (toggled open under the card body). */
+ 
 .epmore{display:block;margin:2px auto 6px;padding:4px 12px;border:2px solid var(--line);
   border-radius:8px;background:var(--panelw);color:var(--txt);font-weight:700;font-size:12px;
   cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
@@ -379,7 +379,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .epdrow b{min-width:104px;color:var(--acc);font-weight:800}
 .epdrow span{color:var(--txt);font-weight:700}
 .epdrow i{color:var(--dim);font-style:normal;font-weight:600;margin-left:auto;text-align:right}
-/* Hostile-gadget sentinel controls, hosted inside the ePup card. */
+ 
 .epsent{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
 .epshd{display:flex;align-items:center;gap:7px;font-weight:800;color:var(--acc);font-size:13px;margin-bottom:6px}
 .epshd .ic{width:1.1em;height:1.1em;flex:none}
@@ -404,14 +404,14 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .epsadd button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
 .epsdel{margin-left:auto;border:none;background:none;color:var(--avoid);cursor:pointer;
   font-size:14px;line-height:1;padding:0 2px}
-/* Sentinel action buttons (open the signatures / add-device / flagged-results popups). */
+ 
 .epsbtns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
 .epsbtns button{display:flex;align-items:center;gap:6px;padding:6px 11px;border:2px solid var(--line);
   border-radius:8px;background:var(--panelw);color:var(--txt);font-weight:700;font-size:12px;cursor:pointer;
   box-shadow:2px 2px 0 var(--sh)}
 .epsbtns button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
 .epsbtns button .ic{width:1.05em;height:1.05em;flex:none}
-/* Popup form (add device / rename environment). */
+ 
 .epsform{display:flex;flex-direction:column;gap:9px;margin-top:4px}
 .epsform label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--dim)}
 .epsform input,.epsform select{padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;
@@ -419,7 +419,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .epsform button,.envclass button{align-self:flex-start;padding:7px 14px;border:2px solid var(--line);
   border-radius:8px;background:var(--acc);color:#fff;font-weight:800;cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
 .epsform button:active,.envclass button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
-/* Flagged-detection history cards (the flagged-results popup). */
+ 
 .hitcard{border:2px solid var(--line);border-left:6px solid var(--avoid);border-radius:10px;
   padding:8px 10px;margin:7px 0;background:var(--panelw);box-shadow:2px 2px 0 var(--sh)}
 .hithd{display:flex;align-items:center;gap:7px;min-width:0}
@@ -431,7 +431,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .hitts{font-variant-numeric:tabular-nums}
 .hitgps{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:11px;color:var(--dim);opacity:.45}
 .hitgps .ic{width:1em;height:1em;flex:none}
-/* Environments (place memory) grid — a clusters-style tile view. */
+ 
 .envwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 10px}
 .envgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:6px}
 .envtile{display:flex;flex-direction:column;gap:5px;text-align:left;font:inherit;cursor:pointer;
@@ -456,7 +456,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .envchk{display:flex;gap:7px;align-items:center;margin-top:6px;font-size:12.5px}
 .envdet input[type=number]{width:80px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;
   background:var(--panelw);color:var(--txt);font-size:13px}
-/* Generic popup overlay for the sentinel/environment sheets (mirrors #clov). */
+ 
 #epov{position:fixed;inset:0;z-index:43;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center}
 #epov[hidden]{display:none}
 @media(min-width:560px){#epov{align-items:center}}
@@ -551,7 +551,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   color:var(--dim)}
 .crowd .evid .e .ic{width:1.05em;height:1.05em;vertical-align:-.18em;opacity:.85}
 .crowd .evid .e span{color:var(--txt);font-weight:700}
-/* clickable evidence chip (Privacy / Clusters summary cards drill into a device) */
+ 
 .crowd .evid button.e{border:2px solid var(--line2);background:var(--panelw);
   border-radius:9px;padding:3px 8px;font:inherit;font-size:12px;cursor:pointer;
   box-shadow:2px 2px 0 var(--sh)}
@@ -576,7 +576,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .crowd .est .r .v.c-avoid{color:var(--avoid)}
 .crowd .est .r .v.c-info{color:var(--wifi)}
 .crowd .est .r .v.c-rot{color:var(--drone)}
-/* 74g — lightweight local charts (SVG/CSS only, no libraries) */
+ 
 .charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
   gap:10px;margin-top:10px}
 .chart{background:var(--panel);border:2.5px solid var(--line);border-radius:11px;
@@ -607,7 +607,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   font-variant-numeric:tabular-nums}
 .chhist .col .cl{font-size:9px;color:var(--dim);text-align:center;line-height:1.1}
 .chempty{font-size:11.5px;color:var(--dim)}
-/* clickable chart marks (drill into a filtered result list) */
+ 
 .chstack .seg.clk,.chhist .col.clk{cursor:pointer}
 .chrow.clk{cursor:pointer;border:0;background:none;width:100%;text-align:left;
   padding:0;font:inherit;color:inherit}
@@ -615,7 +615,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .chrow.clk:hover .rl{color:var(--txt)}
 .chleg .k.clk{cursor:pointer}
 .chleg .k.clk:hover b{text-decoration:underline}
-/* Summary customization: gear header + settings sheet + block list */
+ 
 .smbar{display:flex;align-items:center;justify-content:flex-end;gap:8px;
   margin:-2px 0 6px}
 .smgear{display:inline-flex;align-items:center;gap:6px;background:var(--panel);
@@ -624,9 +624,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   cursor:pointer}
 .smgear:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
 .smgear svg{width:15px;height:15px}
-/* Tabbed RF Env Summary: a left rail of user-named tabs + the active tab's blocks.
-   Collapses to a horizontal scroll strip on narrow screens so it never adds vertical
-   scroll of its own. */
+ 
 .smwrap{display:grid;grid-template-columns:minmax(140px,180px) 1fr;gap:14px;align-items:start}
 .smtabs{display:flex;flex-direction:column;gap:6px;position:sticky;top:72px}
 .smtab{text-align:left;background:var(--panel);border:2px solid var(--line);
@@ -643,7 +641,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
     scrollbar-width:thin}
   .smtab{flex:none}
 }
-/* customize sheet: tab manager + per-tab block groups */
+ 
 .smtabmgr{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
 .smtabrow{display:flex;align-items:center;gap:7px;border:2px solid var(--line2);
   border-radius:10px;padding:6px 8px;background:var(--panelw)}
@@ -696,7 +694,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
 #smsheet .smact button.prim{background:var(--acc);color:var(--onacc,#3f2a14)}
 #smsheet .smact button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
-/* summary mini result lists (top signal / top threats) */
+ 
 .smlist{background:var(--panel);border:2.5px solid var(--line);border-radius:11px;
   padding:8px 10px;box-shadow:2px 2px 0 var(--sh);margin-top:10px}
 .smlist h4{margin:0 0 6px;font-size:11px;font-weight:800;color:var(--dim);
@@ -710,7 +708,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   font-weight:600;font-size:12.5px}
 .smlrow .lv{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;
   white-space:nowrap}
-/* watchlist: match badge + manager sheet */
+ 
 .pill.watch{background:var(--acc);color:var(--onacc,#3f2a14);border:0}
 .dcard.watched{outline:2px solid var(--acc);outline-offset:-2px}
 .smlist.watch h4{color:var(--acc)}
@@ -734,7 +732,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .wlrow .wx{flex:none;border:2px solid var(--line2);background:var(--panel);color:var(--avoid);
   border-radius:7px;width:32px;height:32px;font:inherit;font-weight:800;cursor:pointer;
   box-shadow:none;padding:0}
-/* notification display filter controls */
+ 
 .alfbar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin-bottom:10px;
   padding:9px 11px;border:2px dashed var(--line2);border-radius:10px}
 .alfbar label{font-size:12px;color:var(--dim);font-weight:700}
@@ -748,7 +746,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .alfnote{font-size:12px;color:var(--dim);margin-bottom:8px}
 .alfnote button{border:0;background:none;color:var(--acc2);font:inherit;font-weight:800;
   cursor:pointer;padding:0;box-shadow:none}
-/* narrow-phone tightening for the summary customization sheet */
+ 
 @media(max-width:400px){
   .smblk{gap:6px;padding:7px 8px}
   .smblk .smtag{display:none}
@@ -807,8 +805,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 
 .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));
   gap:9px;margin-bottom:10px}
-/* Cluster result card — fixed size, mirrors the Wi-Fi/BLE .dcard look:
-   colored left bar, type icon + name + scan-type badge, MAC + small icons. */
+ 
 .ctile{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
   gap:5px;height:98px;min-width:0;text-align:left;background:var(--panel);color:var(--txt);
   border:2.5px solid var(--line);border-left:7px solid var(--cat,var(--line));
@@ -828,9 +825,9 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .ctico{display:flex;gap:5px;align-items:center;margin-top:auto;color:var(--dim)}
 .ctico .ic{width:14px;height:14px}
 .ctile.open{outline:2px solid var(--acc2);outline-offset:2px}
-/* .cdet is now a hidden data holder — its content is cloned into the modal. */
+ 
 .cdet{display:none}
-/* Cluster detail popup (reuses the summary-sheet overlay pattern). */
+ 
 #clov{position:fixed;inset:0;z-index:42;background:rgba(0,0,0,.5);
   display:flex;align-items:flex-end;justify-content:center}
 #clov[hidden]{display:none}
@@ -848,8 +845,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   background:var(--panel);color:var(--txt);border-radius:9px;font-size:14px;
   font-weight:900;cursor:pointer;box-shadow:2px 2px 0 var(--sh)}
 .clx:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
-/* Cluster member cards inside the popup — uniform, tappable result cards that
-   mirror the Wi-Fi/BLE .dcard look and ARE the link to the full result. */
+ 
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
   gap:8px;margin:9px 0}
 .mcard{display:flex;flex-direction:column;gap:5px;min-height:60px;width:100%;
@@ -899,7 +895,7 @@ button.mcard:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
 .prow .pm b{color:var(--acc);opacity:.8;font-weight:600;margin-right:4px}
 .prow.acked{opacity:.6}
 .pill.done{background:var(--safe);color:var(--onacc,#173);border:0}
-/* per-device privacy actions: watch / locate / mark reviewed */
+ 
 .prow .pact{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px}
 .pa{border:2px solid var(--line2);background:var(--panelw);color:var(--txt);
   border-radius:9px;padding:5px 10px;font:inherit;font-size:11.5px;font-weight:700;
@@ -907,7 +903,7 @@ button.mcard:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
 .pa:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
 .pa.on{border-color:var(--acc);color:var(--acc)}
 .pa.done{border-color:var(--safe);color:var(--safe)}
-/* "what you can do" guidance strip + triage toolbar */
+ 
 .pguide{font-size:12.5px;line-height:1.5;color:var(--txt);background:var(--panelw);
   border:2px solid var(--line2);border-left:5px solid var(--acc2);border-radius:9px;
   padding:9px 11px;margin-bottom:9px}
@@ -915,7 +911,7 @@ button.mcard:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
   color:var(--acc2);margin-bottom:2px}
 .ptoolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
 .ptoolbar .small{color:var(--dim)}
-/* Guided locate sheet */
+ 
 #locov{position:fixed;inset:0;z-index:44;background:rgba(0,0,0,.5);
   display:flex;align-items:flex-end;justify-content:center}
 #locov[hidden]{display:none}
@@ -1009,6 +1005,34 @@ details>summary{cursor:pointer;color:var(--acc);font-weight:700;font-size:13px}
   box-shadow:3px 3px 0 var(--sh)}
 #rcbtn.ready{cursor:pointer;background:var(--safe);color:#0c2a16}
 #rcbtn.ready:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
+
+ 
+.cmphd{background:var(--panel);border:2px solid var(--line);border-radius:10px;
+  padding:10px 12px;margin:0 0 12px}
+.cmphd .cmpwhich{display:flex;flex-wrap:wrap;gap:10px;font-size:12.5px;margin-top:6px}
+.cmphd .cmpwhich div{flex:1;min-width:150px}
+.cmphd .cmpwhich b{display:block;color:var(--acc);font-size:11px;
+  text-transform:uppercase;letter-spacing:.5px}
+.cmpbuckets{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.cmpbuckets button{flex:1;min-width:104px;padding:8px 6px;font-size:12.5px;font-weight:700;
+  border:2px solid var(--line);border-radius:9px;background:var(--panel);color:var(--txt);
+  cursor:pointer}
+.cmpbuckets button.act{background:var(--acc);color:var(--onacc)}
+.cmpbuckets button i{display:block;font-style:normal;font-size:18px;font-weight:900}
+.cmprow{display:flex;gap:8px;align-items:baseline;padding:7px 10px;font-size:12.5px;
+  border:2px solid var(--line);border-radius:9px;background:var(--panel);margin:0 0 6px}
+.cmprow .k{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
+  padding:1px 5px;border-radius:4px;color:var(--onacc);flex:none}
+.cmprow .k.wifi{background:var(--wifi)}.cmprow .k.ble{background:var(--ble)}
+.cmprow .k.tracker{background:var(--track)}
+.cmprow .who{flex:1;min-width:0;word-break:break-word}
+.cmprow .what{color:var(--dim);display:block;margin-top:2px}
+.cmprow .what ins{text-decoration:none;color:var(--acc)}
+.cmprow .what del{color:var(--dim)}
+.cmpnote{font-size:12px;line-height:1.45;color:var(--dim);background:var(--panel);
+  border:2px dashed var(--line);border-radius:9px;padding:9px 11px;margin:0 0 12px}
+.cmpnote b{color:var(--caution)}
+.cmpempty{font-size:12.5px;color:var(--dim);padding:12px;text-align:center}
 </style>
 </head>
 <body>
@@ -1135,9 +1159,9 @@ function applyTheme(id){
   document.body.classList.toggle("dark",!!t.dark);
   curTheme=id;
 }
-// Custom theme authored on the dashboard (sc-custom). Maps the dashboard's var
-// names (ink/accent/pname) onto the viewer's (txt/acc/acc2); unset vars fall back
-// to the :root / .dark defaults so derived colors stay coherent.
+
+
+
 function applyCustomReport(){
   let c;try{c=JSON.parse(localStorage.getItem("sc-custom"));}catch(e){}
   if(!c||!c.v)c={d:0,v:{},img:""};
@@ -1159,14 +1183,14 @@ const RFONTS={system:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",
   condensed:"'Roboto Condensed','Arial Narrow',system-ui,sans-serif",
   comic:"'Comic Sans MS','Comic Neue',cursive"};
 function applyFontReport(id){document.body.style.setProperty("--font",RFONTS[id]||RFONTS.system);}
-// This viewer has no picker of its own — it inherits the theme/font chosen on the
-// SniffCheck dashboard (Settings) via the shared sc-theme / sc-custom / sc-font keys.
+
+
 try{let t=localStorage.getItem("sc-theme");
   if(t==="dark")t="sniffcheck-dark";else if(t==="light")t="sniffcheck";
   applyTheme(t||"sniffcheck");
 }catch(e){}
 try{applyFontReport(localStorage.getItem("sc-font")||"system");}catch(e){}
-// Live-update if the dashboard changes theme/font in another tab.
+
 addEventListener("storage",e=>{if(e&&/^sc-(theme|custom|font)$/.test(e.key||"")){
   try{let t=localStorage.getItem("sc-theme");
     if(t==="dark")t="sniffcheck-dark";else if(t==="light")t="sniffcheck";
@@ -1264,11 +1288,12 @@ addEventListener("storage",e=>{if(e&&/^sc-(theme|custom|font)$/.test(e.key||""))
     <section id="s-alerts"><h2>Notifications</h2><div id="alerts"></div></section>
     <section id="s-privacy"><h2>Privacy analyzers</h2><div id="privacy"></div></section>
     <section id="s-channel"><h2>Channel analyzer</h2><div id="channel"></div></section>
+    <section id="s-compare"><h2>Compare captures</h2><div id="compare"></div></section>
     <section id="s-raw"><h2>Raw records</h2><div id="raw"></div></section>
   </div>
 </main>
 
-<script id="sc-data" type="application/json"><!--SC_DATA_ISLAND--></script>
+<script id="sc-data" type="application/json"></script>
 
 <script>
 "use strict";
@@ -1357,7 +1382,7 @@ function buildModel(recs,bad){
     case "pcap_capture":m.pcap=r;break;
     case "tracker":  latest(m.trackers,(r.addr||"?")+"|"+(r.tracker_kind||""),r);break;
     case "drone_rid":latest(m.drones,(r.addr||"?")+"|"+(r.id||""),r);break;
-    // Pair-level Evil Twin findings. Keyed by the unordered pair
+    // Phase 113b/f — pair-level Evil Twin findings. Keyed by the unordered pair
     // rather than finding_id, because finding_id carries the scan index: the
     // same pair re-observed each scan would otherwise pile up as new findings.
     case "wifi_twin_finding":{
@@ -1368,7 +1393,7 @@ function buildModel(recs,bad){
       else m.twins.set(k,{rec:r,n:1});
       break;}
     case "alert":{
-      // Twin alerts group by PAIR, not by rule+target. Both members
+      // Phase 113f — twin alerts group by PAIR, not by rule+target. Both members
       // of one pair raise the same rule, so keying on target alone showed a
       // single relationship as two unexplained notifications. Pair grouping is
       // what makes "six alerts" legible as one conclusion seen six times.
@@ -1602,12 +1627,32 @@ function identBar(v){
     scoreColor(v)+'">'+v+"</span></span>";
 }
 
-function rssiHtml(v){
-  if(typeof v!=="number")return '<span class="dim">rssi —</span>';
-  const lvl=v>=-50?4:v>=-60?3:v>=-70?2:1;
-  let bars="";for(let i=1;i<=4;i++)bars+="<i"+(i<=lvl?' class="on"':"")+"></i>";
-  return '<span class="sigbar" title="RSSI '+v+' dBm"><span class="bars">'+bars+
-    '</span><span class="rssi">rssi '+v+"</span></span>";
+// One signal-strength scale for the whole report. The bars, the Dog Park
+// sighting rows and the signal histogram used to grade the same dBm three
+// different ways, so a device could read "2 bars" here and land in a different
+// bucket two cards down.
+const RSSI_BUCKETS=[
+  {min:-50,lvl:4,label:"excellent"},
+  {min:-60,lvl:3,label:"strong"},
+  {min:-70,lvl:2,label:"medium"},
+  {min:-80,lvl:1,label:"weak"},
+  {min:-Infinity,lvl:0,label:"very weak"}];
+// Accepts a number or a numeric string; anything else is unknown, not zero.
+function rssiLevel(v){
+  const n=typeof v==="number"?v:(v!=null&&v!==""&&isFinite(Number(v))?Number(v):null);
+  if(n==null||!isFinite(n))return{lvl:-1,label:"unknown",v:null};
+  const b=RSSI_BUCKETS.find(x=>n>=x.min);
+  return{lvl:b.lvl,label:b.label,v:n};
+}
+// opt.bare drops the "rssi " prefix where the column already says what it is.
+function rssiHtml(v,opt){
+  const b=rssiLevel(v);
+  if(b.lvl<0)return '<span class="dim">rssi —</span>';
+  let bars="";for(let i=1;i<=4;i++)bars+="<i"+(i<=b.lvl?' class="on"':"")+"></i>";
+  const lab="Signal "+b.label+", RSSI "+b.v+" dBm";
+  return '<span class="sigbar'+(b.lvl?"":" faint")+'" role="img" aria-label="'+esc(lab)+
+    '" title="'+esc(lab)+'"><span class="bars" aria-hidden="true">'+bars+
+    '</span><span class="rssi">'+(opt&&opt.bare?b.v:"rssi "+b.v)+"</span></span>";
 }
 
 function presenceOf(kind,mac){
@@ -2071,18 +2116,18 @@ function pvLink(mac){
 }
 function privLinks(mac){return devLink(mac)+pvLink(mac);}
 
-// The gotoDevice() call for a MAC, or null when it resolves to no result card.
-// Same resolution as devLink, exposed so a whole card can be the hyperlink.
+
+
 function devGoto(mac){
   if(!mac)return null;
   if(M.wifi.has(mac))return "gotoDevice('s-wifi','"+anchorId("wifi",mac)+"')";
   if(M.ble.has(mac))return "gotoDevice('s-ble','"+anchorId("ble",mac)+"')";
   return null;
 }
-// A uniform, fixed-size cluster-member card that mirrors the Wi-Fi/BLE result
-// card and IS the hyperlink: tapping it jumps to that device's full result and
-// closes the popup (wired in openClusterModal). o = {mac,kind:'wifi'|'ble',name,
-// rssi,band,radio}. rssi/band default from the stored record when omitted.
+
+
+
+
 function memberCard(o){
   const w=o.kind==="wifi";
   const e=o.mac?(w?M.wifi.get(o.mac):M.ble.get(o.mac)):null;
@@ -2219,10 +2264,10 @@ function wifiDetail(r){
     kvGrid(r);
 }
 
-// Every pair this AP took part in, including the ones that were
-// CLEARED. A cleared pair raises no notification, so without this it is
-// invisible, and "examined and found innocent" looks exactly like "never
-// considered" — the ambiguity that made the Xfinity field report unauditable.
+
+
+
+
 function twinPairsForAp(bssid){
   if(!bssid||!M.twins||!M.twins.size)return "";
   const me=bssid.toLowerCase();
@@ -2296,10 +2341,10 @@ function bleDetail(r){
     kvGrid(r);
 }
 
-// 74g — compact local charts built from the already-filtered result arrays.
-// Pure string builders (SVG/CSS), each carrying its own numeric text equivalent
-// so a chart never replaces the underlying rows. Items may carry an `act` string
-// (see summaryAct) that makes the mark a drill-in to a filtered result list.
+
+
+
+
 function chStack(title,segs){
   const tot=segs.reduce((s,x)=>s+x.n,0);
   if(!tot)return "";
@@ -2346,7 +2391,7 @@ function chHist(title,bins){
     '<div class="chhist" role="img" aria-label="'+esc(title+": "+
       bins.map(b=>b.label+" "+b.n).join(", "))+'">'+cols+"</div></div>";
 }
-// ---- individual chart blocks (each toggleable/movable on the Summary) ----
+
 function chartComposition(){
   return chStack("Result composition",[
     {label:"Wi-Fi",n:FW.length,color:"var(--wifi)",act:FW.length?"wifi":""},
@@ -2371,8 +2416,10 @@ function chartSignal(){
     {label:"-60–-70",n:0,color:"var(--caution)"},
     {label:"-70–-80",n:0,color:"var(--avoid)"},
     {label:"<-80",n:0,color:"var(--dim)"}];
-  for(const r of all){const v=r.rssi;if(typeof v!=="number")continue;
-    sb[v>=-50?0:v>=-60?1:v>=-70?2:v>=-80?3:4].n++;}
+  
+  
+  for(const r of all){const b=rssiLevel(r.rssi);if(b.lvl<0)continue;
+    sb[4-b.lvl].n++;}
   return chHist("Signal strength (dBm)",sb);
 }
 function chartChannels(){
@@ -2387,7 +2434,7 @@ function chartCategories(){
   return chBars("Device categories",Object.keys(cat).map(c=>({label:c,n:cat[c],
     color:"var(--acc)",act:"cat:"+c})),8);
 }
-// ---- Summary mini result lists (drill straight to a device row) ----
+
 function smMiniList(title,rows){
   if(!rows.length)return "";
   return '<div class="smlist"><h4>'+esc(title)+'</h4>'+rows.map(r=>
@@ -2417,10 +2464,10 @@ function blkTopThreat(){
   if(!rows.length)return "";
   return smMiniList("Top threats",rows);
 }
-// ---- Summary blocks (each returns HTML; "" when it has no data to show) ----
+
 function blkVerdict(){
   const all=[...FW,...FB,...FT,...FD];
-  if(!all.length)return "";                 // nothing to judge — skip the hero
+  if(!all.length)return "";                 
   let worst=0;
   for(const r of all)worst=Math.max(worst,r.threat_level||0);
   const lbl=cb("threat_level",worst);
@@ -2492,8 +2539,8 @@ function blkCrowd(){
   if(deviceDensity<=0)return "";
   const persons=["Phones & mobile","Wearables","Computers"];
   const mobilePressure=persons.reduce((s,c)=>s+(catCount[c]||0),0);
-  // Dense residential (townhouses, apartments) routinely hears dozens of neighbour
-  // networks + devices, so the bands are deliberately loose.
+  
+  
   const lvl=n=>n===0?"Quiet":n<=15?"Light":n<=50?"Moderate":n<=120?"Busy":"Crowded";
   const dtone=n=>n<=15?"safe":n<=50?"ok":n<=120?"caution":"avoid";
   const tone=dtone(deviceDensity),dens=lvl(deviceDensity);
@@ -2552,9 +2599,9 @@ function blkPcap(){
     ' <a class="mono" href="'+esc(p.download||"/api/pcap/latest")+
     '">download .pcap</a></div></div>';
 }
-// Privacy exposure at a glance — how many devices leaked a re-linkable identifier,
-// broken down by leak type, with the worst offenders drilling into the privacy
-// clusters. Logs are aggregate (not device-scoped), so it hides under a filter.
+
+
+
 function blkPrivacy(){
   if(filterActive())return "";
   const arr=(k,f)=>{const r=M.logs[k];const d=r&&(r.detail||r.stations);
@@ -2592,9 +2639,9 @@ function blkPrivacy(){
     '<div class="smmore"><button type="button" class="fchip" data-act="privacy">'+
     "Open Privacy analyzers →</button></div></div>";
 }
-// Identity grouping at a glance — separate addresses that evidence ties to one
-// device/product (NIC + radio + rotation-chain clusters), worst rotation chains
-// drilling into the Clusters section.
+
+
+
 function blkClusters(){
   if(filterActive())return "";
   const P=clusterParts();
@@ -2625,8 +2672,8 @@ function blkClusters(){
     "Open Clusters →</button></div></div>";
 }
 
-// ---- Watchlist: user-entered MACs / names flagged when detected ----
-// Viewer-side (this browser). Never hides data — it only adds a flag.
+
+
 const WATCH_KEY="sc-watchlist";
 function watchGet(){try{const a=JSON.parse(localStorage.getItem(WATCH_KEY));
   return Array.isArray(a)?a:[];}catch(e){return [];}}
@@ -2640,8 +2687,8 @@ function watchAdd(type,val){
   a.push({t:type,v:val});watchSet(a);return true;
 }
 function watchDel(i){const a=watchGet();a.splice(i,1);watchSet(a);}
-// Match a record; return the matched entry or null. MAC is exact; name is a
-// case-insensitive substring of the SSID (Wi-Fi) or device name (BLE/etc).
+
+
 function watchMatch(r,kind){
   const wl=watchGet();if(!wl.length||!r)return null;
   const mac=normMac(kind==="wifi"?r.bssid:r.addr);
@@ -2679,14 +2726,14 @@ function blkWatch(){
   return h;
 }
 
-// ---- Dog Park cluster control (movable summary card) ----
-// Native controls for a SniffCheck cluster master: arm status, Adv rescan /
-// Sniff Walk, and a live results waterfall streamed from the arms. Polls the
-// master's /api/cluster/* + /api/captures/live.jsonl. Feature-detects the
-// cluster: on a plain capture / offline viewer the card stays hidden. Lives in
-// the summary registry so it drags/reorders like any other summary card.
+
+
+
+
+
+
 const DP_OBS={wifi_ap:1,ble_device:1,tracker:1,drone_rid:1};
-const DP_CAMCLASS=new Set([12]); // device_class camera / surveillance
+const DP_CAMCLASS=new Set([12]); 
 let DP={started:false,cluster:null,status:null,seen:null,law:null,rows:[],sentinel:null,places:null,sc:0};
 function dpMac(o){return String(o.bssid||o.addr||o.mac||"").toUpperCase();}
 function dpIdOf(o){return o.ssid||o.name||o.bssid||o.addr||o.mac||"—";}
@@ -2703,16 +2750,14 @@ function dpTypeIcon(o){
   if(o.type==="drone_rid")return iconSpan(["ic-drone","drone"]);
   return iconSpan(["ic-ble","BLE device"]);
 }
+
+
 function dpSig(rssi){
-  if(typeof rssi!=="number")return "";
-  const on=rssi>=-55?4:rssi>=-67?3:rssi>=-78?2:rssi>=-88?1:0;
-  let b="";for(let i=1;i<=4;i++)b+='<i class="'+(i<=on?"on":"")+'"></i>';
-  return '<span class="sigbar" title="'+rssi+' dBm"><span class="bars">'+b+
-    '</span><span class="rssi">'+rssi+"</span></span>";
+  return rssiLevel(rssi).lvl<0?"":rssiHtml(rssi,{bare:true});
 }
 function dpTime(o){
-  // Prefer the brain-stamped real epoch (o.ts, seconds); fall back to legacy wall-ms, and
-  // never treat o.ts_us (device uptime µs) as an epoch (that rendered a bogus 2025 date).
+  
+  
   const ms=(o.ts&&o.ts>1e9)?o.ts*1000:(o.ts_wall||0);
   return ms?new Date(ms).toLocaleTimeString():"";
 }
@@ -2765,11 +2810,11 @@ function dpIngest(t){
   if(DP.rows.length>400)DP.rows=DP.rows.slice(-400);
 }
 function dpSchedule(ms){clearTimeout(DP.t);if(DP.paused)return;DP.t=setTimeout(dpPoll,ms);}
-// Suspend/resume the whole cluster polling loop (Dog Park / ePup / Environments / Health /
-// Sentinel / Activity) during a manual Refresh, and visibly disable their controls so it's
-// clear they're paused. Clearing the timers alone isn't enough — an in-flight dpPoll would
-// repaint the controls and re-arm the loop; DP.paused makes dpSchedule a no-op and makes the
-// in-flight cycle bail before it repaints or grabs another socket.
+
+
+
+
+
 function dpBusy(on){
   DP.paused=on;
   if(on){clearTimeout(DP.t);clearTimeout(accT);}
@@ -2777,19 +2822,19 @@ function dpBusy(on){
     const w=$(id);if(w)w.classList.toggle("dp-busy",on);});
 }
 function dpPoll(){
-  if(DP.paused)return;   // suspended during a manual Refresh so it doesn't starve the sockets
+  if(DP.paused)return;   
   fetch("/api/cluster/status",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();})
-    .then(j=>{if(DP.paused)return;   // Refresh started mid-flight — abort before repaint/socket
+    .then(j=>{if(DP.paused)return;   
       DP.cluster=true;DP.status=j;accStart();dpVis();dpPaintCtrl();epPaint();envPaint();healthPaint();
       DP.sc=(DP.sc|0)+1;
-      if(DP.sc%2){epSentFetch();epHowlFetch();}  // sentinel + tracker safety — every other cycle (~4 s)
-      else envFetch();                    // environments change rarely too — alternate cycle
-      if(DP.sc%3===0)actFetch();          // activity log — every third cycle (~6 s)
-      if(!epTimeSynced||DP.sc%30===0)epTimeSync();   // keep the head's clock set (survives its reboot)
-      // Pull only NEW records past our cursor, not the whole ring every 2s. The full-ring
-      // firehose held an HTTP socket for seconds on a large session, starving the ESP32's
-      // few sockets so Refresh (and other requests) could never connect. ?since is skipped
-      // server-side; X-SC-Total advances the cursor; X-SC-Session resets it on a reboot.
+      if(DP.sc%2){epSentFetch();epHowlFetch();}  
+      else envFetch();                    
+      if(DP.sc%3===0)actFetch();          
+      if(!epTimeSynced||DP.sc%30===0)epTimeSync();   
+      
+      
+      
+      
       return fetch("/api/captures/live.jsonl?since="+(DP.cur|0),{cache:"no-store"}).then(r=>{
         const tot=parseInt(r.headers.get("X-SC-Total"),10),sess=r.headers.get("X-SC-Session")||"";
         if(sess&&DP.sess&&sess!==DP.sess){DP.cur=0;if(DP.seen)DP.seen.clear();DP.rows=[];}
@@ -2813,11 +2858,11 @@ function blkDogpark(){
     '<div class="dplog" id="dp-log"></div></div>';
 }
 
-// ---- ePup learning brain (movable summary card, B9) ----
-// Surfaces the cluster brain's ePup summary + place recognition ("where am I")
-// from the same /api/cluster/status poll the Dog Park card uses. Self-hides on a
-// plain capture / non-cluster viewer, like the Dog Park card. The classify input
-// (naming the current place) posts to /api/cluster/epup/label.
+
+
+
+
+
 function epStat(label,v){
   return '<span class="epstat"><b>'+(v==null?"—":v)+'</b>'+label+'</span>';
 }
@@ -2832,8 +2877,8 @@ function epPlace(p){
   return '<div class="epplace tone-'+tone+'"><svg class="ic"><use href="#'+ic+'"/></svg>'+
     '<span>'+msg+"</span></div>";
 }
-// Classify input (naming the current place). Built ONCE and preserved across the 2 s
-// poll so it never clobbers what the user is typing; epPaint only re-syncs the hint.
+
+
 function epClassSync(p){
   const box=$("ep-class");if(!box)return;
   if(!p||p.cur<0){box.style.display="none";box.innerHTML="";box.dataset.built="";return;}
@@ -2869,9 +2914,9 @@ function epPaint(){
   epSpriteFor(e);
   epClassSync(e.place);
 }
-// Detailed ePup stats: what drives the level, environments learned, boots alive, etc.
-// Level follows an integer-sqrt curve over scan windows folded; "% learned" is those
-// same windows measured against the 40,000-window "fully learned" horizon.
+
+
+
 let epStatsOpen=false;
 function epStatsHtml(e){
   const lvl=e.level|0, scans=e.scans|0, MAT=40000;
@@ -2890,16 +2935,16 @@ function epStatsHtml(e){
   h+="</div>";
   return h;
 }
-// Pick the mascot animation from the ePup's live state. Priority (highest first):
-//   stand  — ALERT: sentinel armed with a recent flagged detection (heads-up posture)
-//   dig    — brand-new environment (first time the ePup has seen this place)
-//   sniff  — actively scanning: on a walk, or a fresh scan window just folded
-//   sit    — idle in a KNOWN, familiar place (relaxed)
-//   stand  — idle everywhere else (unknown place / connecting)
-// Only re-set the class when the state actually changes, so the CSS animation isn't
-// restarted every 2 s poll. Scan freshness is derived by watching e.scans tick up.
+
+
+
+
+
+
+
+
 let epPrevScans=-1, epScanBumpTs=0;
-const EP_SCAN_FRESH_MS=8000;   // "actively scanning" window after a new scan folds
+const EP_SCAN_FRESH_MS=8000;   
 function epSpriteFor(e){
   const spr=$("ep-sprite");if(!spr)return;
   const p=e&&e.place;
@@ -2909,15 +2954,15 @@ function epSpriteFor(e){
     epPrevScans=e.scans;
   }
   const s=DP.sentinel;
-  const alert = !!(s&&s.armed&&(s.recent|0)>0);          // hostile-gadget hit this pass
+  const alert = !!(s&&s.armed&&(s.recent|0)>0);          
   const walking = !!(DP.status&&DP.status.walking);
   const scanning = walking || (now-epScanBumpTs)<EP_SCAN_FRESH_MS;
   let anim;
-  if(alert)                             anim="stand";  // alert — on guard
-  else if(p&&p.cur>=0&&p.is_new)        anim="dig";    // new area — digging in
-  else if(scanning)                     anim="sniff";  // on a walk / actively scanning
-  else if(p&&p.known)                   anim="sit";    // familiar place — relaxed
-  else                                  anim="stand";  // idle, somewhere new/unknown
+  if(alert)                             anim="stand";  
+  else if(p&&p.cur>=0&&p.is_new)        anim="dig";    
+  else if(scanning)                     anim="sniff";  
+  else if(p&&p.known)                   anim="sit";    
+  else                                  anim="stand";  
   if(spr.dataset.anim!==anim){spr.className="epsprite "+anim;spr.dataset.anim=anim;}
 }
 function blkEpup(){
@@ -2929,9 +2974,9 @@ function blkEpup(){
     '<div id="ep-class"></div></div>';
 }
 
-// ---- Sentinel block (own card, separated from ePup) with tracker safety (Bark/Howl) ----
-// #ep-sent hosts the flagged-signature watchlist controls (painted by epSentPaint);
-// #ep-howl hosts the tracker safety-sound controls (painted by epHowlPaint).
+
+
+
 function blkSentinel(){
   return '<div class="epwrap" id="sentwrap" style="display:none">'+
     '<div class="ephead"><svg class="ic epico"><use href="#ic-alert"/></svg>Guard Dog</div>'+
@@ -2939,12 +2984,12 @@ function blkSentinel(){
     '<div class="epsent" id="ep-howl" hidden></div></div>';
 }
 
-// ---- Hostile-gadget sentinel controls (105i), hosted in the ePup card ----
-// The head owns the sentinel (flagged-signature watchlist) on /api/cluster/sentinel;
-// this mirrors the Dog Park dashboard's Sentinel card so the report page can arm/
-// disarm it, toggle categories, and manage flagged (BYOI) devices. The add-form
-// inputs are built ONCE and never clobbered by the ~4 s poll; only the live
-// state (armed, counts, category/BYOI rows) is re-rendered.
+
+
+
+
+
+
 const EP_SENT_ICONS=["ic-tracker","ic-ble","ic-wifi","ic-router","ic-camera","ic-police","ic-drone"];
 function epSentPost(obj){
   return fetch("/api/cluster/sentinel",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -2966,7 +3011,7 @@ function epSentByoiRow(b){
     '<span class="hits">'+esc(b.mac)+(b.pref_len<6?"/"+(b.pref_len*8):"")+" · "+(b.hits|0)+"</span>"+
     '<button class="epsdel" type="button" data-sdel="'+b.i+'" title="Remove">&#10005;</button></div>';
 }
-// Friendly labels for the device-type dropdown in the add-device popup.
+
 const SENT_ICON_LABEL={"ic-tracker":"Tracker / gadget","ic-ble":"BLE device","ic-wifi":"Wi-Fi device",
   "ic-router":"Router / AP","ic-camera":"Camera","ic-police":"Law enforcement","ic-drone":"Drone"};
 function epSentPaint(){
@@ -2991,7 +3036,7 @@ function epSentPaint(){
     $("eps-addbtn").onclick=epSentAddOpen;
     $("eps-hitbtn").onclick=epSentHitsOpen;
   }
-  const armed=d.armed!==false;   // default on if an older head omits the field
+  const armed=d.armed!==false;   
   const arm=$("eps-arm");if(arm&&document.activeElement!==arm)arm.checked=armed;
   $("eps-armt").textContent="Guard Dog "+(armed?"armed":"disarmed");
   $("eps-body").classList.toggle("off",!armed);
@@ -3008,10 +3053,10 @@ function epSentPaint(){
     epSentPost({byoi_del:+b.dataset.sdel}));
 }
 
-// ---- Tracker safety-sound (Bark / Howl), hosted in the Sentinel block ----
-// The head rings DULT / Find My tags via /api/cluster/tracker/{sound,burst}. The brain
-// reports currently-ringable trackers in /api/cluster/tracker's "nearby" array (harvested,
-// non-Tile), so we render one Bark button per tag plus a Howl-all button. Transmits.
+
+
+
+
 let DP_TRK=null;
 function epHowlFetch(){
   fetch("/api/cluster/tracker",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();})
@@ -3058,9 +3103,9 @@ function epHowlPaint(){
   w.querySelectorAll("button[data-bark]").forEach(btn=>btn.onclick=()=>epBark(near[+btn.dataset.bark]));
 }
 
-// ---- Cluster health card (S4d): "how is everything performing" ----
-// Live per-node traffic / uptime / errors for brain + arms + S3, from the same
-// /api/cluster/status poll (its 2 s cadence IS the heartbeat). Toggle via Customize.
+
+
+
 function fmtDur(s){s=s|0;if(s<0)return"—";const h=(s/3600)|0,m=((s%3600)/60)|0;
   return h?h+"h"+m+"m":(m?m+"m":s+"s");}
 function fmtAgo(d){d=d|0;if(d<0)return"";return d<60?d+"s ago":((d/60)|0)+"m ago";}
@@ -3094,7 +3139,7 @@ function healthPaint(){
   g.innerHTML=html;
 }
 
-// ---- Sentinel lifetime stats card (S4d): the watchlist scoreboard ----
+
 function blkSentStat(){
   return '<div class="smlist" id="ss-card"><h4>Guard Dog stats</h4><div id="ss-body"></div></div>';
 }
@@ -3111,7 +3156,7 @@ function sentStatPaint(){
       (cf===2?" · high confidence":cf===1?" · low confidence (name)":"")+'</div>':'');
 }
 
-// ---- Activity / ePup history log card (S4d): the cluster's running event log ----
+
 function actFetch(){
   fetch("/api/cluster/log",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();})
     .then(j=>{DP.log=j.log||[];activityPaint();}).catch(()=>{});
@@ -3134,9 +3179,9 @@ function activityPaint(){
     '<span class="dim" style="white-space:nowrap">'+fmtAgo(nowUp-(e.t|0))+'</span></div>').join("");
 }
 
-// ---- Generic popup sheet (mirrors the cluster #clov modal, own overlay #epov) ----
-// Reused by the sentinel popups (signatures / add-device / flagged-results) and the
-// environments editor so opening one never disturbs the report layout underneath.
+
+
+
 let epSheetWired=false;
 function epSheetClose(){const ov=$("epov");if(ov)ov.hidden=true;}
 function openSheet(title,bodyHtml,wire){
@@ -3153,7 +3198,7 @@ function openSheet(title,bodyHtml,wire){
   ov.hidden=false;sh.scrollTop=0;
 }
 
-// Alert-signatures popup: toggle which built-in attack-tool signatures raise an alert.
+
 function epSentSigOpen(){
   const d=DP.sentinel;if(!d||!d.cats)return;
   const body='<div class="epslbl">Choose which known attack-tool signatures raise a sentinel alert. '+
@@ -3166,7 +3211,7 @@ function epSentSigOpen(){
   });
 }
 
-// Add-device popup: flag one device or a whole vendor (OUI) by MAC + name + type.
+
 function epSentAddOpen(){
   const opts=EP_SENT_ICONS.map(i=>'<option value="'+i+'">'+esc(SENT_ICON_LABEL[i]||i.replace("ic-",""))+'</option>').join("");
   const body='<div class="epslbl">Flag a specific device or a whole vendor so the sentinel alerts whenever it appears.</div>'+
@@ -3188,11 +3233,11 @@ function epSentAddOpen(){
   });
 }
 
-// Flagged-results popup: the head's timestamped detection history (GPS greyed for now).
+
 function fmtStamp(ts,up){
   if(ts&&ts>1700000000){const d=new Date(ts*1000);
     return d.toLocaleDateString()+" "+d.toLocaleTimeString();}
-  const s=up|0,h=(s/3600)|0,m=((s%3600)/60)|0;   // clock not set: relative uptime
+  const s=up|0,h=(s/3600)|0,m=((s%3600)/60)|0;   
   return "at uptime "+(h?h+"h ":"")+m+"m";
 }
 function epSentHitsOpen(){
@@ -3215,11 +3260,11 @@ function epSentHitsOpen(){
   });
 }
 
-// ---- Environments (Phase-95 place memory) — a clusters-style tile view (105k) ----
-// Surfaces the brain's remembered places from /api/cluster/places: each tile is a place
-// (current / known / new), tap opens a detail popup where the user reads the place's
-// stats and renames it (full access to the brain's environment logic). Self-hides on a
-// plain capture / non-cluster viewer like the other cluster cards.
+
+
+
+
+
 function blkEnviron(){
   return '<div class="envwrap" id="envwrap">'+
     '<div class="ephead"><svg class="ic epico"><use href="#ic-home"/></svg>'+
@@ -3287,10 +3332,10 @@ function envOpen(idx){
       envPost({idx:idx,op:"forget",unit:"0"}).then(()=>{envFetch();epSheetClose();});};
   });
 }
-// POST a landmark/environment edit op {idx,op:pin|unpin|delete|forget,unit}.
+
 function envPost(o){return fetch("/api/cluster/place/landmark",
   {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)}).catch(()=>{});}
-// Load a place's real landmark records into the open sheet, with pin/remove per landmark.
+
 function envLoadLandmarks(sh,idx){
   fetch("/api/cluster/place/detail?idx="+idx,{cache:"no-store"}).then(r=>r.json()).then(d=>{
     const q=d.quality|0,qel=sh.querySelector("#env-q");
@@ -3307,7 +3352,7 @@ function envLoadLandmarks(sh,idx){
     el.querySelectorAll("button[data-op]").forEach(b=>b.onclick=()=>
       envPost({idx:idx,op:b.dataset.op,unit:b.dataset.u}).then(()=>{envLoadLandmarks(sh,idx);envFetch();}));
   }).catch(()=>{});}
-// Guided "Learn Environment": N scans spaced by a reposition delay, or stationary (lower confidence).
+
 function envLearnSheet(){
   const body='<div class="envdet">'+
     '<div class="epsub">The ePup takes several scans to map the fixed Wi-Fi here and build landmarks for this place.</div>'+
@@ -3337,14 +3382,14 @@ function envRunLearn(n,gap,sh){let done=0;const msg=sh&&sh.querySelector("#lz-ms
       setTimeout(step,done<n?Math.max(1,gap)*1000+2600:500);}).catch(()=>{if(msg)msg.textContent="Scan failed.";});})();
 }
 
-// One-shot browser→head clock sync so flagged detections get real date/time stamps.
+
 let epTimeSynced=false;
 function epTimeSync(){
   fetch("/api/cluster/time",{method:"POST",body:String(Math.floor(Date.now()/1000))})
     .then(()=>{epTimeSynced=true;}).catch(()=>{});
 }
 
-// Block registry. `def` = on in the default (pre-charts) summary layout.
+
 const SUMMARY_BLOCKS=[
   {id:"dogpark",   label:"Dog Park (cluster control)",def:false,render:blkDogpark},
   {id:"epup",      label:"ePup (learning brain)",  def:false, render:blkEpup},
@@ -3372,34 +3417,34 @@ const SUMMARY_BLOCKS=[
   {id:"watch",     label:"Watchlist (your flags)", def:false, isList:true,render:blkWatch},
 ];
 const BLK={};SUMMARY_BLOCKS.forEach(b=>BLK[b.id]=b);
-// Cluster-only summary blocks: live controls that only work against a SniffCheck cluster
-// backend (/api/cluster/*) — Dog Park, ePup, Guard Dog / Watch List + tracker safety-sound,
-// Environments, cluster health/stats/activity. A standalone node and an offline capture have
-// no such backend, so these are suppressed entirely (not listed, not rendered) rather than
-// shown as dead cards. Only a confirmed live cluster reveals them.
+
+
+
+
+
 const CLUSTER_BLOCKS=new Set(["dogpark","epup","sentinel","environ","health","sentstat","activity"]);
 function clusterOn(){return DP.cluster===true;}
-// Probe once whether a live cluster backs this report, independent of which cards happen to
-// be placed, so the cluster blocks stay hidden on a standalone node until one is confirmed.
+
+
 let clusterProbed=false;
 function clusterProbe(){
   if(clusterProbed||!deviceOnline())return;clusterProbed=true;
   fetch("/api/cluster/status",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.json();})
     .then(j=>{DP.cluster=true;DP.status=j;dpStart();renderBanner();})
-    .catch(()=>{DP.cluster=false;});   // standalone / offline — leave cluster blocks hidden
+    .catch(()=>{DP.cluster=false;});   
 }
 const SM_KEY="sc-summary-layout";
-// Default tab arrangement (v2). Any def:true block not placed here is folded into the
-// first tab on load, so a newly added default block still shows up somewhere.
+
+
 function defaultTabs(){return [
   {name:"Overview",         blocks:["verdict","tiles","crowd","env"]},
   {name:"Signals",          blocks:["channels","crossscan","pcap"]},
   {name:"Privacy & groups", blocks:["privsum","clustersum"]},
   {name:"Guard Dog",        blocks:["sentinel","watch"]},
 ];}
-// Persisted {v:2,active,tabs:[{name,blocks:[id,...]}]}, reconciled with the registry so
-// new/removed blocks never wipe the user's arrangement. Migrates the old flat
-// [{id,on}] layout into a single "Summary" tab.
+
+
+
 function summaryCfg(){
   let saved=null;
   try{saved=JSON.parse(localStorage.getItem(SM_KEY));}catch(e){}
@@ -3407,16 +3452,16 @@ function summaryCfg(){
   if(saved&&saved.v===2&&Array.isArray(saved.tabs)){
     tabs=saved.tabs.map(t=>({name:String(t&&t.name||"Tab").slice(0,24),
       blocks:Array.isArray(t&&t.blocks)?t.blocks.slice():[]}));
-  }else if(Array.isArray(saved)){                       // v1 -> v2 migration
+  }else if(Array.isArray(saved)){                       
     tabs=[{name:"Summary",blocks:saved.filter(s=>s&&BLK[s.id]&&s.on).map(s=>s.id)}];
-    hide=new Set(saved.filter(s=>s&&BLK[s.id]&&!s.on).map(s=>s.id)); // keep prior "off"
+    hide=new Set(saved.filter(s=>s&&BLK[s.id]&&!s.on).map(s=>s.id)); 
   }else{
     tabs=defaultTabs();
   }
-  const seen=new Set();                                  // drop unknown ids, dedupe
+  const seen=new Set();                                  
   for(const t of tabs)t.blocks=t.blocks.filter(id=>BLK[id]&&!seen.has(id)&&seen.add(id));
   if(!tabs.length)tabs=[{name:"Summary",blocks:[]}];
-  for(const b of SUMMARY_BLOCKS)                          // place any orphaned default block
+  for(const b of SUMMARY_BLOCKS)                          
     if(b.def&&!seen.has(b.id)&&!(hide&&hide.has(b.id))){tabs[0].blocks.push(b.id);seen.add(b.id);}
   let active=saved&&typeof saved.active==="number"?saved.active:0;
   if(active<0||active>=tabs.length)active=0;
@@ -3427,20 +3472,20 @@ function saveSummaryCfg(cfg){
       {v:2,active:cfg.active|0,tabs:cfg.tabs.map(t=>({name:t.name,blocks:t.blocks.slice()}))}));
     else localStorage.removeItem(SM_KEY);}catch(e){}
 }
-// Registry blocks not currently in any tab (i.e. hidden / available to add).
+
 function offBlocks(cfg){
   const used=new Set();cfg.tabs.forEach(t=>t.blocks.forEach(id=>used.add(id)));
   return SUMMARY_BLOCKS.filter(b=>!used.has(b.id)&&
     (clusterOn()||!CLUSTER_BLOCKS.has(b.id))).map(b=>b.id);
 }
-// Render one tab's blocks (consecutive charts grouped into a responsive grid).
+
 function renderTabBlocks(tab){
   let h="",run=[];
   const flush=()=>{if(run.length){const inner=run.join("");
     if(inner)h+='<div class="charts">'+inner+"</div>";run=[];}};
   for(const id of (tab?tab.blocks:[])){
     const def=BLK[id];if(!def)continue;
-    if(CLUSTER_BLOCKS.has(id)&&!clusterOn())continue;   // no cluster backend → don't render
+    if(CLUSTER_BLOCKS.has(id)&&!clusterOn())continue;   
     const html=def.render()||"";if(!html)continue;
     if(def.isChart)run.push(html);else{flush();h+=html;}
   }
@@ -3468,7 +3513,7 @@ function renderBanner(){
     const c=summaryCfg();c.active=+b.dataset.tab;saveSummaryCfg(c);renderBanner();});
   wireSummaryActs();
 }
-// Route a summary drill-in to the right filtered result list / tab.
+
 function goResults(){
   const t=FW.length?"s-wifi":FB.length?"s-ble":FT.length?"s-trackers":
     FD.length?"s-drones":"s-wifi";
@@ -3498,9 +3543,9 @@ function wireSummaryActs(){
   });
   $("banner").querySelectorAll("[data-wl=manage]").forEach(el=>
     el.onclick=openWatchlist);
-  // Dog Park / ePup cards: start the shared live poller once (either card needs
-  // it), then repaint from cached state (renderBanner rebuilds the containers each
-  // pass, so re-attach handlers here).
+  
+  
+  
   if($("dpwrap")||$("epwrap")||$("hcard")||$("ss-card")||$("act-card")){dpStart();}
   if($("dpwrap")){dpVis();dpPaintCtrl();dpPaintLog();}
   if($("epwrap")){epPaint();}
@@ -3509,7 +3554,7 @@ function wireSummaryActs(){
   if($("act-card")){actFetch();activityPaint();}
 }
 
-// ---- watchlist manager sheet ----
+
 let wlWired=false,wlov=null,wlsheet=null,wlType="mac";
 function openWatchlist(){
   wlov=$("wlov");wlsheet=$("wlsheet");
@@ -3518,7 +3563,7 @@ function openWatchlist(){
     addEventListener("keydown",e=>{if(e.key==="Escape"&&wlov&&!wlov.hidden)wlov.hidden=true;});}
   renderWatchlist();wlov.hidden=false;
 }
-// Re-render everything that shows a watchlist flag after the list changes.
+
 function watchRefresh(){renderWatchlist();renderBanner();renderWifi();renderBle();}
 function renderWatchlist(){
   const wl=watchGet();
@@ -3558,7 +3603,7 @@ function renderWatchlist(){
   wlsheet.querySelector("[data-wl=done]").onclick=()=>{wlov.hidden=true;};
 }
 
-// ---- gear / customization sheet ----
+
 let smWired=false,smov=null,smsheet=null;
 function openSummaryCfg(){
   smov=$("smov");smsheet=$("smsheet");
@@ -3573,7 +3618,7 @@ function renderSummaryCfg(){
   let h='<h3>Customize summary</h3><div class="smsub">Group blocks into tabs to cut '+
     'scrolling. Rename a tab, use ↑↓ (or drag the grip) to reorder within a tab, and '+
     '"Move to" to send a block to another tab or hide it. Saved on this device.</div>';
-  // ---- tab manager ----
+  
   h+='<div class="smtabmgr">';
   cfg.tabs.forEach((t,i)=>{
     h+='<div class="smtabrow" draggable="true" data-ti="'+i+'">'+
@@ -3585,7 +3630,7 @@ function renderSummaryCfg(){
       "</div>";
   });
   h+='</div><button class="smaddtab" data-addtab="1">+ Add tab</button>';
-  // ---- per-tab block groups ----
+  
   const tag=def=>def.isChart?'<span class="smtag">chart</span>':
     def.isList?'<span class="smtag">list</span>':"";
   const tabOpts=cur=>cfg.tabs.map((t,i)=>'<option value="'+i+'"'+(i===cur?" selected":"")+
@@ -3594,7 +3639,7 @@ function renderSummaryCfg(){
     h+='<div class="smgrp">'+esc(t.name)+"</div>";
     if(!t.blocks.length)h+='<div class="chempty" style="margin:0 0 8px">(empty)</div>';
     t.blocks.forEach((id,bi)=>{const def=BLK[id];if(!def)return;
-      if(CLUSTER_BLOCKS.has(id)&&!clusterOn())return;   // don't surface cluster blocks off-cluster
+      if(CLUSTER_BLOCKS.has(id)&&!clusterOn())return;   
       h+='<div class="smblk on" draggable="true" data-bid="'+id+'" data-ti="'+i+'" data-bi="'+bi+'">'+
         '<span class="smgrip" title="Drag to reorder">⠿</span>'+
         '<span class="smname">'+esc(def.label)+'</span>'+tag(def)+
@@ -3617,7 +3662,7 @@ function renderSummaryCfg(){
   h+='<div class="smact"><button data-sm="reset">Reset to default</button>'+
     '<button class="prim" data-sm="done">Done</button></div>';
   smsheet.innerHTML=h;
-  // ---- wiring ----
+  
   smsheet.querySelectorAll("[data-tname]").forEach(inp=>inp.onchange=()=>{
     const c=summaryCfg(),i=+inp.dataset.tname;
     if(c.tabs[i]){c.tabs[i].name=(inp.value.trim()||"Tab").slice(0,24);apply(c);}});
@@ -3629,7 +3674,7 @@ function renderSummaryCfg(){
   smsheet.querySelectorAll("[data-tdel]").forEach(b=>b.onclick=()=>{
     const c=summaryCfg(),i=+b.dataset.tdel;if(c.tabs.length<=1)return;
     const moved=c.tabs[i].blocks;c.tabs.splice(i,1);
-    (c.tabs[i>0?i-1:0].blocks).push(...moved);          // fold blocks into a neighbour
+    (c.tabs[i>0?i-1:0].blocks).push(...moved);          
     if(c.active>=c.tabs.length)c.active=c.tabs.length-1;apply(c);});
   smsheet.querySelector("[data-addtab]").onclick=()=>{
     const c=summaryCfg();c.tabs.push({name:"Tab "+(c.tabs.length+1),blocks:[]});apply(c);};
@@ -3644,7 +3689,7 @@ function renderSummaryCfg(){
     if(to!=="off"&&c.tabs[+to])c.tabs[+to].blocks.push(id);apply(c);});
   smsheet.querySelectorAll("[data-sm]").forEach(b=>b.onclick=()=>{
     if(b.dataset.sm==="reset")apply(null);else smov.hidden=true;});
-  // drag: reorder blocks within the same tab, and reorder tabs
+  
   let dragBid=null,dragBti=null;
   smsheet.querySelectorAll(".smblk[data-ti]").forEach(el=>{
     el.ondragstart=e=>{dragBid=el.dataset.bid;dragBti=el.dataset.ti;
@@ -3771,12 +3816,12 @@ function renderClusters(){
     const m=layer==="wifi"?M.wifi.get(mac):M.ble.get(mac);
     return m?(m.rec.vendor||m.rec.company_name||null):null;
   }
-  // A NIC cluster grouped purely on hardware-address proximity + RF co-location
-  // cannot, from RF alone, tell one multi-SSID radio apart from two identical
-  // twin units bought together (consecutive MACs, side by side). Flag that only
-  // when nothing stronger corroborates the merge: no related SSID base, no
-  // product/name/wired-identity match. Related SSIDs or a stronger identifier
-  // mean it is plainly one box, so no caveat there.
+  
+  
+  
+  
+  
+  
   const NIC_EV={conserved_nic_bytes:1,same_physical_router:1,
     nearby_mac_suffix:1,mac_adjacent:1};
   const STRONG_EV={same_product_model:1,wps_vendor_model:1,name_match:1,
@@ -3910,15 +3955,15 @@ function renderClusters(){
     if(top)return top;
     for(const mb of c.members||[])
       if(mb.layer!=="wifi"){const nm=realName(nameOf("ble",mb.mac));if(nm)return nm;}
-    // No real member name anywhere — surface the MAC rather than "<hidden>".
+    
     return repMac(c);
   }
 
-  // Fixed-size cluster result card that mirrors the Wi-Fi/BLE .dcard look:
-  // a type/signal icon + name + scan-type badge on top, the MAC and small
-  // cluster-nature icons below. Tapping opens the detail popup (wired below);
-  // the .cdet sibling is a hidden data holder cloned into that popup. `meta(c)`
-  // returns {icon,name,kind,kcls,mac,ico} so every grid renders one way.
+  
+  
+  
+  
+  
   function tgrid(arr,label,gid,meta,panel){
     if(!arr.length)return "";
     let h="";
@@ -3955,10 +4000,10 @@ function renderClusters(){
     return h+"</div>";
   }
 
-  // Best human identifier for an address, tiered most- to least-identifying so a
-  // real device name (3) outranks a UUID/service/category label (2), which
-  // outranks a bare vendor (1), which outranks the raw MAC (0). Lets privacy
-  // clusters read as devices instead of anonymous MACs.
+  
+  
+  
+  
   const bestIdent=mac=>{
     if(!mac)return{t:0,s:"?"};
     const w=M.wifi.get(mac);
@@ -3978,9 +4023,9 @@ function renderClusters(){
   };
   const pvName=e=>{
     const b=bestIdent(e.mac);
-    if(b.t>0)return{s:b.s,mono:false,title:e.mac};        // resolved to a known device
-    if(e.ident&&e.ident.s)return{s:e.ident.s,mono:false,title:e.mac}; // analyzer-derived
-    return{s:e.mac,mono:true,title:e.mac};                // no identifier — show MAC
+    if(b.t>0)return{s:b.s,mono:false,title:e.mac};        
+    if(e.ident&&e.ident.s)return{s:e.ident.s,mono:false,title:e.mac}; 
+    return{s:e.mac,mono:true,title:e.mac};                
   };
 
   function buildAggregates(){
@@ -4096,7 +4141,7 @@ function renderClusters(){
     }
     return h+"</div></div>";
   }
-  // Scan-type badge + color class from a representative record's layer.
+  
   const kindOf=k=>k==="wifi"?{kind:"WIFI",kcls:"k-wifi"}:{kind:"BLE",kcls:"k-ble"};
   const nicMeta=c=>{const p=repRec(c),k=p?kindOf(p.kind):{kind:"",kcls:""};
     return{icon:clusterIcon(c),name:repName(c),mac:repMac(c),
@@ -4136,11 +4181,11 @@ function renderClusters(){
     const mb=c.members[0],r=mb.rec;
     return (mb.kind==="wifi"?realName(r.ssid):(r.name||r.vendor))||mb.mac;
   };
-  // Cross-scan clusters: every chain of 2+ addresses linked by a persistent
-  // identifier. Two shapes share one tab — rotation chains (one device whose
-  // MAC changed between passes) draw as an address-change timeline; concurrent
-  // chains (addresses heard in the same pass) draw as a kept-apart product
-  // group. A type icon on each result tells the two apart.
+  
+  
+  
+  
+  
   const rcIcon=c=>{const mb=c.members[0];return catIcon(mb.rec,mb.kind==="wifi"?"wifi":"ble");};
   const xcType=c=>c.rotation?["ic-rotate","address rotation"]:["ic-chain","product group"];
   function xcPanel(c){
@@ -4221,10 +4266,10 @@ function renderClusters(){
   });
 }
 
-// Cluster detail popup. Clones the (hidden) .cdet panel for a given tile into a
-// modal sheet instead of expanding it inline, so opening one card never shifts
-// the others. A member's "view result" link jumps to its Wi-Fi/BLE card and
-// closes the popup; a cross-link to another cluster re-points the same popup.
+
+
+
+
 let clWired=false;
 function clModalClose(){const ov=$("clov");if(ov)ov.hidden=true;}
 function openClusterModal(g,i){
@@ -4245,11 +4290,11 @@ function openClusterModal(g,i){
   if(!clWired){
     clWired=true;
     ov.addEventListener("click",e=>{if(e.target===ov)clModalClose();});
-    // A "view result" link navigates to a device card, so drop the popup after.
-    // A cross-cluster "view" link re-opens the popup on the other cluster, so
-    // openClusterModal has already repainted the sheet — leave it open.
-    // Capture phase: the member links call event.stopPropagation() in their own
-    // handler, so a bubbling listener here would never see the click.
+    
+    
+    
+    
+    
     sheet.addEventListener("click",e=>{
       const a=e.target.closest(".plink,.clink,.mcard");
       if(a&&/gotoDevice/.test(a.getAttribute("onclick")||""))clModalClose();
@@ -4355,10 +4400,10 @@ function macLink(ref,kind){
   return ref?esc(ref):'<span class="dim">—</span>';
 }
 
-// ---- Evil Twin pair evidence on a notification ----------------------------
-// An Evil Twin conclusion is about a PAIR, so the notification has to reach both
-// members and show what the detector actually weighed. Everything here comes off
-// the record; nothing is inferred in the browser.
+
+
+
+
 const TWIN_TRIGGER_TEXT={
   open_security_downgrade:"an open network sharing a protected network's SSID",
   tier1_peer_score:"an unrelated-identity peer with a large signal gap",
@@ -4372,8 +4417,8 @@ const TWIN_REL_TEXT={
   unrelated_same_ssid_peer:"unrelated identities",
   unknown_same_ssid_peer:"relationship unknown"
 };
-// Label, and whether the bit argues FOR impersonation or against it. A finding is
-// only auditable if the suppressing evidence is as visible as the supporting kind.
+
+
 const TWIN_EV_TEXT={
   exact_ssid_match:["identical SSID","for"],
   security_mismatch:["security profiles differ","for"],
@@ -4395,8 +4440,8 @@ function twinEvidenceHtml(f){
   const ev=f.evidence||{};
   const fors=[],againsts=[];
   for(const k in TWIN_EV_TEXT){
-    if(!(k in ev))continue;               // absent key = not evaluated in that build
-    if(!ev[k])continue;                   // false = evaluated, not present
+    if(!(k in ev))continue;               
+    if(!ev[k])continue;                   
     (TWIN_EV_TEXT[k][1]==="for"?fors:againsts).push(TWIN_EV_TEXT[k][0]);
   }
   let h="";
@@ -4413,7 +4458,7 @@ function twinEvidenceHtml(f){
        "evidence — treat both as unconfirmed.</div>";
   return h;
 }
-// Find the pair record behind an alert, so the notification can show its evidence.
+
 function twinFindingFor(r){
   if(!r||!r.peer_ref||!r.target_ref)return null;
   const a=r.target_ref,b=r.peer_ref,want=(a<b?a+"|"+b:b+"|"+a);
@@ -4423,9 +4468,9 @@ function twinFindingFor(r){
   }
   return null;
 }
-// Notification display filter — tailor the noise without touching the capture.
-// The raw records ("alert" in the schema) stay in the data/export; these prefs
-// only change what's shown.
+
+
+
 const ALERT_KEY="sc-alert-prefs";
 let alertShowAll=false;
 function alertPrefs(){
@@ -4448,7 +4493,7 @@ function renderAlerts(){
   const passes=a=>!(muted.has(a.rec.rule_id)||(sevRank[a.rec.severity]||0)<minR);
   const shown=alertShowAll?rows:rows.filter(passes);
   const hidden=rows.length-rows.filter(passes).length;
-  // rules present, for the mute chips
+  
   const rules=[];const seen=new Set();
   for(const a of rows){const id=a.rec.rule_id||"?";
     if(!seen.has(id)){seen.add(id);rules.push(id);}}
@@ -4469,9 +4514,9 @@ function renderAlerts(){
       '<button data-al="applyfilter">Apply filter</button></div>';
   h+=shown.length?'<div class="dlist">'+shown.map(a=>{
     const r=a.rec;
-    // A pair notification links BOTH members — the peer is half the
-    // finding, and a conclusion you cannot navigate to is a conclusion you
-    // cannot check.
+    
+    
+    
     const meta=span("mono",esc(r.rule_id||"?"))+
       (r.target_ref?subjLink(r):"")+
       (r.peer_ref?span("dim","↔")+macLink(r.peer_ref,"wifi"):"")+
@@ -4496,13 +4541,13 @@ function renderAlerts(){
     alertPrefsSet(p);renderAlerts();});
   el.querySelectorAll("[data-al]").forEach(b=>b.onclick=()=>{
     alertShowAll=b.dataset.al==="showall";renderAlerts();});
-  // data-go links are handled by the delegated document listener (113f), so
-  // links inside lazily-rendered card details work too.
+  
+  
 }
 
-// ---- privacy triage + per-device actions (viewer-side; never alters the data) ----
-// Acknowledge = "I've reviewed this device"; stored in this browser so a repeat scan
-// can surface only NEW privacy findings. Watch reuses the existing watchlist.
+
+
+
 const PACK_KEY="sc-priv-ack";
 function ackGet(){try{const a=JSON.parse(localStorage.getItem(PACK_KEY));
   return Array.isArray(a)?a:[];}catch(e){return [];}}
@@ -4519,7 +4564,7 @@ function toast(msg){
 }
 function macWatched(mac){const m=normMac(mac);
   return watchGet().some(w=>w.t==="mac"&&normMac(w.v)===m);}
-// Watch / Locate / Reviewed buttons for one leaking device.
+
 function privActions(mac,rssi){
   if(!mac)return "";
   const watched=macWatched(mac),acked=ackHas(mac);
@@ -4532,9 +4577,9 @@ function privActions(mac,rssi){
       '" title="Mark reviewed — hidden under ‘new only’">'+
       (acked?"✓ reviewed":"mark reviewed")+"</button>";
 }
-// ---- Guided RSSI locate (cluster only): warmer/colder hunt driven by the arms ----
-// The arms measure the target's signal strength; the browser turns the user's moves +
-// signal change into direction. No compass/AoA — honest about being a gradient hunt.
+
+
+
 let LOC=null;
 function locBarPct(r){return r==null?0:Math.max(0,Math.min(100,Math.round((r+90)/60*100)));}
 function locTrend(){const h=LOC.hist;if(h.length<3)return 0;
@@ -4723,7 +4768,7 @@ function stationRow(s){
   return prow("var(--wifi)",pmac(s.mac),
     [pkv("vendor",s.vendor||"—"),pkv("frames",s.frames),
      pkv("up/dn",(s.up||0)+"/"+(s.dn||0)),pkv("ch",s.channel),
-     pkv("rssi",s.rssi_best),pkv("BSSID",s.bssid),privLinks(s.mac)],
+     "<span>"+rssiHtml(s.rssi_best)+"</span>",pkv("BSSID",s.bssid),privLinks(s.mac)],
     (s.camera?pflag("p1","camera"):"")+(s.randomized?pflag("p2","randomized"):""),
     s.mac,typeof s.rssi_best==="number"?s.rssi_best:undefined);
 }
@@ -4734,7 +4779,7 @@ const PRIV_EXP={
     "signal; a randomized MAC can't be vendor-identified.",
   csi:"A short receive-only CSI capture window. GO means the radio delivered CSI "+
     "callbacks; NO-GO means none arrived in the window."};
-// "What you can do" guidance strip shown at the top of an analyzer panel.
+
 function pguide(txt){return txt?'<div class="pguide"><b>What you can do</b>'+esc(txt)+
   "</div>":"";}
 function privPanel(p){
@@ -4889,13 +4934,13 @@ function askCap(){
   if(s===null)return null;
   return{channel:+c,seconds:+s};
 }
-// Extra seconds after the scan for the SniffCheck AP to redeploy before the
-// user can reconnect.
+
+
 const RC_AP_DEPLOY=10;
 let rcTick=null;
-// The browser can't rejoin Wi-Fi for the user, so a blind reload just hangs if
-// they haven't reconnected to the (same-password) SniffCheck AP yet. Verify the
-// device answers first; only then reload to the fresh results.
+
+
+
 function rcReconnect(){
   const b=$("rcbtn");
   b.disabled=true;b.textContent="Checking…";
@@ -4906,9 +4951,9 @@ function rcReconnect(){
     .catch(()=>{clearTimeout(t);b.disabled=false;b.className="ready";
       b.textContent="Not back yet — rejoin the Wi-Fi, then tap";});
 }
-// Local countdown shown while the device is off-network running a scan. total =
-// scan eta + AP redeploy. The reconnect button stays disabled until it hits 0,
-// then turns green so the user can rejoin the (same-password) AP and refresh.
+
+
+
 function startReconnectTimer(scanEta,label){
   const total=Math.max(1,(scanEta|0))+RC_AP_DEPLOY;
   $("rctitle").textContent=label||"Scan running";
@@ -5040,8 +5085,14 @@ function renderRaw(){
 }
 
 const ALL_SECS=["s-banner","s-wifi","s-ble","s-clusters","s-trackers",
-  "s-alerts","s-privacy","s-channel","s-raw","s-drones"];
+  "s-alerts","s-privacy","s-channel","s-compare","s-raw","s-drones"];
 let curTab="s-banner";
+// Declared here, not beside the rest of the 124e compare code below: renderNav
+// reads it, and renderNav runs during the data-island load — which is earlier in
+// this script than the compare block, so a `let` down there is still in its
+// temporal dead zone and throws.
+let CMP=null;               // {A,B,appeared,gone,changed,rotating,changes}
+let CMPBUCKET="appeared";
 function availPrivacy(){return PRIV.filter(p=>M.logs[p.k]).length;}
 
 function showTab(){
@@ -5049,6 +5100,7 @@ function showTab(){
   $("nav").querySelectorAll(".tab").forEach(b=>
     b.classList.toggle("act",b.dataset.s===curTab));
   if(curTab==="s-channel")refreshChannel();
+  if(curTab==="s-compare")renderCompare();
   window.scrollTo(0,0);
 }
 function renderNav(){
@@ -5062,6 +5114,8 @@ function renderNav(){
     ["s-alerts","Notices",FA.length,1],
     ["s-privacy","Privacy",availPrivacy(),1],
     ["s-channel","Channels",0,1],
+    // Only offered once two captures are actually loaded to compare (124e).
+    ["s-compare","Compare",CMP?CMP.changes:0,CMP?1:0],
     ["s-raw","Raw",M.total,1],
     ["s-drones","Drones",FD.length],
   ];
@@ -5078,7 +5132,7 @@ function renderNav(){
   showTab();
 }
 
-// Delegated so a data-go link works wherever it is rendered,
+// Phase 113f — delegated so a data-go link works wherever it is rendered,
 // including inside a card detail that did not exist when the section was wired.
 document.addEventListener("click",e=>{
   const a=e.target.closest&&e.target.closest("a[data-go]");
@@ -5331,7 +5385,7 @@ function download(name,text,mime){
   setTimeout(()=>URL.revokeObjectURL(u),1500);
 }
 
-// ---------- multi-format export ----------
+// ---------- Phase 86: multi-format export ----------
 // Everything here works on the records already loaded in this browser tab; the
 // friendlier formats (CSV/WiGLE) are honest lossy summaries of the same rows the
 // report shows, and never invent location the capture did not carry.
@@ -5449,9 +5503,9 @@ function wdgKeyMask(k){return k&&k.length>4?"key ending …"+k.slice(-4):"linked
 
 // ---- export menu UI ----
 // #expov / #expsheet live after this script in the DOM, so they don't exist at
-// load; bind them on first Export click (all render fns run only after that).
+
 let expov=null,expsheet=null;
-let expLoc=null; // {lat,lon} user-confirmed device location for this upload
+let expLoc=null; 
 function expClose(){if(expov)expov.hidden=true;expLoc=null;}
 let expWired=false;
 function expWire(){
@@ -5479,7 +5533,7 @@ function renderExportMenu(){
   h+=expOptHTML("csv","ic-download","CSV","Spreadsheet-friendly device summary. Lossy.","csv");
   h+=expOptHTML("wigle","ic-download","WiGLE","WigleWifi-1.6 CSV for wardrive tools. Location only if you add it.","csv");
   h+=expOptHTML("html","ic-download","HTML","Save this report to view offline, raw details included.","html");
-  // WDGWars: single-scan only, and needs internet the device AP can't provide.
+  
   const wdgDis=walk||served;
   const wdgDesc=walk?"Single-scan only — walk geotag/upload waits on GPS hardware.":
     served?"Open a saved report off the device (with internet) to upload.":
@@ -5504,11 +5558,11 @@ function expRoute(act){
   if(act==="report"){renderReportForm();return;}
 }
 
-// ===================== Generate Report (tailored HTML / PDF / JSON) =====================
-// A clean, navigable document built from the parsed capture — distinct from the "HTML"
-// option (which clones the whole interactive app). Presets pick sensible section sets;
-// the user can then tweak sections, descriptions, and format. Everything is built
-// client-side and stays local; PDF is the browser's print-to-PDF on a self-contained doc.
+
+
+
+
+
 const REP_SECTIONS=[
   {id:"overview",label:"Overview & verdict",has:()=>true},
   {id:"wifi",    label:"Wi-Fi networks",     has:()=>FW.length>0},
@@ -5539,7 +5593,7 @@ function repSelected(){
   return (repOpts.secs||[]).filter(id=>avail.has(id))
     .sort((a,b)=>order.indexOf(a)-order.indexOf(b));
 }
-// ---- small static-HTML table helpers (all cells pre-escaped by the caller) ----
+
 function repTable(cols,rows){
   if(!rows.length)return '<p class="desc">None.</p>';
   return '<div class="tw"><table><thead><tr>'+cols.map(c=>"<th>"+esc(c[0])+"</th>").join("")+
@@ -5549,7 +5603,7 @@ function repTable(cols,rows){
 function repKV(rows){return '<div class="tw"><table class="kv"><tbody>'+
   rows.map(r=>"<tr><th>"+esc(r[0])+"</th><td>"+esc(String(r[1]))+"</td></tr>").join("")+
   "</tbody></table></div>";}
-// ---- per-section builders: each returns {id,title,html} ----
+
 function repOverview(desc){
   let worst=0;for(const r of [...FW,...FB,...FT,...FD])worst=Math.max(worst,r.threat_level||0);
   const rows=[["Wi-Fi networks",FW.length],["BLE devices",FB.length],["Trackers",FT.length],
@@ -5739,7 +5793,7 @@ function buildReport(){
     download(expBase()+"-report.json",JSON.stringify(reportJSON(),null,2),"application/json");
     expClose();return;}
   const doc=reportDoc();
-  if(repOpts.fmt==="pdf"){reportPrint(doc);return;}   // keep sheet open in case of popup block
+  if(repOpts.fmt==="pdf"){reportPrint(doc);return;}   
   download(expBase()+"-report.html",doc,"text/html");expClose();
 }
 function renderReportForm(){
@@ -5748,7 +5802,7 @@ function renderReportForm(){
   let h='<button class="exback" data-act=back>‹ Export</button><h3>Generate report</h3>'+
     '<div class=exsub>A clean, navigable report — pick a preset, choose sections, export.</div>';
   h+='<label>Preset</label><div class="repsegs">'+Object.keys(REP_PRESETS).filter(k=>
-    k!=="sentinel"||clusterOn())    // "Sentinel report" is cluster-branded — hide off-cluster
+    k!=="sentinel"||clusterOn())    
     .map(k=>
     '<button type="button" class="repseg'+(repOpts.preset===k?" on":"")+'" data-preset="'+k+
     '">'+esc(REP_PRESETS[k].label.replace(" report",""))+"</button>").join("")+"</div>";
@@ -5780,8 +5834,8 @@ function renderReportForm(){
     buildReport();};
 }
 
-// Shared device-location capture (browser geolocation or manual entry), used by
-// the WiGLE and WDGWars flows. Never auto-collected — only when the user asks.
+
+
 function locFieldsHTML(){
   return '<label>Device location (optional)</label>'+
     '<div class=exrow><input id=exlat type=text inputmode=decimal placeholder=latitude '+
@@ -5893,7 +5947,7 @@ $("exp").onclick=()=>{
 let RAW_RECS=[];
 
 let SESSIONS=[];
-let DEVICE_SESSION=-1;   // index of the session mirroring the device's live ring
+let DEVICE_SESSION=-1;   
 function combinedRecs(){
   const recs=[];let bad=0;
   SESSIONS.forEach((s,si)=>{
@@ -5916,12 +5970,12 @@ function renderAll(){
   $("app").style.display="block";
   $("bar").style.display="block";
   $("addcap").style.display="";
-  // Refresh only makes sense when served live from a device (not a file:// report).
+  
   $("refbtn").style.display=deviceOnline()?"":"none";
   populateFilters();
   readFilters();
   applyFilter();
-  clusterProbe();   // reveal cluster-only blocks only when a live cluster backend answers
+  clusterProbe();   
 }
 
 function loadText(text,label){
@@ -5935,8 +5989,8 @@ function loadText(text,label){
   renderAll();
 }
 
-// SniffCheck-native record types. A native capture always carries at least one
-// of these; a foreign wardrive dump never does. Used to route Import.
+
+
 const NATIVE_TYPES={header:1,footer:1,codebook:1,wifi_ap:1,ble_device:1,tracker:1,
   drone_rid:1,device_cluster:1,alert:1,station_log:1,probe_req_log:1,
   seq_fingerprint_log:1,ie_signature_log:1,anqp_log:1,channel_activity:1,
@@ -5949,8 +6003,8 @@ function looksNative(recs){
 }
 function deviceOnline(){return location.protocol==="http:"||location.protocol==="https:";}
 
-// ---- foreign wardrive carve (ported from the on-device BYOS "Carve") ----
-// Produces the same tab-separated W/B/M lines /api/byos/sniffcheck consumes.
+
+
 function bynorm(m){var h=String(m==null?"":m).replace(/[^0-9A-Fa-f]/g,"").toUpperCase();
   return h.length==12?h.match(/../g).join(":"):"";}
 function bysan(v,n){return String(v==null?"":v).replace(/[\t\r\n]+/g," ").trim().slice(0,n);}
@@ -5999,8 +6053,8 @@ function byone(s,dsrc,seen,out,cnt){var objs=[],recs=[];
   var re=/(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}|[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}|\b[0-9A-Fa-f]{12}\b/g,m;
   while((m=re.exec(s))){var x=bynorm(m[0]);if(!x)continue;var k=x+"|"+dsrc;if(!seen[k]){seen[k]=1;out.push(["M",x,dsrc,"","",""].join("\t"));cnt[2]++;}}}
 
-// Native SniffCheck captures aggregate locally; foreign scans are carved and
-// re-decoded by a connected SniffCheck, then folded into the cross-scan view.
+
+
 function importFiles(files){
   const arr=[...files];
   let pending=arr.length;
@@ -6041,8 +6095,8 @@ function importFiles(files){
   });
 }
 
-// POST carved lines to the device, which re-decodes against eui.db (and replaces
-// its volatile ring). Pull the decoded records back as one cross-scan session.
+
+
 function importCarved(lines,names,cnt){
   const label=names.join(", ");
   fetch("/api/byos/sniffcheck",{method:"POST",
@@ -6051,9 +6105,9 @@ function importCarved(lines,names,cnt){
     .then(j=>fetch("/api/captures/live.jsonl").then(r=>r.text()).then(txt=>{
       const pr=parseCapture(txt);
       if(!pr.recs.length)throw new Error("import produced no records");
-      // Additive: the device ring now holds the prior capture + this import as a
-      // new scan pass, so mirror the whole ring into the one device session
-      // (replace, don't duplicate the pre-existing records).
+      
+      
+      
       const sess={label:"SniffCheck device · +"+label+" ("+
         (j.wifi||0)+" Wi-Fi, "+(j.ble||0)+" BLE, "+(j.mac_only||0)+" MAC-only imported)",
         recs:pr.recs,bad:pr.bad};
@@ -6072,19 +6126,19 @@ fpick.onchange=()=>{
 };
 $("addcap").onclick=()=>fpick.click();
 
-// Refresh: re-pull the device's current results (served from the head's uncapped SD
-// store) and fold them back into the device session, so a scan or walk shows up
-// without reloading the page. Mirrors importCarved's session-replace so we never
-// duplicate the pre-existing device records.
+
+
+
+
 function refreshDevice(){
   const b=$("refbtn");if(!b||b.disabled)return;
-  // When the cluster accumulator owns the device session, a full-ring replace would
-  // clobber the results it has offloaded from PSRAM. Force an incremental pull instead.
+  
+  
   if(ACC_ON){
     const label=b.textContent;b.disabled=true;b.textContent="Refreshing…";
-    // Turn the cluster blocks OFF for the duration of the pull, then back ON. Those blocks each
-    // hold one of the ESP32's few HTTP sockets, starving accPull's request; suspending them
-    // (and disabling their controls) lets the refresh get through, then we resume.
+    
+    
+    
     const wasPolling=DP.started;
     dpBusy(true);
     accPull().finally(()=>{
@@ -6111,17 +6165,17 @@ function refreshDevice(){
 }
 $("refbtn").onclick=refreshDevice;
 
-// ==== Cluster result accumulator (IndexedDB offload) ==========================
-// Problem: the brain serves report.html from a PSRAM ring that drop_oldest()s under
-// load, so a long walk with thousands of sightings silently loses the earliest ones.
-// Fix: the browser becomes the durable accumulator for THIS scan session. We pull
-// only NEW records from the ring (GET /api/captures/live.jsonl?since=<cursor>, which
-// the firmware skips server-side) and persist them to IndexedDB, deduped by device
-// identity. The ring can evict freely; the browser keeps everything it has seen, so
-// the results view keeps climbing past what PSRAM holds. Cluster-only: kicked off
-// from dpPoll once /api/cluster/status confirms a cluster, so the standalone
-// one-shot report is untouched. Per-scan-session: the store is keyed by the firmware
-// session id (X-SC-Session) and cleared when that changes.
+
+
+
+
+
+
+
+
+
+
+
 const RS_DB="sc-results",RS_RECS="recs",RS_META="meta";
 let ACC_ON=false,ACC_CURSOR=0,ACC_SESSION=null,ACC_GAP=false,rsDB=null,accBusy=false;
 
@@ -6152,10 +6206,10 @@ function rsPutAll(pairs){return rsTx(RS_RECS,"readwrite",st=>{for(const[k,v]of p
 function rsAll(){return rsTx(RS_RECS,"readonly",st=>st.getAll())
   .then(r=>new Promise(res=>{r.onsuccess=()=>res(r.result||[]);r.onerror=()=>res([]);}));}
 
-// Stable dedupe identity. Slice 1: the brain now dedupes into a session device table and
-// serves ONE durable row per device (carrying first_scan/last_scan/seen), so we key device
-// records by type|MAC and UPSERT — the browser mirrors the brain instead of stacking a row
-// per scan window. Non-device seed singletons key by type|content-hash.
+
+
+
+
 function accMac(r){const pk=PRES_KINDS[r&&r.type];return pk?pk[1](r):null;}
 function accHash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return(h>>>0).toString(36);}
 function accKey(r){
@@ -6165,7 +6219,7 @@ function accKey(r){
 }
 function accIngest(recs){const pairs=[];for(const r of recs)if(r&&typeof r==="object")pairs.push([accKey(r),r]);return pairs;}
 
-// Rebuild the device session from everything in the store and re-render.
+
 function accApply(){
   return rsAll().then(recs=>{
     const sess={label:"SniffCheck cluster · "+recs.length.toLocaleString()+" accumulated"+
@@ -6179,8 +6233,8 @@ function accApply(){
 function accStart(){
   if(ACC_ON||!deviceOnline()||!("indexedDB"in window))return;
   ACC_ON=true;
-  // Seed the store with whatever the initial data island already showed, so nothing is
-  // lost even if the ring evicts those records before our first pull lands.
+  
+  
   const seed=(DEVICE_SESSION>=0&&SESSIONS[DEVICE_SESSION])?SESSIONS[DEVICE_SESSION].recs:[];
   rsGetMeta()
     .then(m=>{ACC_CURSOR=m.cursor||0;ACC_SESSION=m.session||null;
@@ -6192,11 +6246,11 @@ function accStart(){
 let accT=null;
 function accSchedule(){clearTimeout(accT);accT=setTimeout(accPull,4000);}
 
-// One incremental pull: fetch the brain's device rows changed since our window cursor
-// (GET /api/cluster/devices?since=<window>), upsert them by device identity, advance the
-// cursor to X-SC-Merge, reset on a brain restart (X-SC-Session), and re-render only when
-// something actually changed. The brain table is bounded, so this stays small even on a
-// long walk; IndexedDB remains the browser's durable layer if the brain evicts its oldest.
+
+
+
+
+
 function accPull(){
   if(!ACC_ON)return Promise.resolve();
   if(accBusy){accSchedule();return Promise.resolve();}
@@ -6208,7 +6262,7 @@ function accPull(){
       return r.text().then(t=>({merge,sess,t}));})
     .then(({merge,sess,t})=>{
       let pre=Promise.resolve();
-      if(sess&&ACC_SESSION&&sess!==ACC_SESSION){          // brain restarted -> reset mirror
+      if(sess&&ACC_SESSION&&sess!==ACC_SESSION){          
         pre=rsClear().then(()=>{ACC_CURSOR=0;ACC_GAP=false;});
       }
       return pre.then(()=>{
@@ -6225,7 +6279,7 @@ function accPull(){
     .catch(e=>{console.warn("accumulator pull failed:",e&&e.message||e);})
     .finally(()=>{accBusy=false;if(ACC_ON)accSchedule();});
 }
-// ==============================================================================
+
 
 drop.ondragover=e=>{e.preventDefault();drop.classList.add("hover");};
 drop.ondragleave=()=>drop.classList.remove("hover");
@@ -6234,8 +6288,8 @@ drop.ondrop=e=>{
   if(e.dataTransfer.files.length)importFiles(e.dataTransfer.files);
 };
 
-// Live connection indicator: green "online" when a SniffCheck device answers,
-// red "offline" otherwise (e.g. a downloaded report opened from disk).
+
+
 function setConn(on){
   const c=$("constat");if(!c)return;
   c.classList.toggle("on",!!on);
@@ -6249,15 +6303,15 @@ function pollConn(){
 pollConn();setInterval(pollConn,15000);
 addEventListener("visibilitychange",()=>{if(!document.hidden)pollConn();});
 
-// Auto-hide the top bar (search / filters / export / dashboard + tabs) on
-// scroll-down for more screen; reveal it on scroll-up or near the top.
+
+
 (function(){
   let lastY=0,ticking=false;
   function upd(){
     const y=window.scrollY||document.documentElement.scrollTop||0;
     if(y<60)document.body.classList.remove("bar-hidden");
     else if(y>lastY+6){document.body.classList.add("bar-hidden");
-      // collapse the open filter panel too, so it doesn't spring back expanded
+      
       $("filters").classList.remove("open");}
     else if(y<lastY-6)document.body.classList.remove("bar-hidden");
     lastY=y;ticking=false;
@@ -6268,12 +6322,211 @@ addEventListener("visibilitychange",()=>{if(!document.hidden)pollConn();});
 (function(){
   const isl=document.getElementById("sc-data");
   if(!isl)return;
-  let t=(isl.textContent||"").replace(/<!--.*?-->/g,"").trim();
+  let t=(isl.textContent||"").replace(
   if(t){loadText(t,"locally stored report");DEVICE_SESSION=SESSIONS.length-1;}
 })();
 
-// Dashboard "Save report (.html)" links here with ?dl=1 — fulfill it once the
-// report has loaded by triggering the same self-contained HTML export.
+
+
+
+
+
+
+
+
+function cmpIndex(recs){
+  const ix=new Map();
+  for(const r of recs){
+    let kind,mac,extra="";
+    if(r.type==="wifi_ap"){kind="wifi";mac=r.bssid;}
+    else if(r.type==="ble_device"){kind="ble";mac=r.addr;}
+    else if(r.type==="tracker"){kind="tracker";mac=r.addr;extra="|"+(r.tracker_kind||"");}
+    else continue;
+    if(!mac)continue;
+    const key=kind+"|"+String(mac).toUpperCase()+extra;
+    const cur=ix.get(key);
+    
+    if(!cur||(r.ts_us||0)>=(cur.rec.ts_us||0))ix.set(key,{kind,mac,rec:r});
+  }
+  return ix;
+}
+
+
+
+
+
+function cmpRotating(e){
+  return e.kind==="ble" &&
+    (e.rec.addr_subtype==="rpa"||e.rec.addr_subtype==="nrpa");
+}
+
+function cmpName(e){
+  const r=e.rec;
+  if(e.kind==="wifi")return r.ssid||"(hidden network)";
+  return r.name||r.vendor||"(unnamed)";
+}
+
+
+
+
+const CMP_FIELDS={
+  wifi:[["ssid","network name"],["channel","channel"],["auth","security"],
+        ["threat_level","threat level"],["twin_class","evil-twin verdict"]],
+  ble:[["name","name"],["vendor","vendor"],["threat_level","threat level"]],
+  tracker:[["name","name"],["threat_level","threat level"]],
+};
+
+const THREAT_WORDS=["none","low","medium","high"];
+
+
+
+function cmpLinkKind(e){return e.kind==="wifi"?"wifi":"ble";}
+
+function cmpDiffFields(a,b){
+  const out=[];
+  for(const [f,label] of (CMP_FIELDS[a.kind]||[])){
+    let x=a.rec[f],y=b.rec[f];
+    if(x==null&&y==null)continue;
+    if(f==="threat_level"){x=THREAT_WORDS[x|0]||x;y=THREAT_WORDS[y|0]||y;}
+    if(String(x??"")===String(y??""))continue;
+    out.push({label,from:x==null||x===""?"—":String(x),to:y==null||y===""?"—":String(y)});
+  }
+  return out;
+}
+
+function buildCompare(sa,sb){
+  const A=cmpIndex(sa.recs),B=cmpIndex(sb.recs);
+  const appeared=[],gone=[],changed=[];
+  const rotating={appeared:0,gone:0};
+
+  for(const [k,e] of B)if(!A.has(k)){
+    if(cmpRotating(e))rotating.appeared++;else appeared.push(e);
+  }
+  for(const [k,e] of A)if(!B.has(k)){
+    if(cmpRotating(e))rotating.gone++;else gone.push(e);
+  }
+  for(const [k,e] of A){
+    const f=B.get(k);if(!f)continue;
+    const d=cmpDiffFields(e,f);
+    if(d.length)changed.push({e:f,was:e,diffs:d});
+  }
+
+  const byName=(x,y)=>String(cmpName(x)).localeCompare(String(cmpName(y)));
+  appeared.sort(byName);gone.sort(byName);
+  changed.sort((x,y)=>byName(x.e,y.e));
+
+  CMP={A:sa,B:sb,appeared,gone,changed,rotating,
+       changes:appeared.length+gone.length+changed.length};
+  return CMP;
+}
+
+function cmpRowHTML(e,detail){
+  return '<div class="cmprow"><span class="k '+e.kind+'">'+e.kind+"</span>"+
+    '<span class="who">'+esc(cmpName(e))+" "+macLink(e.mac,cmpLinkKind(e))+
+    (detail?'<span class="what">'+detail+"</span>":"")+"</span></div>";
+}
+
+function renderCompare(){
+  const out=$("compare");
+  if(!CMP){out.innerHTML='<div class="cmpempty">Pick two saved scans on the '+
+    "SniffCheck dashboard's SD Card tab to compare them.</div>";return;}
+
+  const c=CMP;
+  let h='<div class="cmphd"><div class="cmpwhich">'+
+    '<div><b>earlier</b>'+esc(c.A.label)+"</div>"+
+    '<div><b>later</b>'+esc(c.B.label)+"</div></div></div>";
+
+  h+='<div class="cmpbuckets">'+
+    ['<button data-b="appeared" class="'+(CMPBUCKET==="appeared"?"act":"")+'"><i>'+
+       c.appeared.length+"</i>appeared</button>",
+     '<button data-b="gone" class="'+(CMPBUCKET==="gone"?"act":"")+'"><i>'+
+       c.gone.length+"</i>no longer seen</button>",
+     '<button data-b="changed" class="'+(CMPBUCKET==="changed"?"act":"")+'"><i>'+
+       c.changed.length+"</i>changed</button>"].join("")+"</div>";
+
+  
+  
+  
+  if(CMPBUCKET==="gone")
+    h+='<div class="cmpnote"><b>Absence is weak evidence.</b> A device here was '+
+       "seen in the earlier capture and not the later one. That can mean it left "+
+       "— but it can equally mean it moved out of range, went to sleep, or "+
+       "changed its address. Treat this as a question to ask, not a conclusion.</div>";
+  if(CMPBUCKET==="appeared"&&(c.rotating.appeared||c.rotating.gone))
+    h+='<div class="cmpnote">'+(c.rotating.appeared+c.rotating.gone)+
+       " BLE device"+((c.rotating.appeared+c.rotating.gone)===1?" is":"s are")+
+       " left out of these lists because they use rotating private addresses. "+
+       "The same phone or watch gets a new address roughly every 15 minutes, so "+
+       "comparing them by address would report churn that never happened.</div>";
+
+  const list=CMPBUCKET==="appeared"?c.appeared:CMPBUCKET==="gone"?c.gone:c.changed;
+  if(!list.length){
+    h+='<div class="cmpempty">Nothing '+
+      (CMPBUCKET==="changed"?"changed":CMPBUCKET==="gone"?"went missing":"is new")+
+      " between these two captures.</div>";
+  }else if(CMPBUCKET==="changed"){
+    h+=list.map(x=>cmpRowHTML(x.e,x.diffs.map(d=>
+      esc(d.label)+": <del>"+esc(d.from)+"</del> → <ins>"+esc(d.to)+"</ins>"
+    ).join(" · "))).join("");
+  }else{
+    h+=list.map(e=>cmpRowHTML(e,"")).join("");
+  }
+
+  out.innerHTML=h;
+  out.querySelectorAll(".cmpbuckets button").forEach(b=>
+    b.onclick=()=>{CMPBUCKET=b.dataset.b;renderCompare();});
+}
+
+
+function fetchArchive(id){
+  return fetch("/api/captures/session/"+encodeURIComponent(id)+".jsonl",
+               {cache:"no-store"})
+    .then(r=>{if(!r.ok)throw new Error("session "+id+" ("+r.status+")");return r.text();})
+    .then(txt=>{
+      const {recs,bad}=parseCapture(txt);
+      if(!recs.length)throw new Error("session "+id+" holds no records");
+      return {id,recs,bad,label:id+" · "+recs.length+" records"};
+    });
+}
+
+(function(){
+  if(!deviceOnline())return;
+  let q;try{q=new URLSearchParams(location.search);}catch(e){return;}
+  const cmp=q.get("compare"),load=q.get("load");
+  if(!cmp&&!load)return;
+
+  const ids=String(cmp||load).split(",").map(s=>s.trim()).filter(Boolean);
+  if(!ids.length)return;
+  if(cmp&&ids.length!==2){alert("Compare needs exactly two saved scans.");return;}
+
+  $("srcinfo").textContent="Loading "+ids.length+
+    (ids.length===1?" saved scan…":" saved scans…");
+
+  Promise.all(ids.map(fetchArchive)).then(sess=>{
+    
+    
+    
+    SESSIONS=sess.map(s=>({label:s.label,recs:s.recs,bad:s.bad}));
+    DEVICE_SESSION=-1;
+    
+    
+    
+    if(cmp){
+      const t=s=>(s.recs[0]&&s.recs[0].ts_us)||0;
+      const [a,b]=sess.slice().sort((x,y)=>t(x)-t(y));
+      buildCompare(a,b);
+    }
+    renderAll();
+    if(cmp){curTab="s-compare";showTab();}
+  }).catch(err=>{
+    alert("Could not open that saved scan: "+(err&&err.message||err)+
+          "\n\nThe card may have been removed, or the session deleted.");
+    $("srcinfo").textContent="";
+  });
+})();
+
+
+
 (function(){
   try{
     if(new URLSearchParams(location.search).get("dl")==="1"&&RAW_RECS.length)

@@ -102,6 +102,59 @@ int cl_getreq_valid(const cl_getreq_t *g)
     return cl_getreq_valid_cmd(g, (uint8_t)CL_CMD_GET_SCANSET);
 }
 
+void cl_tracker_sound_seal(cl_tracker_sound_t *t)
+{
+    t->magic = CL_MAGIC;
+    t->cmd   = (uint8_t)CL_CMD_TRACKER_SOUND;
+    t->crc   = cl_crc16((const uint8_t *)t, offsetof(cl_tracker_sound_t, crc));
+}
+
+int cl_tracker_sound_valid(const cl_tracker_sound_t *t)
+{
+    if (t->magic != CL_MAGIC || t->cmd != (uint8_t)CL_CMD_TRACKER_SOUND) return 0;
+    return t->crc == cl_crc16((const uint8_t *)t, offsetof(cl_tracker_sound_t, crc));
+}
+
+void cl_locate_req_seal(cl_locate_req_t *r)
+{
+    r->magic = CL_MAGIC;
+    r->cmd   = (uint8_t)CL_CMD_START_LOCATE;
+    r->crc   = cl_crc16((const uint8_t *)r, offsetof(cl_locate_req_t, crc));
+}
+
+int cl_locate_req_valid(const cl_locate_req_t *r)
+{
+    if (r->magic != CL_MAGIC || r->cmd != (uint8_t)CL_CMD_START_LOCATE) return 0;
+    return r->crc == cl_crc16((const uint8_t *)r, offsetof(cl_locate_req_t, crc));
+}
+
+void cl_locate_state_seal(cl_locate_state_t *s)
+{
+    s->magic = CL_MAGIC;
+    s->cmd   = (uint8_t)CL_CMD_GET_LOCATE;
+    s->crc   = cl_crc16((const uint8_t *)s, offsetof(cl_locate_state_t, crc));
+}
+
+int cl_locate_state_valid(const cl_locate_state_t *s)
+{
+    if (s->magic != CL_MAGIC || s->cmd != (uint8_t)CL_CMD_GET_LOCATE) return 0;
+    return s->crc == cl_crc16((const uint8_t *)s, offsetof(cl_locate_state_t, crc));
+}
+
+void cl_uievent_seal(cl_uievent_t *e)
+{
+    e->magic = CL_MAGIC;
+    e->cmd   = (uint8_t)CL_CMD_GET_UIEVENT;
+    e->crc   = cl_crc16((const uint8_t *)e, offsetof(cl_uievent_t, crc));
+}
+
+int cl_uievent_valid(const cl_uievent_t *e)
+{
+    if (e->magic != CL_MAGIC || e->cmd != (uint8_t)CL_CMD_GET_UIEVENT) return 0;
+    if (e->ev > (uint8_t)CL_UI_EV_LONG) return 0;
+    return e->crc == cl_crc16((const uint8_t *)e, offsetof(cl_uievent_t, crc));
+}
+
 void cl_chunk_seal(cl_chunk_t *c)
 {
     c->magic = CL_MAGIC;

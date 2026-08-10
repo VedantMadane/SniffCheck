@@ -39,6 +39,9 @@ static volatile bool     s_serve_chunk;
 static const uint8_t    *s_snap_ptr;
 static volatile uint32_t s_snap_total, s_snap_seq, s_chunk_off;
 
+static volatile bool s_req_loc_start, s_req_loc_stop, s_serve_locate;
+static cl_locate_req_t s_loc_req;
+
 static i2c_slave_dev_handle_t s_slave;
 static QueueHandle_t s_txq;
 static volatile uint32_t s_reads;
@@ -87,6 +90,15 @@ static bool IRAM_ATTR on_receive_cb(i2c_slave_dev_handle_t dev,
         return false;
     }
 
+    if (evt->buffer[1] == (uint8_t)CL_CMD_START_LOCATE) {
+        if (evt->length < sizeof(cl_locate_req_t)) return false;
+        const cl_locate_req_t *r = (const cl_locate_req_t *)evt->buffer;
+        if (!cl_locate_req_valid(r)) return false;
+        s_loc_req       = *r;
+        s_req_loc_start = true;
+        return false;
+    }
+
     const cl_cmd_frame_t *f = (const cl_cmd_frame_t *)evt->buffer;
     if (!cl_cmd_valid(f)) return false;
     switch (f->cmd) {
@@ -95,6 +107,12 @@ static bool IRAM_ATTR on_receive_cb(i2c_slave_dev_handle_t dev,
         break;
     case CL_CMD_WALK:
         if (f->arg) s_req_walk = true; else s_req_walk_stop = true;
+        break;
+    case CL_CMD_STOP_LOCATE:
+        s_req_loc_stop = true;
+        break;
+    case CL_CMD_GET_LOCATE:
+        s_serve_locate = true;
         break;
     default: break;
     }
@@ -137,6 +155,11 @@ static void arm_tx_task(void *arg)
             cl_chunk_seal(&chunk);
             s_serve_chunk = false;
             i2c_slave_write(s_slave, (const uint8_t *)&chunk, sizeof(chunk), &written, 100);
+        } else if (s_serve_locate) {
+            static cl_locate_state_t lst;
+            s_serve_locate = false;
+            arm_locate_get(&lst);
+            i2c_slave_write(s_slave, (const uint8_t *)&lst, sizeof(lst), &written, 100);
         } else {
             cl_status_t snap = s_status;
             i2c_slave_write(s_slave, (const uint8_t *)&snap, sizeof(snap), &written, 100);
@@ -206,6 +229,17 @@ static void scan_task(void *arg)
         if (s_have_plan) {
             s_have_plan = false;
             arm_scan_set_plan(&s_pending_plan);
+        }
+
+        if (s_req_loc_start) { s_req_loc_start = false;
+            arm_locate_start(s_loc_req.mac, s_loc_req.kind, s_loc_req.channel);
+            render_screen("locate", wifi, ble); }
+        if (s_req_loc_stop)  { s_req_loc_stop = false; arm_locate_stop();
+            render_screen("ready", wifi, ble); }
+        if (arm_locate_active()) {
+            arm_locate_sweep();
+            status_publish(CL_STATE_SCANNING, wifi, ble);
+            continue;
         }
         if (s_req_walk) {
             s_req_walk = false; s_req_walk_stop = false;

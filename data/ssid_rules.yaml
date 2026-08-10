@@ -1,0 +1,223 @@
+
+rules:
+
+  - match: exact
+    pattern: "Starbucks WiFi"
+    expected_vendors: [Cisco, Aruba, Meraki]
+    notes: "Starbucks contracts AT&T; APs are Cisco/Aruba/Meraki"
+  - match: exact
+    pattern: "Google Starbucks"
+    expected_vendors: [Cisco, Meraki]
+  - match: exact
+    pattern: "attwifi"
+    expected_vendors: [Pace, Arris, Cisco]
+  - match: exact
+    pattern: "att-wifi"
+    expected_vendors: [Pace, Arris, Cisco]
+  - match: exact
+    pattern: "xfinitywifi"
+    expected_vendors: [Cisco, Arris, Comcast]
+  - match: exact
+    pattern: "XFINITY"
+    expected_vendors: [Cisco, Arris, Comcast]
+  - match: exact
+    pattern: "Xfinity Mobile"
+    expected_vendors: [Cisco, Arris, Comcast, Commscope, Vantiva]
+    notes: "Comcast/Xfinity Passpoint hotspot SSID broadcast by many CPE APs"
+  - match: prefix
+    pattern: "McDonald's"
+  - match: prefix
+    pattern: "McDonalds"
+  - match: prefix
+    pattern: "Boingo"
+    expected_vendors: [Cisco, Aruba, Ruckus]
+  - match: prefix
+    pattern: "boingo"
+  - match: prefix
+    pattern: "_The UPS Store"
+  - match: prefix
+    pattern: "SpectrumWiFi"
+    expected_vendors: [Cisco, Arris, Casa]
+  - match: compound
+    compound_prefix: "TWC"
+    compound_suffix: "WiFi"
+
+  - match: prefix
+    pattern: "Hilton Honors"
+  - match: prefix
+    pattern: "Marriott_Guest"
+  - match: prefix
+    pattern: "Hyatt"
+  - match: contains
+    pattern: "IHG_Connect"
+  - match: prefix
+    pattern: "Delta Sky Club"
+  - match: prefix
+    pattern: "AmericanAirlines"
+  - match: prefix
+    pattern: "United_Wi-Fi"
+  - match: prefix
+    pattern: "gogoinflight"
+
+  - match: prefix
+    pattern: "airport"
+  - match: prefix
+    pattern: "Airport"
+  - match: suffix
+    pattern: "_airport"
+  - match: prefix
+    pattern: "Amtrak"
+
+  - match: suffix
+    pattern: "_Guest"
+    expected_vendors: [Cisco, Aruba, Ruckus, Ubiquiti]
+  - match: suffix
+    pattern: " Guest"
+    expected_vendors: [Cisco, Aruba, Ruckus, Ubiquiti]
+  - match: suffix
+    pattern: "-Guest"
+  - match: suffix
+    pattern: "GUEST"
+
+  - match: prefix
+    pattern: "ATT-WIFI-"
+  - match: prefix
+    pattern: "Verizon_"
+  - match: prefix
+    pattern: "Spectrum-"
+  - match: prefix
+    pattern: "Optimum WiFi"
+  - match: prefix
+    pattern: "CoxWiFi"
+
+  - match: contains
+    pattern: "OnStar"
+    class: vehicle
+    name: "GM (OnStar)"
+    notes: "GM OnStar in-car Wi-Fi"
+  - match: prefix
+    pattern: "Chevy WiFi"
+    class: vehicle
+    name: "Chevrolet"
+  - match: prefix
+    pattern: "GMC WiFi"
+    class: vehicle
+    name: "GMC"
+  - match: prefix
+    pattern: "Buick WiFi"
+    class: vehicle
+    name: "Buick"
+  - match: prefix
+    pattern: "Cadillac WiFi"
+    class: vehicle
+    name: "Cadillac"
+
+  - match: prefix
+    pattern: "Ford SYNC"
+    class: vehicle
+    name: "Ford"
+  - match: prefix
+    pattern: "MyFord"
+    class: vehicle
+    name: "Ford"
+  - match: contains
+    pattern: "FordPass"
+    class: vehicle
+    name: "Ford"
+  - match: prefix
+    pattern: "Lincoln WiFi"
+    class: vehicle
+    name: "Lincoln"
+
+  - match: contains
+    pattern: "Uconnect"
+    class: vehicle
+    name: "Stellantis (Uconnect)"
+  - match: prefix
+    pattern: "MOPAR"
+    class: vehicle
+    name: "Mopar"
+
+  - match: prefix
+    pattern: "Toyota WiFi"
+    class: vehicle
+    name: "Toyota"
+  - match: prefix
+    pattern: "Lexus WiFi"
+    class: vehicle
+    name: "Lexus"
+  - match: contains
+    pattern: "Entune"
+    class: vehicle
+    name: "Toyota (Entune)"
+
+  - match: contains
+    pattern: "HondaLink"
+    class: vehicle
+    name: "Honda"
+  - match: prefix
+    pattern: "Honda WiFi"
+    class: vehicle
+    name: "Honda"
+  - match: prefix
+    pattern: "Acura WiFi"
+    class: vehicle
+    name: "Acura"
+
+  - match: contains
+    pattern: "NissanConnect"
+    class: vehicle
+    name: "Nissan"
+  - match: prefix
+    pattern: "Nissan WiFi"
+    class: vehicle
+    name: "Nissan"
+
+  - match: contains
+    pattern: "Blue Link"
+    class: vehicle
+    name: "Hyundai"
+  - match: contains
+    pattern: "BlueLink"
+    class: vehicle
+    name: "Hyundai"
+  - match: prefix
+    pattern: "Hyundai WiFi"
+    class: vehicle
+    name: "Hyundai"
+  - match: contains
+    pattern: "Kia Connect"
+    class: vehicle
+    name: "Kia"
+
+  - match: prefix
+    pattern: "Audi MMI"
+    class: vehicle
+    name: "Audi"
+  - match: prefix
+    pattern: "Audi_MMI"
+    class: vehicle
+    name: "Audi"
+  - match: contains
+    pattern: "Car-Net"
+    class: vehicle
+    name: "Volkswagen (Car-Net)"
+
+  - match: prefix
+    pattern: "MB Hotspot"
+    class: vehicle
+    name: "Mercedes-Benz"
+  - match: prefix
+    pattern: "MB WLAN"
+    class: vehicle
+    name: "Mercedes-Benz"
+
+  - match: contains
+    pattern: "ConnectedDrive"
+    class: vehicle
+    name: "BMW"
+
+  - match: contains
+    pattern: "Tesla Model"
+    class: vehicle
+    name: "Tesla"

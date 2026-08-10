@@ -69,3 +69,26 @@ void app_request_sta_capture_after_download(uint8_t ch, uint16_t s) { (void)ch;(
 void app_request_csi_after_download(uint8_t ch, uint16_t s)         { (void)ch;(void)s; }
 void app_request_pcap_after_download(const uint8_t *ch, uint8_t n)  { (void)ch;(void)n; }
 void app_scan_channels_json(char *buf, size_t buflen) { snprintf(buf, buflen, "[]"); }
+
+#define SHIM_WEAK __attribute__((weak))
+
+SHIM_WEAK void master_cluster_infra_json(char *buf, size_t buflen)
+{
+    snprintf(buf, buflen, "{\"units\":[],\"systems\":[]}");
+}
+SHIM_WEAK void master_cluster_place_detail_json(int idx, char *buf, size_t buflen)
+{
+    (void)idx;
+    snprintf(buf, buflen, "{\"ok\":false,\"reason\":\"no environment model on master\"}");
+}
+SHIM_WEAK void master_on_landmark_edit(const char *body, int len) { (void)body; (void)len; }
+SHIM_WEAK void master_on_learn(const char *body, int len)         { (void)body; (void)len; }
+
+SHIM_WEAK uint32_t    master_cluster_merge_count(void)  { return 0; }
+SHIM_WEAK const char *master_cluster_session_id(void)   { return s_session_id; }
+SHIM_WEAK int         master_cluster_device_count(void) { return 0; }
+SHIM_WEAK int master_cluster_device_json(int idx, uint32_t since, char *buf, size_t buflen)
+{
+    (void)idx; (void)since; (void)buf; (void)buflen;
+    return 0;
+}

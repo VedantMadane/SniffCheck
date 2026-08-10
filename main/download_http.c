@@ -18,7 +18,7 @@
 #include "app_settings.h"
 #include "virtual_pup.h"
 #include "virtual_pup_walk.h"
-#if SC_CLUSTER_HEAD
+#if SC_EPUP_BRAIN
 #include "epup_brain.h"
 #endif
 #include "sta_tracker.h"
@@ -29,6 +29,15 @@ static const char *TAG = "sc_dlhttp";
 
 #ifndef SC_CLUSTER_HEAD
 #define SC_CLUSTER_HEAD 0
+#endif
+
+#define SC_SD_ARCHIVE (!SC_CLUSTER_HEAD)
+#if SC_SD_ARCHIVE
+#include "sd_store.h"
+#endif
+
+#ifndef SC_EPUP_BRAIN
+#define SC_EPUP_BRAIN 0
 #endif
 
 static httpd_handle_t s_server = NULL;
@@ -56,7 +65,8 @@ extern const unsigned char _binary_webap_favicon_png_start[];
 extern const unsigned char _binary_webap_favicon_png_end[];
 extern const unsigned char _binary_webap_pup_png_start[];
 extern const unsigned char _binary_webap_pup_png_end[];
-#if SC_CLUSTER_HEAD
+#if SC_EPUP_BRAIN
+
 extern const unsigned char _binary_epup_sprites_png_start[];
 extern const unsigned char _binary_epup_sprites_png_end[];
 #endif
@@ -247,6 +257,49 @@ static const char DASH_HTML[] =
 ".wc .wr b{color:var(--ink);font-weight:700}"
 ".wc.alert{border-color:#e5701a}.wc.alert h3{color:#e5701a}"
 
+#if SC_SD_ARCHIVE
+
+"#sdwrap{display:flex;gap:12px;align-items:center;background:var(--panel);"
+"border:3px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0;"
+"box-shadow:4px 4px 0 var(--sh)}"
+"#sdpie{width:96px;height:96px;flex:none}"
+"#sdpie circle{fill:none;stroke-width:5}"
+"#sdpie .trk{stroke:var(--trk)}"
+"#sdpie .use{stroke:var(--accent);transition:stroke-dasharray .4s}"
+"#sdpie text{font:700 7px system-ui;fill:var(--ink);text-anchor:middle}"
+"#sdpie .sub{font-size:3.4px;fill:var(--muted)}"
+"#sdfacts{flex:1;min-width:0;font-size:13px}"
+"#sdfacts div{display:flex;justify-content:space-between;gap:10px;margin:3px 0;color:var(--muted)}"
+"#sdfacts b{color:var(--ink);font-weight:800;white-space:nowrap}"
+"#sdstate{font-weight:900;font-size:14px;margin-bottom:4px;color:var(--safe)}"
+"#sdstate.bad{color:var(--avoid,#d64545)}#sdstate.warn{color:var(--caution,#d99a1e)}"
+"#sdcrumb{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px;margin:8px 0 4px}"
+"#sdcrumb button{margin:0;padding:4px 8px;font-size:12px;font-weight:700;"
+"background:var(--panel);color:var(--ink);box-shadow:2px 2px 0 var(--sh)}"
+"#sdcrumb span{color:var(--muted)}"
+"#sdlist{border:3px solid var(--line);border-radius:12px;background:var(--panel);"
+"box-shadow:4px 4px 0 var(--sh);overflow:hidden}"
+".sdrow{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:13px;"
+"border-top:1px solid var(--line);text-align:left}"
+".sdrow:first-child{border-top:0}"
+".sdrow.pick{background:var(--trk)}"
+".sdrow .si{width:18px;height:18px;flex:none;color:var(--accent)}"
+".sdrow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+"font-weight:700;color:var(--ink)}"
+".sdrow .sz{color:var(--muted);font-size:12px;white-space:nowrap}"
+".sdrow input{width:17px;height:17px;flex:none;accent-color:var(--accent)}"
+".sdrow.nav{cursor:pointer}"
+".sdmeta{padding:0 10px 8px 36px;font-size:11px;color:var(--muted);margin-top:-4px}"
+".sdmeta.warn{color:var(--caution,#d99a1e)}"
+"#sdempty{padding:14px 12px;font-size:13px;color:var(--muted);text-align:center}"
+"#sdsel{position:sticky;bottom:0;margin:8px 0 0;padding:8px;border:3px solid var(--line);"
+"border-radius:12px;background:var(--panel);box-shadow:4px 4px 0 var(--sh);display:none}"
+"#sdsel.on{display:block}"
+"#sdsel .cnt{font-size:13px;font-weight:800;margin-bottom:6px;color:var(--ink)}"
+"#sdsel button{margin:0 0 6px;padding:9px}"
+"#sdsel button:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}"
+#endif
+
 "#themebtn{position:fixed;top:10px;right:10px;z-index:15;width:42px;height:42px;"
 "display:flex;align-items:center;justify-content:center;padding:0;margin:0;cursor:pointer;"
 "color:var(--ink);background:var(--panel);border:3px solid var(--line);border-radius:11px;"
@@ -257,6 +310,7 @@ static const char DASH_HTML[] =
 
 "#pupimg{display:block;height:120px;width:auto;margin:2px auto 6px}"
 #if SC_CLUSTER_HEAD
+
 "#pgwrap{margin:2px 0 6px}"
 "#pgcanvas{display:block;width:100%;max-width:360px;margin:0 auto;background:var(--panel);"
 "border:3px solid var(--line);border-radius:12px;image-rendering:pixelated;cursor:pointer}"
@@ -350,6 +404,11 @@ static const char DASH_HTML[] =
 "<symbol id=ic-tmo viewBox=\"0 0 24 24\"><circle cx=12 cy=13 r=8 fill=none stroke=currentColor stroke-width=2/><path d=\"M12 9v4l3 2\" fill=none stroke=currentColor stroke-width=2 stroke-linecap=round/><path d=\"M9 2h6\" stroke=currentColor stroke-width=2 stroke-linecap=round/></symbol>"
 "<symbol id=ic-palette viewBox=\"0 0 24 24\"><path d=\"M12 3a9 9 0 1 0 0 18c1.7 0 2-1.2 1.2-2.1-.8-.9-.5-2.1.9-2.1H17a4 4 0 0 0 4-4c0-4.9-4-7.7-9-7.7Z\" fill=none stroke=currentColor stroke-width=1.8/><g fill=currentColor><circle cx=8 cy=11 r=1.2/><circle cx=12 cy=8 r=1.2/><circle cx=16 cy=11 r=1.2/></g></symbol>"
 "<symbol id=ic-font viewBox=\"0 0 24 24\"><path d=\"M5 19 10 5h2l5 14h-2.2l-1.3-3.8H8.5L7.2 19Zm4.1-5.6h4.2L11.2 7.4Z\" fill=currentColor/></symbol>"
+#if SC_SD_ARCHIVE
+"<symbol id=ic-folder viewBox=\"0 0 24 24\"><path fill=currentColor d=\"M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2l1.8 2h9A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-11Z\"/></symbol>"
+"<symbol id=ic-file viewBox=\"0 0 24 24\"><g fill=none stroke=currentColor stroke-width=1.8 stroke-linejoin=round><path d=\"M6.5 3.5h7l5 5v12h-12v-17Z\"/><path d=\"M13.5 3.5v5h5\"/></g></symbol>"
+"<symbol id=ic-scan viewBox=\"0 0 24 24\"><g fill=none stroke=currentColor stroke-width=2 stroke-linecap=round><path d=\"M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8\"/><path d=\"M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8\"/><path d=\"M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16\"/><path d=\"M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16\"/><path d=\"M7 12h10\"/></g></symbol>"
+#endif
 "<symbol id=ic-tabs viewBox=\"0 0 24 24\"><g fill=currentColor><rect x=3 y=3 width=7.5 height=7.5 rx=1.6/><rect x=13.5 y=3 width=7.5 height=7.5 rx=1.6/><rect x=3 y=13.5 width=7.5 height=7.5 rx=1.6/><rect x=13.5 y=13.5 width=7.5 height=7.5 rx=1.6/></g></symbol>"
 "</defs></svg>"
 "<div id=splash><img alt=\"SniffCheck\" src=\"/logo.png\"></div>"
@@ -370,6 +429,9 @@ static const char DASH_HTML[] =
 "<div id=nav>"
 "<button id=nv-home class=act onclick=\"nav('home')\">Home</button>"
 "<button id=nv-pup onclick=\"nav('pup')\">Pup</button>"
+#if SC_SD_ARCHIVE
+"<button id=nv-sd onclick=\"nav('sd')\">SD Card</button>"
+#endif
 "<button id=nv-settings onclick=\"nav('settings')\">Settings</button>"
 "</div>"
 
@@ -399,7 +461,6 @@ static const char DASH_HTML[] =
 #endif
 "</div>"
 "</div>"
-
 
 "<div class=view id=v-pup>"
 "<h2>Virtual Pup</h2>"
@@ -434,6 +495,49 @@ static const char DASH_HTML[] =
 "<button class=off onclick=\"armpup(this)\">Reset Pup</button>"
 "</div>"
 
+#if SC_SD_ARCHIVE
+"<div class=view id=v-sd>"
+"<h2>Card</h2>"
+"<div id=sdwrap>"
+"<svg id=sdpie viewBox=\"0 0 42 42\" role=img aria-labelledby=sdpietitle>"
+"<title id=sdpietitle>Card space used</title>"
+
+"<circle class=trk cx=21 cy=21 r=15.9155></circle>"
+"<circle class=use cx=21 cy=21 r=15.9155 stroke-dasharray=\"0 100\" "
+"transform=\"rotate(-90 21 21)\" stroke-linecap=butt></circle>"
+"<text x=21 y=21 id=sdpct>&ndash;</text>"
+"<text x=21 y=26 class=sub id=sdpcts>used</text>"
+"</svg>"
+"<div id=sdfacts>"
+"<div id=sdstate>Checking\xe2\x80\xa6</div>"
+"<div><span>used</span><b id=sdused>&ndash;</b></div>"
+"<div><span>free</span><b id=sdfree>&ndash;</b></div>"
+"<div><span>volume</span><b id=sdvol>&ndash;</b></div>"
+"<div><span>archive</span><b id=sdarch>&ndash;</b></div>"
+"</div></div>"
+"<div class=ex id=sdnote></div>"
+
+"<h2>Files</h2>"
+"<div id=sdcrumb></div>"
+"<div id=sdlist><div id=sdempty>Loading\xe2\x80\xa6</div></div>"
+"<div class=ex>Saved scans live in <b>/sniffcheck/sessions</b>. Tick one to open it in the "
+"report, or tick two to compare them.</div>"
+
+"<div id=sdsel>"
+"<div class=cnt id=sdcnt></div>"
+"<button class=rep id=sdopen onclick=\"sdOpen()\">Open in report</button>"
+"<button class=dl id=sdcmp onclick=\"sdCompare()\">Compare the two</button>"
+"<button class=ext onclick=\"sdClear()\">Clear selection</button>"
+"<button class=cl id=sddel onclick=\"armfn(this,'sddel',sdDelete)\">Delete selected</button>"
+"</div>"
+
+"<div class=dz><h2>Danger zone</h2>"
+"<button class=cl onclick=\"armfn(this,'sdwipe',sdWipe)\">Erase all saved scans</button>"
+"<div class=ex>Deletes every session in the archive. The scan running right now is kept. "
+"This cannot be undone.</div>"
+"</div>"
+"</div>"
+#endif
 
 "<div class=view id=v-settings>"
 "<div class=set>"
@@ -576,6 +680,7 @@ static const char DASH_HTML[] =
 "b.setAttribute('data-armed','1');b.setAttribute('data-l',b.textContent);"
 "b.textContent='tap again to reset';tm['pr']=setTimeout(function(){disarm(b)},3000)}"
 #if SC_CLUSTER_HEAD
+
 "var pgBest=0;"
 "function pgOnStatus(j){pgBest=j.high_score||0;var b=el('pgbest');if(b)b.textContent='best '+pgBest;}"
 "(function(){var cv=el('pgcanvas');if(!cv)return;var cx=cv.getContext('2d');"
@@ -591,6 +696,7 @@ static const char DASH_HTML[] =
 "fetch('/api/pup/play',{method:'POST',headers:{'Content-Type':'application/json'},"
 "body:JSON.stringify({score:s})}).then(function(r){return r.json()}).then(applypup).catch(function(){});}"
 "function px2(){return 48;}"
+
 "function loop(ts){if(raf===null)return;var dt=ts-last;last=ts;if(dt>250)dt=250;lag+=dt;"
 "while(lag>=STEP){tick();lag-=STEP;if(st!=='run')break;}draw();"
 "if(st==='run')raf=requestAnimationFrame(loop);else raf=null;}"
@@ -605,6 +711,7 @@ static const char DASH_HTML[] =
 "document.addEventListener('visibilitychange',function(){if(document.hidden)window.pgPause();});"
 "function spawnObs(){if(Math.random()<0.4)obs.push({x:W+8,top:true,w:16,h:104});"
 "else obs.push({x:W+8,top:false,w:16,h:22+(Math.random()*22|0)});}"
+
 "function spawnTok(){var ty=GY-(20+(Math.random()*36|0)),tx=W+8,i,o;"
 "for(i=0;i<obs.length;i++){o=obs[i];if(tx+8>o.x&&tx-8<o.x+o.w)return;}"
 "toks.push({x:tx,y:ty,r:8,k:GAD[(Math.random()*GAD.length)|0]});}"
@@ -680,9 +787,17 @@ static const char DASH_HTML[] =
 "b.setAttribute('data-armed','1');b.setAttribute('data-l',b.textContent);"
 "b.textContent='tap again \\u2014 page will disconnect';"
 "setTimeout(function(){disarm(b)},3000)}"
-"function nav(v){['home','pup','settings'].forEach(function(n){"
+"function nav(v){["
+#if SC_SD_ARCHIVE
+"'sd',"
+#endif
+"'home','pup','settings'].forEach(function(n){"
 "el('v-'+n).classList.toggle('act',n===v);"
 "el('nv-'+n).classList.toggle('act',n===v)});"
+#if SC_SD_ARCHIVE
+
+"if(v==='sd'&&window.sdShow)sdShow();"
+#endif
 "if(v!=='pup'&&window.pgPause)window.pgPause();}"
 
 "function walkhtml(w){var r=function(k,v){return '<div class=wr><span>'+k+"
@@ -731,6 +846,148 @@ static const char DASH_HTML[] =
 "function custSync(){var cw=el('customwrap');if(!cw)return;cw.style.display=(curth==='custom')?'':'none';if(curth==='custom')custSeed()}"
 "custSync();"
 
+#if SC_SD_ARCHIVE
+
+"function sdB(n){n=+n||0;if(n<1024)return n+' B';"
+"var u=['KB','MB','GB','TB'],i=-1;do{n/=1024;i++}while(n>=1024&&i<3);"
+"return (n<10?n.toFixed(1):Math.round(n))+' '+u[i]}"
+"function sdEsc(s){return String(s==null?'':s).replace(/[&<>\"']/g,function(c){"
+"return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]})}"
+
+"var SDPATH='/sniffcheck/sessions',SDSEL={},SDBUSY=false,SDUNREAD=false;"
+
+"function sdStat(){return fetch('/api/archive',{cache:'no-store'})"
+".then(function(r){return r.json()}).then(function(j){"
+"var st=el('sdstate'),note=el('sdnote');SDUNREAD=!!j.card_unreadable;"
+"var vol=+j.volume_bytes||0,free=+j.free_bytes||0,used=vol>free?vol-free:0;"
+"var pct=vol?Math.round(used*100/vol):0;"
+"el('sdused').textContent=vol?sdB(used):'\\u2013';"
+"el('sdfree').textContent=vol?sdB(free):'\\u2013';"
+"el('sdvol').textContent=vol?sdB(vol)+(j.card_bytes>vol*1.5?' of a '+sdB(j.card_bytes)+' card':''):'\\u2013';"
+"el('sdarch').textContent=j.session_open?(j.session_records|0)+' records saving now':"
+"(j.mounted?'idle':'off');"
+"var pie=document.querySelector('#sdpie .use');"
+"pie.setAttribute('stroke-dasharray',(vol?pct:0)+' '+(100-(vol?pct:0)));"
+"el('sdpct').textContent=vol?pct+'%':'\\u2013';"
+"el('sdpcts').textContent=vol?'used':'no card';"
+"st.className='';note.textContent='';"
+
+"if(j.card_unreadable){st.textContent='Card unreadable \\u2014 wrong format';st.className='bad';"
+"note.textContent='A card is in the slot and responding, but it has no filesystem SniffCheck can '"
+"+'read. It must be formatted FAT32. Cards of 64 GB and up ship as exFAT, and Windows and phones '"
+"+'reformat them back to exFAT, which is not supported. Reformat as FAT32, then restart SniffCheck. '"
+"+'Scanning is unaffected either way.'}"
+"else if(!j.card_present||!j.mounted){st.textContent='No card detected';st.className='bad';"
+"note.textContent='Insert a microSD card (FAT32) and restart SniffCheck. '"
+"+'Scanning works without one \\u2014 results just stay in memory until the stick is unplugged.'}"
+"else if(j.full){st.textContent='Card full \\u2014 saving paused';st.className='bad';"
+"note.textContent='Saving stops with '+sdB(j.reserve_bytes)+' left so the card cannot be corrupted. '"
+"+'Scanning carries on as normal. Delete some sessions to resume.'}"
+"else if(j.write_errors){st.textContent='Card connected \\u2014 '+j.write_errors+' write errors';"
+"st.className='warn';"
+"note.textContent='Some writes failed. If the card was removed and re-seated, restart SniffCheck to remount it.'}"
+"else{st.textContent='Card connected';"
+"if(j.card_bytes&&vol&&vol<j.card_bytes/2)"
+"note.textContent='Only '+sdB(vol)+' of this '+sdB(j.card_bytes)+' card is the readable volume \\u2014 '"
+"+'the rest is in partitions this firmware cannot see. Reformat the whole card as one FAT32 volume to use it all.'}"
+"}).catch(function(){el('sdstate').textContent='Could not read the card';"
+"el('sdstate').className='bad'})}"
+
+"function sdCrumb(p){var parts=String(p||'/').split('/').filter(Boolean),h='',acc='';"
+"h+='<button onclick=\"sdGo(\\'/\\')\">Card</button>';"
+"for(var i=0;i<parts.length;i++){acc+='/'+parts[i];"
+"h+='<span>&rsaquo;</span><button onclick=\"sdGo(\\''+sdEsc(acc)+'\\')\">'+sdEsc(parts[i])+'</button>'}"
+"el('sdcrumb').innerHTML=h}"
+
+"function sdRow(e,path){"
+"var sel=SDSEL[e.id]?' pick':'';"
+"var ic=e.dir?'ic-folder':(e.session?'ic-scan':'ic-file');"
+"var h='<div class=\"sdrow'+(e.dir?' nav':'')+sel+'\"'"
+"+(e.dir?' onclick=\"sdGo(\\''+sdEsc(path==='/'?'/'+e.name:path+'/'+e.name)+'\\')\"':'')+'>';"
+"if(e.session)h+='<input type=checkbox '+(SDSEL[e.id]?'checked ':'')"
+"+'onclick=\"event.stopPropagation();sdPick(\\''+sdEsc(e.id)+'\\',this.checked)\" '"
+"+'aria-label=\"Select '+sdEsc(e.name)+'\">';"
+"else h+='<span style=width:17px;flex:none></span>';"
+"h+='<svg class=si><use href=\"#'+ic+'\"/></svg>';"
+"h+='<span class=nm>'+sdEsc(e.name)+(e.current?' (saving now)':'')+'</span>';"
+"h+='<span class=sz>'+(e.dir?'':sdB(e.bytes))+'</span>';"
+"if(!e.dir&&!e.session)h+='<a class=sz href=\"/api/sd/file?path='"
+"+encodeURIComponent(path==='/'?'/'+e.name:path+'/'+e.name)+'\">save</a>';"
+"h+='</div>';"
+"h+=sdMeta(e);return h}"
+
+"function sdMeta(e){if(!e.session)return '';var m=e.meta;"
+"if(!m)return '<div class=\"sdmeta warn\">No summary saved \\u2014 this run was cut short before '"
+"+'its first checkpoint. The records are still there and it will still open.</div>';"
+"var bits=[];"
+"if(m.kind)bits.push(m.kind==='learn_env'?'environment':m.kind);"
+"bits.push((m.records|0)+' records');"
+"if(m.wifi_aps)bits.push(m.wifi_aps+' Wi-Fi');"
+"if(m.ble_devices)bits.push(m.ble_devices+' BLE');"
+"if(m.trackers)bits.push(m.trackers+' trackers');"
+"if(m.env)bits.push(sdEsc(m.env));"
+"if(m.complete&&m.close_us>m.open_us)"
+"bits.push(Math.round((m.close_us-m.open_us)/1e6)+'s');"
+"var warn=!m.complete;"
+"return '<div class=\"sdmeta'+(warn?' warn':'')+'\">'+bits.join(' \\u00b7 ')"
+"+(warn?' \\u00b7 interrupted (unplugged or reset) \\u2014 kept as far as it got':'')+'</div>'}"
+
+"function sdLs(p){if(SDBUSY)return;SDBUSY=true;"
+"fetch('/api/sd/ls?path='+encodeURIComponent(p),{cache:'no-store'})"
+".then(function(r){return r.json()}).then(function(j){SDBUSY=false;"
+"SDPATH=j.path||p;sdCrumb(SDPATH);"
+"var box=el('sdlist');"
+"if(!j.mounted){box.innerHTML='<div id=sdempty>'+(SDUNREAD?"
+"'The card in the slot is not FAT32, so its contents cannot be listed.'"
+":'No card \\u2014 nothing to browse.')+'</div>';return}"
+"if(!j.exists){box.innerHTML='<div id=sdempty>That folder is not on this card.</div>';return}"
+"var es=(j.entries||[]).slice().sort(function(a,b){"
+"if(a.dir!==b.dir)return a.dir?-1:1;"
+"return String(b.name).localeCompare(String(a.name))});"
+"if(!es.length){box.innerHTML='<div id=sdempty>'"
+"+(SDPATH===j.sessions_path?'No saved scans yet. Finish a scan with the card in and it lands here.'"
+":'This folder is empty.')+'</div>';return}"
+"box.innerHTML=es.map(function(e){return sdRow(e,SDPATH)}).join('')"
+"+(j.truncated?'<div id=sdempty>Showing '+es.length+' of '+j.total"
+"+' items \\u2014 open a subfolder to see the rest.</div>':'')})"
+".catch(function(){SDBUSY=false;"
+"el('sdlist').innerHTML='<div id=sdempty>Could not read the card.</div>'})}"
+
+"function sdGo(p){sdLs(p)}"
+"function sdPick(id,on){if(on)SDSEL[id]=1;else delete SDSEL[id];sdSelBar();sdLs(SDPATH)}"
+"function sdClear(){SDSEL={};sdSelBar();sdLs(SDPATH)}"
+"function sdKeys(){return Object.keys(SDSEL)}"
+"function sdSelBar(){var k=sdKeys(),bar=el('sdsel');"
+"bar.classList.toggle('on',k.length>0);if(!k.length)return;"
+"el('sdcnt').textContent=k.length+(k.length===1?' scan selected':' scans selected');"
+"el('sdcmp').disabled=(k.length!==2);"
+"el('sdcmp').textContent=k.length===2?'Compare the two':'Compare (pick exactly 2)';"
+"el('sdopen').textContent=k.length===1?'Open in report':'Open all '+k.length+' together'}"
+
+"function sdOpen(){var k=sdKeys();if(!k.length)return;"
+"location.href='/report.html?load='+encodeURIComponent(k.join(','))}"
+"function sdCompare(){var k=sdKeys();if(k.length!==2)return;"
+"location.href='/report.html?compare='+encodeURIComponent(k.join(','))}"
+
+"function sdDelete(){var k=sdKeys();if(!k.length)return;"
+"var n=0;(function step(i){if(i>=k.length){SDSEL={};sdSelBar();sdStat();sdLs(SDPATH);return}"
+"fetch('/api/archive/delete',{method:'POST',headers:{'Content-Type':'application/json'},"
+"body:JSON.stringify({id:k[i]})}).then(function(){n++}).catch(function(){})"
+".then(function(){step(i+1)})})(0)}"
+"function sdWipe(){fetch('/api/archive/wipe',{method:'POST'}).then(function(){"
+"SDSEL={};sdSelBar();sdStat();sdLs(SDPATH)}).catch(function(){})}"
+
+"function armfn(b,k,fn){if(b.getAttribute('data-armed')){clearTimeout(tm[k]);disarm(b);fn();return}"
+"b.setAttribute('data-armed','1');b.setAttribute('data-l',b.textContent);"
+"b.textContent='tap again to confirm';"
+"tm[k]=setTimeout(function(){disarm(b)},3000)}"
+
+"var sdSeen=false;"
+"function sdShow(){sdStat();sdLs(SDPATH);"
+"if(!sdSeen){sdSeen=true;setInterval(function(){"
+"if(el('v-sd').classList.contains('act'))sdStat()},5000)}}"
+#endif
+
 "function savesd(b){var o=b.textContent;b.disabled=true;b.textContent='Saving to SD\\u2026';"
 "fetch('/api/captures/save-sd',{method:'POST'}).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})"
 ".then(function(x){var m=el('sdex');if(m)m.textContent=(x.j&&(x.j.message||x.j.error))||(x.ok?'Saved to SD card.':'SD save failed.');"
@@ -748,6 +1005,7 @@ static const char DASH_HTML[] =
 static esp_err_t root_get(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html");
+
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, DASH_HTML, sizeof(DASH_HTML) - 1);
 }
@@ -776,7 +1034,7 @@ static esp_err_t pup_get(httpd_req_t *req)
     return httpd_resp_send(req, (const char *)_binary_webap_pup_png_start, len);
 }
 
-#if SC_CLUSTER_HEAD
+#if SC_EPUP_BRAIN
 static esp_err_t epup_sprites_get(httpd_req_t *req)
 {
     size_t len = (size_t)(_binary_epup_sprites_png_end - _binary_epup_sprites_png_start);
@@ -808,21 +1066,333 @@ static esp_err_t status_get(httpd_req_t *req)
     return send_json(req, json);
 }
 
+#if SC_SD_ARCHIVE
+
+#define ARCHIVE_LIST_MAX 64
+
+static esp_err_t send_archive_row(httpd_req_t *req, const sd_session_row_t *row,
+                                  char *meta, size_t metasz, bool first)
+{
+    size_t mlen = sd_store_read_meta(row->id, meta, metasz);
+
+    char head[320];
+    int n = snprintf(head, sizeof(head),
+        "%s{\"id\":\"%s\",\"name\":\"%s.jsonl\",\"kind\":\"archive\","
+        "\"bytes\":%llu,\"current\":%s,\"complete_known\":%s,"
+        "\"endpoints\":[\"/api/captures/session/%s.jsonl\"],\"meta\":",
+        first ? "" : ",", row->id, row->id,
+        (unsigned long long)row->bytes,
+        row->current ? "true" : "false",
+        mlen ? "true" : "false", row->id);
+    if (httpd_resp_send_chunk(req, head, n) != ESP_OK) return ESP_FAIL;
+
+    if (mlen) {
+        if (httpd_resp_send_chunk(req, meta, mlen) != ESP_OK) return ESP_FAIL;
+    } else {
+        if (httpd_resp_send_chunk(req, "null", 4) != ESP_OK) return ESP_FAIL;
+    }
+    return httpd_resp_send_chunk(req, "}", 1);
+}
+#endif
+
 static esp_err_t captures_get(httpd_req_t *req)
 {
     capture_ring_stats_t st;
     capture_ring_get_stats(&st);
 
     char json[320];
-    snprintf(json, sizeof(json),
+    int n = snprintf(json, sizeof(json),
         "[{\"id\":\"live\",\"name\":\"live.jsonl\",\"kind\":\"volatile\","
         "\"records\":%u,\"bytes\":%u,\"dropped\":%u,"
-        "\"endpoints\":[\"/api/captures/live.jsonl\",\"/api/captures/live.json\"]}]",
+        "\"endpoints\":[\"/api/captures/live.jsonl\",\"/api/captures/live.json\"]}",
         (unsigned)st.records_current,
         (unsigned)st.bytes_used,
         (unsigned)st.records_dropped);
+
+    httpd_resp_set_type(req, "application/json");
+    if (httpd_resp_send_chunk(req, json, n) != ESP_OK) return ESP_FAIL;
+
+#if SC_SD_ARCHIVE
+
+    sd_session_row_t *rows = serve_buf_calloc(sizeof(sd_session_row_t) * ARCHIVE_LIST_MAX);
+    char *meta = rows ? serve_buf_alloc(1024) : NULL;
+    if (rows && meta) {
+        size_t count = sd_store_list_sessions(rows, ARCHIVE_LIST_MAX);
+        for (size_t i = 0; i < count; i++) {
+            if (send_archive_row(req, &rows[i], meta, 1024, false) != ESP_OK) break;
+            if ((i & 7) == 7) vTaskDelay(1);
+        }
+    }
+    if (meta) heap_caps_free(meta);
+    if (rows) heap_caps_free(rows);
+#endif
+
+    if (httpd_resp_send_chunk(req, "]", 1) != ESP_OK) return ESP_FAIL;
+    return httpd_resp_send_chunk(req, NULL, 0);
+}
+
+#if SC_SD_ARCHIVE
+
+static esp_err_t session_jsonl_get(httpd_req_t *req)
+{
+    const char *tail = strrchr(req->uri, '/');
+    char id[SD_SESSION_ID_MAX] = {0};
+    if (tail) {
+        const char *q = strchr(++tail, '?');
+        size_t n = q ? (size_t)(q - tail) : strlen(tail);
+        const char *ext = ".jsonl";
+        size_t e = strlen(ext);
+        if (n > e && strncasecmp(tail + n - e, ext, e) == 0) n -= e;
+        if (n && n < sizeof(id)) memcpy(id, tail, n);
+    }
+
+    if (!sd_store_id_valid(id)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad session id");
+        return ESP_FAIL;
+    }
+
+    void *h = sd_store_reader_open(id);
+    if (!h) {
+        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "no such session");
+        return ESP_FAIL;
+    }
+
+    char *buf = serve_buf_alloc(STREAM_LINE_MAX + 1);
+    if (!buf) {
+        sd_store_reader_close(h);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no mem");
+        return ESP_FAIL;
+    }
+
+    size_t skip = 0;
+    char q[24], sv[16];
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
+        httpd_query_key_value(q, "since", sv, sizeof(sv)) == ESP_OK)
+        skip = (size_t)strtoul(sv, NULL, 10);
+
+    char disp[96];
+    snprintf(disp, sizeof(disp), "attachment; filename=\"sniffcheck-%s.jsonl\"", id);
+    httpd_resp_set_type(req, "application/x-ndjson");
+    httpd_resp_set_hdr(req, "Content-Disposition", disp);
+    httpd_resp_set_hdr(req, "X-SC-Base", "0");
+    httpd_resp_set_hdr(req, "X-SC-Session", id);
+
+    size_t seen = 0, emitted = 0;
+    esp_err_t err = ESP_OK;
+    for (;;) {
+        size_t len = sd_store_reader_next(h, buf, STREAM_LINE_MAX);
+        if (len == 0) break;
+        if (seen++ < skip) {
+            if (seen % 64 == 0) vTaskDelay(1);
+            continue;
+        }
+        buf[len++] = '\n';
+        if (httpd_resp_send_chunk(req, buf, len) != ESP_OK) { err = ESP_FAIL; break; }
+        if (++emitted % 32 == 0) vTaskDelay(1);
+    }
+
+    heap_caps_free(buf);
+    sd_store_reader_close(h);
+    if (err == ESP_OK) httpd_resp_send_chunk(req, NULL, 0);
+    ESP_LOGI(TAG, "session %s: %u records streamed", id, (unsigned)emitted);
+    return err;
+}
+
+static esp_err_t archive_get(httpd_req_t *req)
+{
+    sd_store_stats_t sd;
+    sd_store_get_stats(&sd);
+
+    char json[440];
+    snprintf(json, sizeof(json),
+        "{\"card_present\":%s,\"mounted\":%s,\"card_unreadable\":%s,"
+        "\"full\":%s,\"session_open\":%s,"
+        "\"card_bytes\":%llu,\"volume_bytes\":%llu,\"free_bytes\":%llu,"
+        "\"reserve_bytes\":%llu,\"session_bytes\":%llu,"
+        "\"session_records\":%u,\"write_errors\":%u,\"file\":\"%s\"}",
+        sd.card_present ? "true" : "false",
+        sd.mounted ? "true" : "false",
+        sd.card_unreadable ? "true" : "false",
+        sd.full ? "true" : "false",
+        sd_store_session_is_open() ? "true" : "false",
+        (unsigned long long)sd.card_bytes,
+
+        (unsigned long long)sd.volume_bytes,
+        (unsigned long long)sd.free_bytes,
+        (unsigned long long)SD_ARCHIVE_RESERVE_BYTES,
+        (unsigned long long)sd.written_bytes,
+        (unsigned)sd.records, (unsigned)sd.write_errors,
+        sd.path);
     return send_json(req, json);
 }
+
+static void url_decode(char *s)
+{
+    char *w = s;
+    for (const char *r = s; *r; r++) {
+        if (*r == '%' && isxdigit((unsigned char)r[1]) && isxdigit((unsigned char)r[2])) {
+            char hex[3] = { r[1], r[2], 0 };
+            *w++ = (char)strtol(hex, NULL, 16);
+            r += 2;
+        } else if (*r == '+') {
+            *w++ = ' ';
+        } else {
+            *w++ = *r;
+        }
+    }
+    *w = '\0';
+}
+
+static bool query_path(httpd_req_t *req, const char *key, char *out, size_t outsz)
+{
+    out[0] = '\0';
+    char q[256];
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) != ESP_OK) return false;
+    if (httpd_query_key_value(q, key, out, outsz) != ESP_OK) return false;
+    url_decode(out);
+    return true;
+}
+
+static esp_err_t send_json_str(httpd_req_t *req, const char *s)
+{
+    char buf[128];
+    size_t n = 0;
+    for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+        if (n + 8 >= sizeof(buf)) {
+            if (httpd_resp_send_chunk(req, buf, n) != ESP_OK) return ESP_FAIL;
+            n = 0;
+        }
+        if (*p == '"' || *p == '\\') { buf[n++] = '\\'; buf[n++] = (char)*p; }
+        else if (*p < 0x20)          { n += snprintf(buf + n, sizeof(buf) - n, "\\u%04x", *p); }
+        else                          { buf[n++] = (char)*p; }
+    }
+    return n ? httpd_resp_send_chunk(req, buf, n) : ESP_OK;
+}
+
+#define SD_LS_MAX 96
+
+static esp_err_t sd_ls_get(httpd_req_t *req)
+{
+    char path[192];
+    if (!query_path(req, "path", path, sizeof(path)) || !path[0])
+        strlcpy(path, "/", sizeof(path));
+
+    char abs[160];
+    if (!sd_store_path_ok(path, abs, sizeof(abs))) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad path");
+        return ESP_FAIL;
+    }
+
+    sd_store_stats_t sd;
+    sd_store_get_stats(&sd);
+
+    sd_dir_entry_t *ents = serve_buf_calloc(sizeof(sd_dir_entry_t) * SD_LS_MAX);
+    char *meta = ents ? serve_buf_alloc(1024) : NULL;
+    if (!ents || !meta) {
+        if (ents) heap_caps_free(ents);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no mem");
+        return ESP_FAIL;
+    }
+
+    size_t total = 0;
+    size_t n = sd_store_list_dir(path, ents, SD_LS_MAX, &total);
+
+    bool exists = (n > 0 || total > 0 || !sd.mounted) ? true : sd_store_dir_exists(path);
+
+    char head[320];
+    int hn = snprintf(head, sizeof(head),
+        "{\"mounted\":%s,\"exists\":%s,\"total\":%u,\"truncated\":%s,"
+        "\"sessions_path\":\"%s\",\"path\":\"",
+        sd.mounted ? "true" : "false",
+        exists ? "true" : "false",
+        (unsigned)total, (total > n) ? "true" : "false",
+        SD_ARCHIVE_REL_PATH);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    if (httpd_resp_send_chunk(req, head, hn) != ESP_OK) goto fail;
+    if (send_json_str(req, path) != ESP_OK) goto fail;
+    if (httpd_resp_send_chunk(req, "\",\"entries\":[", 13) != ESP_OK) goto fail;
+
+    for (size_t i = 0; i < n; i++) {
+        const sd_dir_entry_t *e = &ents[i];
+        if (httpd_resp_send_chunk(req, i ? ",{\"name\":\"" : "{\"name\":\"", i ? 10 : 9) != ESP_OK) goto fail;
+        if (send_json_str(req, e->name) != ESP_OK) goto fail;
+
+        char row[224];
+        int rn = snprintf(row, sizeof(row),
+            "\",\"dir\":%s,\"bytes\":%llu,\"session\":%s,\"id\":\"%s\",\"current\":%s,\"meta\":",
+            e->is_dir ? "true" : "false",
+            (unsigned long long)e->bytes,
+            e->is_session ? "true" : "false", e->id,
+            e->current ? "true" : "false");
+        if (httpd_resp_send_chunk(req, row, rn) != ESP_OK) goto fail;
+
+        size_t mlen = e->is_session ? sd_store_read_meta(e->id, meta, 1024) : 0;
+        if (httpd_resp_send_chunk(req, mlen ? meta : "null", mlen ? mlen : 4) != ESP_OK) goto fail;
+        if (httpd_resp_send_chunk(req, "}", 1) != ESP_OK) goto fail;
+        if ((i & 7) == 7) vTaskDelay(1);
+    }
+
+    heap_caps_free(meta);
+    heap_caps_free(ents);
+    if (httpd_resp_send_chunk(req, "]}", 2) != ESP_OK) return ESP_FAIL;
+    return httpd_resp_send_chunk(req, NULL, 0);
+
+fail:
+    heap_caps_free(meta);
+    heap_caps_free(ents);
+    return ESP_FAIL;
+}
+
+static esp_err_t sd_file_get(httpd_req_t *req)
+{
+    char path[192];
+    if (!query_path(req, "path", path, sizeof(path))) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "no path");
+        return ESP_FAIL;
+    }
+
+    uint64_t size = 0;
+    void *h = sd_store_file_open(path, &size);
+    if (!h) {
+        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "no such file");
+        return ESP_FAIL;
+    }
+
+    const char *base = strrchr(path, '/');
+    base = base ? base + 1 : path;
+
+    char safe[72];
+    strlcpy(safe, base, sizeof(safe));
+    for (char *c = safe; *c; c++) if (*c == '"' || *c == '\\') *c = '_';
+
+    char disp[128];
+    snprintf(disp, sizeof(disp), "attachment; filename=\"%s\"", safe);
+    httpd_resp_set_type(req, "application/octet-stream");
+    httpd_resp_set_hdr(req, "Content-Disposition", disp);
+
+    char *buf = serve_buf_alloc(2048);
+    if (!buf) {
+        sd_store_file_close(h);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no mem");
+        return ESP_FAIL;
+    }
+
+    esp_err_t err = ESP_OK;
+    for (unsigned chunk = 0;; chunk++) {
+        size_t r = sd_store_file_read(h, buf, 2048);
+        if (r == 0) break;
+        if (httpd_resp_send_chunk(req, buf, r) != ESP_OK) { err = ESP_FAIL; break; }
+        if ((chunk & 7) == 7) vTaskDelay(1);
+    }
+
+    heap_caps_free(buf);
+    sd_store_file_close(h);
+    if (err == ESP_OK) httpd_resp_send_chunk(req, NULL, 0);
+    return err;
+}
+
+#endif
 
 static esp_err_t live_jsonl_get(httpd_req_t *req)
 {
@@ -924,7 +1494,7 @@ static esp_err_t report_get(httpd_req_t *req)
     httpd_resp_set_type(req, "text/html");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
 
-    char query[16], dl[4];
+    char query[192], dl[4];
     char disp[80];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
         httpd_query_key_value(query, "dl", dl, sizeof(dl)) == ESP_OK &&
@@ -970,9 +1540,32 @@ static esp_err_t clear_post(httpd_req_t *req)
 
 static esp_err_t save_sd_post(httpd_req_t *req)
 {
-    ESP_LOGI(TAG, "save-to-SD requested (not yet implemented)");
+#if SC_SD_ARCHIVE
+
+    sd_store_stats_t sd;
+    sd_store_get_stats(&sd);
+    if (!sd.mounted)
+        return send_json(req,
+            "{\"ok\":false,\"error\":\"No SD card is inserted, so this scan is only "
+            "in volatile memory. Download it before powering off.\"}");
+
+    sd_store_flush();
+    sd_store_get_stats(&sd);
+
+    char json[240];
+    snprintf(json, sizeof(json),
+        "{\"ok\":true,\"archiving\":true,\"file\":\"%s\",\"records\":%u,"
+        "\"bytes\":%llu,\"full\":%s}",
+        sd.path, (unsigned)sd.records, (unsigned long long)sd.written_bytes,
+        sd.full ? "true" : "false");
+    ESP_LOGI(TAG, "save-to-SD: flushed %u records to %s",
+             (unsigned)sd.records, sd.path[0] ? sd.path : "(no session)");
+    return send_json(req, json);
+#else
+    ESP_LOGI(TAG, "save-to-SD requested (no archive on this build)");
     return send_json(req,
         "{\"ok\":false,\"error\":\"SD card storage isn't available on this build yet.\"}");
+#endif
 }
 
 static esp_err_t extend_post(httpd_req_t *req)
@@ -1018,6 +1611,62 @@ static esp_err_t send_bad(httpd_req_t *req, const char *err)
     snprintf(j, sizeof(j), "{\"ok\":false,\"error\":\"%s\"}", err);
     return httpd_resp_sendstr(req, j);
 }
+
+#if SC_SD_ARCHIVE
+
+static bool json_str(const char *body, const char *key, char *out, size_t outsz)
+{
+    out[0] = '\0';
+    char pat[24];
+    snprintf(pat, sizeof(pat), "\"%s\"", key);
+    const char *p = strstr(body, pat);
+    if (!p) return false;
+    p = strchr(p + strlen(pat), ':');
+    if (!p) return false;
+    p = strchr(p, '"');
+    if (!p) return false;
+    p++;
+    size_t i = 0;
+    while (p[i] && p[i] != '"' && i + 1 < outsz) { out[i] = p[i]; i++; }
+    out[i] = '\0';
+    return i > 0;
+}
+
+static esp_err_t archive_delete_post(httpd_req_t *req)
+{
+    char body[160];
+    int n = read_body(req, body, sizeof(body));
+    char id[SD_SESSION_ID_MAX] = {0};
+    if (n > 0) json_str(body, "id", id, sizeof(id));
+
+    esp_err_t rc = sd_store_delete_session(id);
+    if (rc != ESP_OK) {
+        char json[160];
+        snprintf(json, sizeof(json), "{\"ok\":false,\"error\":\"%s\"}",
+                 rc == ESP_ERR_INVALID_STATE
+                     ? "That session is still being recorded."
+                     : rc == ESP_ERR_INVALID_ARG ? "Bad session id."
+                     : rc == ESP_ERR_NOT_FOUND   ? "No such session."
+                                                 : "No SD card.");
+        return send_json(req, json);
+    }
+    ESP_LOGI(TAG, "archive session deleted via WebAP: %s", id);
+    return send_json(req, "{\"ok\":true}");
+}
+
+static esp_err_t archive_wipe_post(httpd_req_t *req)
+{
+    uint32_t killed = 0;
+    esp_err_t rc = sd_store_wipe(&killed);
+    if (rc != ESP_OK)
+        return send_json(req, "{\"ok\":false,\"error\":\"A scan is still recording. "
+                              "End it first, then clear the archive.\"}");
+    char json[80];
+    snprintf(json, sizeof(json), "{\"ok\":true,\"deleted\":%u}", (unsigned)killed);
+    ESP_LOGW(TAG, "archive wiped via WebAP: %u sessions", (unsigned)killed);
+    return send_json(req, json);
+}
+#endif
 
 static esp_err_t send_settings(httpd_req_t *req)
 {
@@ -1104,7 +1753,8 @@ static esp_err_t scan_start_post(httpd_req_t *req)
 static esp_err_t send_pup(httpd_req_t *req)
 {
     vp_status_t st;
-#if SC_CLUSTER_HEAD
+#if SC_EPUP_BRAIN
+
     { epup_summary_t ep; epup_brain_get(&ep); virtual_pup_sync_level((uint16_t)ep.level, ep.total_scans); }
 #endif
     virtual_pup_get(&st);
@@ -1249,6 +1899,7 @@ static esp_err_t csi_get(httpd_req_t *req)
 {
     const wifi_csi_result_t *r = wifi_csi_probe_last();
     char json[256];
+
     if (!r) {
         return send_json(req,
             "{\"supported\":false,\"ran\":false,\"channel\":0,\"window_ms\":0,"
@@ -1361,6 +2012,7 @@ static esp_err_t pcap_status_get(httpd_req_t *req)
 {
     const pcap_meta_t *m = pcap_capture_meta();
     char json[640];
+
     if (!m) {
         return send_json(req,
             "{\"ran\":false,\"status\":\"idle\",\"seconds_per_channel\":0,"
@@ -1698,7 +2350,7 @@ static void register_handlers(void)
         { .uri = "/logo.png",                  .method = HTTP_GET,  .handler = logo_get },
         { .uri = "/favicon.ico",               .method = HTTP_GET,  .handler = favicon_get },
         { .uri = "/pup.png",                   .method = HTTP_GET,  .handler = pup_get },
-#if SC_CLUSTER_HEAD
+#if SC_EPUP_BRAIN
         { .uri = "/epup_sprites.png",          .method = HTTP_GET,  .handler = epup_sprites_get },
 #endif
         { .uri = "/generate_204",              .method = HTTP_GET,  .handler = root_get },
@@ -1712,6 +2364,15 @@ static void register_handlers(void)
         { .uri = "/api/captures/live.json",    .method = HTTP_GET,  .handler = live_json_get },
         { .uri = "/api/captures/clear-volatile", .method = HTTP_POST, .handler = clear_post },
         { .uri = "/api/captures/save-sd",        .method = HTTP_POST, .handler = save_sd_post },
+#if SC_SD_ARCHIVE
+
+        { .uri = "/api/captures/session/*",     .method = HTTP_GET,  .handler = session_jsonl_get },
+        { .uri = "/api/archive",               .method = HTTP_GET,  .handler = archive_get },
+        { .uri = "/api/archive/delete",        .method = HTTP_POST, .handler = archive_delete_post },
+        { .uri = "/api/archive/wipe",          .method = HTTP_POST, .handler = archive_wipe_post },
+        { .uri = "/api/sd/ls",                 .method = HTTP_GET,  .handler = sd_ls_get },
+        { .uri = "/api/sd/file",               .method = HTTP_GET,  .handler = sd_file_get },
+#endif
         { .uri = "/api/download/extend",       .method = HTTP_POST, .handler = extend_post },
         { .uri = "/api/download/disable",      .method = HTTP_POST, .handler = disable_post },
         { .uri = "/api/settings",              .method = HTTP_GET,  .handler = settings_get },
@@ -1756,6 +2417,8 @@ esp_err_t download_http_start(void)
     cfg.max_uri_handlers = 68;
 
     cfg.stack_size = 8192;
+
+    cfg.uri_match_fn = httpd_uri_match_wildcard;
 
     esp_err_t err = httpd_start(&s_server, &cfg);
     if (err != ESP_OK) {

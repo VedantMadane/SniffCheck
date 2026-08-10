@@ -408,6 +408,79 @@ void arm_walk_sweep(uint16_t *wifi_unique, uint16_t *ble_unique, uint32_t *dur_s
     if (dur_sec)     *dur_sec     = cur.duration_sec;
 }
 
+static EXT_RAM_BSS_ATTR scan_results_t s_loc_wifi;
+static EXT_RAM_BSS_ATTR ble_results_t  s_loc_ble;
+static volatile bool     s_loc_active;
+static uint8_t           s_loc_mac[6];
+static uint8_t           s_loc_kind;
+static uint8_t           s_loc_channel;
+static volatile int8_t   s_loc_rssi;
+static volatile bool     s_loc_found;
+static volatile uint32_t s_loc_samples;
+static volatile int64_t  s_loc_last_us;
+
+void arm_locate_start(const uint8_t mac[6], uint8_t kind, uint8_t channel)
+{
+    memcpy(s_loc_mac, mac, 6);
+    s_loc_kind    = kind;
+    s_loc_channel = channel;
+    s_loc_rssi    = 0;
+    s_loc_found   = false;
+    s_loc_samples = 0;
+    s_loc_last_us = 0;
+    s_loc_active  = true;
+    ESP_LOGI(TAG, "locate start kind=%u ch=%u %02x:%02x:%02x:%02x:%02x:%02x",
+             kind, channel, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+void arm_locate_stop(void)   { if (s_loc_active) { s_loc_active = false; ESP_LOGI(TAG, "locate stop"); } }
+bool arm_locate_active(void) { return s_loc_active; }
+
+void arm_locate_sweep(void)
+{
+    if (!s_loc_active) return;
+    bool seen = false; int8_t rssi = 0;
+    if (s_loc_kind == CL_LOCATE_WIFI) {
+        memset(&s_loc_wifi, 0, sizeof(s_loc_wifi));
+        uint8_t ch = s_loc_channel;
+        static const uint8_t fallback[] = { 1, 6, 11 };
+        if (ch) wifi_scan_run_channels(&s_loc_wifi, &ch, 1, 120);
+        else    wifi_scan_run_channels(&s_loc_wifi, fallback, sizeof(fallback), 100);
+        for (uint16_t i = 0; i < s_loc_wifi.count; i++)
+            if (memcmp(s_loc_wifi.entries[i].bssid, s_loc_mac, 6) == 0) {
+                rssi = s_loc_wifi.entries[i].rssi; seen = true; break;
+            }
+    } else {
+        memset(&s_loc_ble, 0, sizeof(s_loc_ble));
+        ble_scan_run_ex(&s_loc_ble, 600, false, false);
+        for (uint16_t i = 0; i < s_loc_ble.count; i++)
+            if (memcmp(s_loc_ble.devices[i].addr, s_loc_mac, 6) == 0) {
+                rssi = s_loc_ble.devices[i].rssi; seen = true; break;
+            }
+    }
+    if (seen) {
+        s_loc_rssi    = rssi;
+        s_loc_found   = true;
+        s_loc_samples++;
+        s_loc_last_us = esp_timer_get_time();
+    }
+}
+
+void arm_locate_get(cl_locate_state_t *st)
+{
+    if (!st) return;
+    memset(st, 0, sizeof(*st));
+    st->active  = s_loc_active ? 1 : 0;
+    st->found   = s_loc_found ? 1 : 0;
+    st->rssi    = s_loc_rssi;
+    st->samples = s_loc_samples;
+    st->channel = s_loc_channel;
+    st->kind    = s_loc_kind;
+    memcpy(st->mac, s_loc_mac, 6);
+    int64_t age = s_loc_last_us ? (esp_timer_get_time() - s_loc_last_us) / 100000 : 2550;
+    st->age_ds = age > 255 ? 255 : (uint8_t)age;
+    cl_locate_state_seal(st);
+}
+
 void arm_walk_finish(bool *capped, uint16_t *wifi_seen, uint16_t *ble_seen)
 {
     pup_walk_summary_t done = {0};

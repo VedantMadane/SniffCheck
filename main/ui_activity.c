@@ -1,5 +1,4 @@
 
-
 #include "ui_activity.h"
 
 #include "esp_log.h"

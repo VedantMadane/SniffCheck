@@ -28,8 +28,24 @@
 #include "head_sd.h"
 #include "sentinel.h"
 #include "sentinel_registry.h"
+#include "action_sched.h"
+#include "driver_dult.h"
+#include "head_ui.h"
 
-#define FW_CKPT "s3node-1.0"
+#define FW_CKPT "s3node-1.2"
+
+#ifndef TRACKER_SOUND_BENCH
+#define TRACKER_SOUND_BENCH 0
+#endif
+#ifndef TRACKER_SOUND_BENCH_MAC
+#define TRACKER_SOUND_BENCH_MAC "00:00:00:00:00:00"
+#endif
+#ifndef TRACKER_SOUND_BENCH_ADDRTYPE
+#define TRACKER_SOUND_BENCH_ADDRTYPE 1
+#endif
+#ifndef TRACKER_SOUND_BENCH_PROTO
+#define TRACKER_SOUND_BENCH_PROTO CL_TSND_PROTO_AUTO
+#endif
 
 static const char *TAG = "sc-s3node";
 
@@ -40,6 +56,9 @@ static volatile uint32_t s_reads, s_pings;
 
 static volatile uint8_t  s_sel_cmd = CL_CMD_STATUS_SEL;
 static volatile uint32_t s_sel_off;
+
+static volatile uint8_t   s_tsnd_pending;
+static cl_tracker_sound_t s_tsnd_req;
 
 static char    s_blob[6144];
 static int     s_blob_len;
@@ -343,8 +362,27 @@ static int build_sentinel_json(char *buf, size_t buflen)
     }
     mac_str(s_sent_last_mac, mac);
     if (off > 0 && off < (int)buflen)
-        off += snprintf(buf + off, buflen - off, "],\"last\":{\"label\":\"%s\",\"mac\":\"%s\",\"conf\":%u}}",
+        off += snprintf(buf + off, buflen - off, "],\"last\":{\"label\":\"%s\",\"mac\":\"%s\",\"conf\":%u},",
                         s_sent_last[0] ? s_sent_last : "", mac, s_sent_last_conf);
+
+    char ui[4][CL_UI_ITEM];
+    head_sd_stats_t sd; head_sd_get_stats(&sd);
+    snprintf(ui[0], sizeof ui[0], "SD %s %u rec", sd.mounted ? "ok" : "--",
+             (unsigned)sd.records);
+    if (sd.mounted) snprintf(ui[1], sizeof ui[1], "card %.1f GB", (double)sd.card_bytes / 1e9);
+    else            snprintf(ui[1], sizeof ui[1], "no card");
+    snprintf(ui[2], sizeof ui[2], "flagged %lu", (unsigned long)s_sent_total);
+    if (s_sent_last[0]) snprintf(ui[3], sizeof ui[3], "last %.*s",
+                                 (int)sizeof(ui[3]) - 6, s_sent_last);
+    else                snprintf(ui[3], sizeof ui[3], "no hits yet");
+    for (int i = 0; i < 4; i++)
+        for (char *p = ui[i]; *p; p++)
+            if (*p == '"' || *p == '\\' || (unsigned char)*p < 0x20) *p = ' ';
+
+    if (off > 0 && off < (int)buflen)
+        off += snprintf(buf + off, buflen - off,
+                        "\"ui0\":\"%s\",\"ui1\":\"%s\",\"ui2\":\"%s\",\"ui3\":\"%s\"}",
+                        ui[0], ui[1], ui[2], ui[3]);
     return (off > 0 && off < (int)buflen) ? off : (int)buflen - 1;
 }
 static int build_hits_json(char *buf, size_t buflen)
@@ -396,17 +434,28 @@ static bool IRAM_ATTR on_receive_cb(i2c_slave_dev_handle_t dev,
 
     if (evt->length >= sizeof(cl_chunk_t)) {
         const cl_chunk_t *c = (const cl_chunk_t *)evt->buffer;
-        if (!cl_chunk_valid(c) || (c->type != CL_PUT_S3MERGE && c->type != CL_PUT_SENTCFG))
+        if (!cl_chunk_valid(c) || (c->type != CL_PUT_S3MERGE && c->type != CL_PUT_SENTCFG &&
+                                   c->type != CL_PUT_UIFRAME))
             return false;
         BaseType_t woken = pdFALSE;
         xQueueSendFromISR(s_rxq, c, &woken);
         return woken == pdTRUE;
     }
 
+    if (evt->length >= sizeof(cl_tracker_sound_t)) {
+        const cl_tracker_sound_t *ts = (const cl_tracker_sound_t *)evt->buffer;
+        if (cl_tracker_sound_valid(ts)) {
+            memcpy((void *)&s_tsnd_req, ts, sizeof s_tsnd_req);
+            s_tsnd_pending = 1;
+            return false;
+        }
+    }
+
     if (evt->length >= sizeof(cl_getreq_t)) {
         const cl_getreq_t *g = (const cl_getreq_t *)evt->buffer;
         if (cl_getreq_valid_cmd(g, CL_CMD_GET_SENT) || cl_getreq_valid_cmd(g, CL_CMD_GET_HITS) ||
-            cl_getreq_valid_cmd(g, CL_CMD_STATUS_SEL)) {
+            cl_getreq_valid_cmd(g, CL_CMD_GET_TRACKER) || cl_getreq_valid_cmd(g, CL_CMD_STATUS_SEL) ||
+            cl_getreq_valid_cmd(g, CL_CMD_GET_UIEVENT)) {
             s_sel_cmd = g->cmd; s_sel_off = g->offset;
         } else if (cl_getreq_valid_cmd(g, CL_CMD_SET_CLOCK)) {
             uint32_t epoch = g->offset;
@@ -454,8 +503,9 @@ static void serve_status(void)
 static void serve_blob(uint8_t cmd, uint32_t off)
 {
     if (off == 0) {
-        s_blob_len   = (cmd == CL_CMD_GET_HITS) ? build_hits_json(s_blob, sizeof s_blob)
-                                                : build_sentinel_json(s_blob, sizeof s_blob);
+        s_blob_len   = (cmd == CL_CMD_GET_HITS)    ? build_hits_json(s_blob, sizeof s_blob)
+                     : (cmd == CL_CMD_GET_TRACKER) ? action_sched_status_json(s_blob, sizeof s_blob)
+                                                   : build_sentinel_json(s_blob, sizeof s_blob);
         s_blob_which = cmd;
     }
     cl_chunk_t ch; memset(&ch, 0, sizeof ch);
@@ -474,6 +524,14 @@ static void serve_blob(uint8_t cmd, uint32_t off)
     uint32_t written = 0;
     i2c_slave_write(s_slave, (const uint8_t *)&ch, sizeof(ch), &written, 100);
 }
+static void serve_uievent(void)
+{
+    cl_uievent_t e;
+    head_ui_fill_event(&e);
+    uint32_t written = 0;
+    i2c_slave_write(s_slave, (const uint8_t *)&e, sizeof(e), &written, 100);
+}
+
 static void s3_tx_task(void *arg)
 {
     (void)arg;
@@ -482,7 +540,9 @@ static void s3_tx_task(void *arg)
         if (xQueueReceive(s_txq, &ev, portMAX_DELAY) != pdTRUE) continue;
         uint8_t  cmd = s_sel_cmd;
         uint32_t off = s_sel_off;
-        if (cmd == CL_CMD_GET_SENT || cmd == CL_CMD_GET_HITS) serve_blob(cmd, off);
+        if (cmd == CL_CMD_GET_SENT || cmd == CL_CMD_GET_HITS || cmd == CL_CMD_GET_TRACKER)
+                                                              serve_blob(cmd, off);
+        else if (cmd == CL_CMD_GET_UIEVENT)                   serve_uievent();
         else                                                  serve_status();
     }
 }
@@ -498,6 +558,12 @@ static void ingest_task(void *arg)
     uint32_t cur_seq = 0, exp_off = 0;
     for (;;) {
         if (xQueueReceive(s_rxq, &ch, portMAX_DELAY) != pdTRUE) continue;
+
+        if (ch.type == CL_PUT_UIFRAME) {
+            if (ch.len >= sizeof(cl_uiframe_t))
+                head_ui_push_frame((const cl_uiframe_t *)ch.payload);
+            continue;
+        }
 
         if (ch.type == CL_PUT_SENTCFG) {
             if (ch.offset == 0) s_cfglen = 0;
@@ -538,9 +604,13 @@ static void ingest_task(void *arg)
                      (unsigned long)s_window, (unsigned long)s_win_recs,
                      sd.mounted ? "ok" : "--", (unsigned)sd.records,
                      (unsigned long)s_sent_total, s_sent_last[0] ? s_sent_last : "-");
-            char l[24];
-            snprintf(l, sizeof(l), "w%lu %urec", (unsigned long)s_window, (unsigned)sd.records);
-            render_screen(l);
+
+            if (!head_ui_linked()) {
+                char l[24];
+                snprintf(l, sizeof(l), "w%lu %urec", (unsigned long)s_window,
+                         (unsigned)sd.records);
+                render_screen(l);
+            }
         }
     }
 }
@@ -705,12 +775,35 @@ static void ble_scan_set(bool on)
     }
 }
 
+static void action_radio_pause(void)  { ble_scan_set(false); }
+static void action_radio_resume(void) {   }
+
+static void tsnd_submit_from_req(const cl_tracker_sound_t *req)
+{
+    if (req->action == CL_TSND_CANCEL) { action_sched_cancel(); return; }
+    act_target_t t;
+    memset(&t, 0, sizeof t);
+    memcpy(t.mac, req->mac, 6);
+    t.addr_type  = req->addr_type;
+    t.proto_hint = req->proto_hint;
+    action_sched_submit(&t, req->action == CL_TSND_STOP ? ACT_CMD_SOUND_STOP
+                                                        : ACT_CMD_SOUND_START);
+}
+
 static void sniff_task(void *arg)
 {
     (void)arg;
     static wifi_ap_record_t aps[32];
     uint32_t sweeps = 0, flagged_seen = 0;
     for (;;) {
+        if (s_tsnd_pending) {
+            cl_tracker_sound_t req;
+            memcpy(&req, (const void *)&s_tsnd_req, sizeof req);
+            s_tsnd_pending = 0;
+            tsnd_submit_from_req(&req);
+        }
+        action_sched_service(s_sent_armed);
+
         if (!s_sent_armed) {
             ble_scan_set(false);
             vTaskDelay(pdMS_TO_TICKS(500));
@@ -738,6 +831,30 @@ static void sniff_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS(3000));
     }
 }
+
+#if TRACKER_SOUND_BENCH
+static void bench_sound_task(void *arg)
+{
+    (void)arg;
+    vTaskDelay(pdMS_TO_TICKS(7000));
+    uint8_t mac[6] = {0};
+    if (!byoi_parse_mac(TRACKER_SOUND_BENCH_MAC, mac)) {
+        ESP_LOGW(TAG, "bench: bad MAC '%s'", TRACKER_SOUND_BENCH_MAC);
+        vTaskDelete(NULL);
+    }
+    cl_tracker_sound_t req;
+    memset(&req, 0, sizeof req);
+    memcpy(req.mac, mac, 6);
+    req.addr_type  = TRACKER_SOUND_BENCH_ADDRTYPE;
+    req.action     = CL_TSND_START;
+    req.proto_hint = TRACKER_SOUND_BENCH_PROTO;
+    ESP_LOGW(TAG, "bench: firing tracker sound at %s (proto=%u)",
+             TRACKER_SOUND_BENCH_MAC, req.proto_hint);
+    memcpy((void *)&s_tsnd_req, &req, sizeof req);
+    s_tsnd_pending = 1;
+    vTaskDelete(NULL);
+}
+#endif
 
 void app_main(void)
 {
@@ -771,12 +888,20 @@ void app_main(void)
     sentinel_persist_load();
     sentinel_registry_init();
     i2c_slave_setup();
-    render_screen("waiting for brain");
+    head_ui_init();
 
     wifi_scan_init();
     ble_scan_init();
+
+    action_sched_init();
+    action_sched_register(&driver_dult);
+    action_sched_set_radio_hooks(action_radio_pause, action_radio_resume);
+
     xTaskCreate(sniff_task,  "s3_sniff",  4096, NULL, 5, NULL);
     xTaskCreate(status_task, "s3_status", 4096, NULL, 4, NULL);
+#if TRACKER_SOUND_BENCH
+    xTaskCreate(bench_sound_task, "s3_bench", 3072, NULL, 3, NULL);
+#endif
     ESP_LOGI(TAG, "S3 node app_main done — I2C slave 0x%02x listening for merged scansets",
              CL_S3_ADDR);
 }

@@ -40,6 +40,10 @@ esp_err_t display_init(spi_host_device_t host);
 void      display_set_brightness_percent(uint8_t percent);
 
 void      display_set_post_blit_cb(void (*cb)(void));
+
+esp_err_t display_bus_init(void);
+void      display_bus_lock(void);
+void      display_bus_unlock(void);
 void      display_clear(uint16_t color_be);
 void      display_fill_rect(int x, int y, int w, int h, uint16_t color_be);
 

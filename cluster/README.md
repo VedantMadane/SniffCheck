@@ -38,12 +38,7 @@ cd arm      && idf.py -B ~/.cache/cluster-arm-build -DARM_INDEX=1 --preview set-
 ```
 
 `flash_all.sh` wires the C5 roles (master, brain, two arms) together in one pass; the
-S3 node is built separately because it targets esp32s3. After flashing each arm's app,
-`flash_all.sh` also writes the vendor/device-type database (`data/eui.bin`) to the arm's
-`euidb` partition at `0x310000` — the arms do the scanning and identity resolution, so
-without that database every device reads back as unknown vendor/class. (A plain
-`idf.py flash` writes only the app, not that partition.)
+S3 node is built separately because it targets esp32s3.
 
 Pre-built images for all roles are on the web flasher (`docs/webflasher/`), including
-merged one-shot images and app-only update images. The web flasher's arm image bundles
-`eui.bin` into the merged binary, so a one-click install needs no separate database step.
+merged one-shot images and app-only update images.

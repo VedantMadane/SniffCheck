@@ -1,0 +1,138 @@
+
+grantees:
+
+  - code: "BCG"
+    class: mobile
+    name: "Apple"
+
+  - code: "A3L"
+    class: mobile
+    name: "Samsung Electronics"
+
+  - code: "NM8"
+    class: mobile
+    name: "Google (Nest legacy)"
+  - code: "2AKE"
+    class: mobile
+    name: "Google Pixel"
+  - code: "2AKEY"
+    class: iot_hub
+    name: "Google Nest"
+
+  - code: "O3X"
+    class: laptop
+    name: "Microsoft"
+  - code: "C3K"
+    class: laptop
+    name: "Microsoft Surface"
+
+  - code: "ZNF"
+    class: mobile
+    name: "LG Electronics"
+  - code: "BEJ"
+    class: mobile
+    name: "LG (consumer)"
+
+  - code: "IHD"
+    class: mobile
+    name: "Motorola Mobility"
+  - code: "2APYS"
+    class: laptop
+    name: "Lenovo"
+  - code: "ZNT"
+    class: laptop
+    name: "Lenovo (legacy)"
+
+  - code: "ZWA"
+    class: mobile
+    name: "Sony Mobile"
+  - code: "AK8"
+    class: mobile
+    name: "Sony"
+
+  - code: "MSQ"
+    class: laptop
+    name: "ASUS"
+  - code: "HLZ"
+    class: laptop
+    name: "Acer"
+
+  - code: "B94"
+    class: laptop
+    name: "HP"
+  - code: "TX2"
+    class: laptop
+    name: "Dell"
+
+  - code: "PXC"
+    class: surveillance_cam
+    flags: [SURVEILLANCE, FCC_COVERED]
+    name: "Hikvision"
+  - code: "VV2"
+    class: surveillance_cam
+    flags: [SURVEILLANCE, FCC_COVERED]
+    name: "Dahua"
+  - code: "2AAEX"
+    class: surveillance_cam
+    flags: [SURVEILLANCE]
+    name: "Ring (Amazon)"
+  - code: "2AAEU"
+    class: surveillance_cam
+    flags: [SURVEILLANCE]
+    name: "Amazon (general)"
+
+  - code: "QIS"
+    class: mobile
+    flags: [FCC_COVERED]
+    name: "Huawei"
+  - code: "QISHUAWEI"
+    class: mobile
+    flags: [FCC_COVERED]
+    name: "Huawei"
+  - code: "SRQ"
+    class: mobile
+    flags: [FCC_COVERED]
+    name: "ZTE"
+
+  - code: "2AC7Z"
+    class: iot_leaf
+    name: "Tuya / Generic IoT"
+  - code: "2ABCB"
+    class: iot_leaf
+    name: "Amazon Echo"
+  - code: "2AOKV"
+    class: iot_leaf
+    name: "Wyze Labs"
+  - code: "2ABKW"
+    class: iot_leaf
+    name: "Sonos"
+
+  - code: "2AVAI"
+    class: standards
+    name: "Skydio (Blue UAS)"
+  - code: "SS3"
+    class: standards
+    flags: [FCC_COVERED]
+    name: "DJI"
+
+  - code: "PY3"
+    class: enterprise_ap
+    name: "Aruba Networks"
+  - code: "LDK"
+    class: enterprise_ap
+    name: "Cisco"
+  - code: "TE7"
+    class: consumer_ap
+    name: "TP-Link"
+  - code: "PY3"
+    class: enterprise_ap
+    name: "Aruba"
+
+  - code: "2AC7Z-ESP"
+    class: dev_module
+    flags: [DEV_MODULE]
+    name: "Espressif"
+  - code: "Z2W"
+    class: dev_module
+    flags: [DEV_MODULE]
+    name: "Espressif"

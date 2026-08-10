@@ -132,6 +132,13 @@ esp_err_t ble_scan_run(ble_results_t *out, uint32_t duration_ms);
 esp_err_t ble_scan_run_ex(ble_results_t *out, uint32_t duration_ms, bool continuous,
                           bool coded_phy);
 
+esp_err_t ble_scan_start_ex(ble_results_t *out, uint32_t duration_ms, bool continuous,
+                            bool coded_phy);
+bool      ble_scan_busy(void);
+esp_err_t ble_scan_finish(ble_results_t *out);
+
+void      ble_scan_cancel(void);
+
 typedef enum {
     BLE_EV_PENALTY = 0,
     BLE_EV_BASE    = 1,

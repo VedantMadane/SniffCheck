@@ -25,6 +25,9 @@ esp_err_t capture_ring_init(size_t preferred_bytes, size_t fallback_bytes);
 
 size_t capture_ring_write(const char *line, size_t len);
 
+typedef void (*capture_ring_sink_t)(const char *line, size_t len);
+void capture_ring_set_sink(capture_ring_sink_t fn);
+
 void capture_ring_reader_open(capture_ring_reader_t *r);
 
 size_t capture_ring_reader_next(capture_ring_reader_t *r, char *out, size_t out_sz);

@@ -1,0 +1,373 @@
+
+rules:
+
+  - id: apple_ibeacon
+    company_id: 0x004C
+    mfg_prefix_hex: "0215"
+    device_class: beacon
+    subtype: 0x02
+    name: "Apple iBeacon"
+    source: "Apple iBeacon spec"
+
+  - id: apple_airdrop
+    company_id: 0x004C
+    mfg_prefix_hex: "0512"
+    device_class: phone
+    device_subtype: iphone
+    subtype: 0x05
+    name: "AirDrop"
+    source: "Apple Continuity RE community"
+
+  - id: apple_airpods_proximity
+    company_id: 0x004C
+    mfg_prefix_hex: "0719"
+    device_class: audio
+    device_subtype: airpods
+    subtype: 0x07
+    name: "AirPods proximity"
+    source: "Apple Continuity RE"
+
+  - id: apple_airplay
+    company_id: 0x004C
+    mfg_prefix_hex: "0903"
+    device_class: audio
+    device_subtype: airplay_target
+    subtype: 0x09
+    name: "AirPlay target"
+    source: "Apple Continuity RE"
+
+  - id: apple_handoff
+    company_id: 0x004C
+    mfg_prefix_hex: "0C0E"
+    device_class: phone
+    device_subtype: iphone
+    subtype: 0x0C
+    name: "Handoff"
+    source: "Apple Continuity RE"
+
+  - id: apple_nearby_info
+    company_id: 0x004C
+
+    mfg_prefix_hex: "10"
+    device_class: phone
+    device_subtype: iphone
+    subtype: 0x10
+    name: "Nearby Info"
+    source: "Apple Continuity RE"
+
+  - id: apple_findmy_full
+    company_id: 0x004C
+    mfg_prefix_hex: "1219"
+    device_class: tracker
+    device_subtype: findmy
+    subtype: 0x12
+    flags: [TRACKER]
+
+    name: "Find My device"
+    source: "Heinrich et al. Who Tracks the Trackers? 2021"
+
+  - id: apple_findmy_subtype12
+    company_id: 0x004C
+    mfg_prefix_hex: "12"
+    device_class: tracker
+    device_subtype: findmy
+    subtype: 0x12
+    flags: [TRACKER]
+    name: "Find My (subtype 0x12)"
+    source: "Apple Continuity / Find My Network spec"
+
+  - id: apple_findmy_v2
+    company_id: 0x004C
+    mfg_prefix_hex: "16"
+    device_class: tracker
+    device_subtype: findmy
+    subtype: 0x16
+    flags: [TRACKER]
+    name: "Find My (separated)"
+    source: "Apple Find My Network docs"
+
+  - id: apple_homekit
+    company_id: 0x004C
+    mfg_prefix_hex: "06"
+    device_class: iot_sensor
+    subtype: 0x06
+    name: "HomeKit accessory"
+    source: "Apple HomeKit spec"
+
+  - id: apple_hey_siri
+    company_id: 0x004C
+    mfg_prefix_hex: "08"
+    device_class: phone
+    device_subtype: iphone
+    subtype: 0x08
+    name: "Hey Siri ranging"
+    source: "Apple Continuity RE"
+
+  - id: apple_tethering_source
+    company_id: 0x004C
+    mfg_prefix_hex: "0E"
+    device_class: phone
+    device_subtype: iphone
+    subtype: 0x0E
+    name: "Instant Hotspot"
+    source: "Apple Continuity RE"
+
+  - id: ms_swiftpair_s0
+    company_id: 0x0006
+    mfg_prefix_hex: "0300"
+    device_class: audio
+    subtype: 0x00
+    name: "Swift Pair (display name)"
+    source: "MS-CDP §2.2.2.1"
+
+  - id: ms_swiftpair_s1
+    company_id: 0x0006
+    mfg_prefix_hex: "0301"
+    device_class: audio
+    subtype: 0x01
+    name: "Swift Pair (pairable)"
+    source: "MS-CDP §2.2.2.2"
+
+  - id: ms_swiftpair_s2
+    company_id: 0x0006
+    mfg_prefix_hex: "0302"
+    device_class: audio
+    subtype: 0x02
+    name: "Swift Pair (paired)"
+    source: "MS-CDP §2.2.2.3"
+
+  - id: ms_cdp_beacon
+    company_id: 0x0006
+    mfg_prefix_hex: "01"
+    device_class: laptop
+    device_subtype: windows_laptop
+    subtype: 0x01
+    name: "MS CDP beacon"
+    source: "MS-CDP §2.2.1"
+
+  - id: google_fastpair
+    company_id: 0x00E0
+    mfg_prefix_hex: ""
+    device_class: audio
+    name: "Google Fast Pair"
+    source: "Google Fast Pair spec"
+
+  - id: samsung_smarttag
+    company_id: 0x0075
+    mfg_prefix_hex: "4205"
+    device_class: tracker
+    device_subtype: samsung_smarttag
+    flags: [TRACKER]
+    name: "Samsung SmartTag"
+    source: "Public SmartTag RE community"
+
+  - id: samsung_smarttag2
+    company_id: 0x0075
+    mfg_prefix_hex: "4210"
+    device_class: tracker
+    device_subtype: samsung_smarttag
+    flags: [TRACKER]
+    name: "Samsung SmartTag2"
+    source: "Public SmartTag2 RE community"
+
+  - id: samsung_galaxy_continuity
+    company_id: 0x0075
+    mfg_prefix_hex: "01"
+    device_class: phone
+    device_subtype: android
+    name: "Galaxy continuity"
+    source: "Public Samsung RE"
+
+  - id: samsung_smartthings
+    company_id: 0x0075
+    mfg_prefix_hex: "10"
+    device_class: infrastructure
+    device_subtype: smart_home_hub
+    name: "SmartThings hub"
+    source: "Public Samsung RE"
+
+  - id: tile_legacy
+    company_id: 0x0067
+    mfg_prefix_hex: ""
+    device_class: tracker
+    device_subtype: tile
+    flags: [TRACKER]
+    name: "Tile (legacy CID)"
+    source: "Tile public reverse-engineering"
+
+  - id: tile_current
+    company_id: 0x089D
+    mfg_prefix_hex: ""
+    device_class: tracker
+    device_subtype: tile
+    flags: [TRACKER]
+    name: "Tile"
+    source: "Tile BT SIG registration"
+
+  - id: pebblebee
+    company_id: 0x0188
+    mfg_prefix_hex: ""
+    device_class: tracker
+    device_subtype: pebblebee
+    flags: [TRACKER]
+    name: "Pebblebee"
+    source: "Pebblebee BT SIG registration"
+
+  - id: chipolo
+    company_id: 0x0277
+    mfg_prefix_hex: ""
+    device_class: tracker
+    device_subtype: chipolo
+    flags: [TRACKER]
+    name: "Chipolo"
+    source: "Chipolo BT SIG registration"
+
+  - id: flipper_generic
+    company_id: 0x0E29
+    mfg_prefix_hex: ""
+    device_class: pentest_tool
+    device_subtype: flipper_zero
+    flags: [INVESTIGATION]
+    name: "Flipper Zero"
+    source: "Flipper BT SIG registration"
+
+  - id: espressif_generic
+    company_id: 0x02E5
+    mfg_prefix_hex: ""
+    device_class: dev_board
+    device_subtype: esp32_devkit
+    flags: [DEV_MODULE]
+    name: "Espressif"
+    source: "Espressif BT SIG registration"
+
+  - id: nordic_generic
+    company_id: 0x0059
+    mfg_prefix_hex: ""
+    device_class: dev_board
+    device_subtype: nordic_devkit
+    flags: [DEV_MODULE]
+    name: "Nordic Semi"
+    source: "Nordic BT SIG registration"
+
+  - id: adafruit_generic
+    company_id: 0x0822
+    mfg_prefix_hex: ""
+    device_class: dev_board
+    device_subtype: generic_devkit
+    flags: [MAKER]
+    name: "Adafruit"
+    source: "Adafruit BT SIG registration"
+
+  - id: garmin_wearable
+    company_id: 0x0087
+    mfg_prefix_hex: ""
+    device_class: wearable
+    device_subtype: garmin
+    name: "Garmin"
+    source: "Garmin BT SIG registration"
+
+  - id: fitbit_wearable
+    company_id: 0x02EE
+    mfg_prefix_hex: ""
+    device_class: wearable
+    device_subtype: fitbit
+    name: "Fitbit"
+    source: "Fitbit BT SIG registration"
+
+  - id: polar_wearable
+    company_id: 0x006B
+    mfg_prefix_hex: ""
+    device_class: wearable
+    device_subtype: polar
+    name: "Polar"
+    source: "Polar BT SIG registration"
+
+  - id: tesla_vehicle
+    company_id: 0x022B
+    mfg_prefix_hex: ""
+    device_class: vehicle
+    device_subtype: tesla
+    name: "Tesla"
+    source: "Tesla BT SIG registration (company ID 0x022B)"
+
+  - id: bose_audio
+    company_id: 0x009E
+    mfg_prefix_hex: ""
+    device_class: audio
+    device_subtype: bose
+    name: "Bose"
+    source: "Bose BT SIG registration"
+
+  - id: sony_audio
+    company_id: 0x012D
+    mfg_prefix_hex: ""
+    device_class: audio
+    name: "Sony"
+    source: "Sony BT SIG registration"
+
+  - id: sonos_speaker
+    company_id: 0x05A7
+    mfg_prefix_hex: ""
+    device_class: audio
+    device_subtype: sonos
+    name: "Sonos"
+    source: "Sonos BT SIG registration"
+
+  - id: xiaomi_generic
+    company_id: 0x038F
+    mfg_prefix_hex: ""
+    device_class: iot_sensor
+    name: "Xiaomi"
+    source: "Xiaomi BT SIG registration"
+
+  - id: ring_camera
+    company_id: 0x055F
+    mfg_prefix_hex: ""
+    device_class: surveillance
+    device_subtype: camera_doorbell
+    flags: [SURVEILLANCE]
+    name: "Ring"
+    source: "Ring BT SIG registration"
+
+  - id: wyze_camera
+    company_id: 0x0853
+    mfg_prefix_hex: ""
+    device_class: surveillance
+    device_subtype: camera_ip
+    flags: [SURVEILLANCE]
+    name: "Wyze"
+    source: "Wyze BT SIG registration"
+
+  - id: hikvision_camera
+    company_id: 0x0220
+    mfg_prefix_hex: ""
+    device_class: surveillance
+    device_subtype: camera_ip
+    flags: [SURVEILLANCE, FCC_COVERED]
+    name: "Hikvision"
+    source: "Hikvision BT SIG; FCC Covered List 2022"
+
+  - id: huawei_device
+    company_id: 0x0157
+    mfg_prefix_hex: ""
+    device_class: phone
+    device_subtype: android
+    flags: [FCC_COVERED]
+    name: "Huawei"
+    source: "Huawei BT SIG; FCC Covered List 2022"
+
+  - id: csa_matter
+    company_id: 0xFFFD
+    mfg_prefix_hex: ""
+    device_class: standards
+    flags: [STANDARDS]
+    name: "Matter device"
+    source: "Connectivity Standards Alliance"
+
+  - id: gaen_exposure
+    company_id: 0x0000
+    mfg_prefix_hex: ""
+    device_class: standards
+    flags: [STANDARDS]
+    name: "GAEN exposure beacon"
+    source: "Apple/Google Exposure Notification spec"

@@ -26,6 +26,9 @@ static inline uint16_t rgb565be(uint8_t r, uint8_t g, uint8_t b)
 #define COLOR_HEADER     rgb565be(0x40, 0xC4, 0xF6)
 
 esp_err_t display_init(spi_host_device_t host);
+
+void      display_bus_lock(void);
+void      display_bus_unlock(void);
 void      display_set_brightness_percent(uint8_t percent);
 void      display_set_post_blit_cb(void (*cb)(void));
 void      display_clear(uint16_t color_be);

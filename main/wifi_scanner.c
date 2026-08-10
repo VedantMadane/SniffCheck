@@ -1,6 +1,7 @@
 #include "wifi_scanner.h"
 #include "esp_wifi.h"
 #include "esp_check.h"
+#include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -8,6 +9,9 @@
 #include <string.h>
 
 static const char *TAG = "sc_scan";
+
+static void scan_done_evt(void *arg, esp_event_base_t base, int32_t id, void *data);
+static esp_event_handler_instance_t s_scan_done_h;
 
 #define WIFI_ADV_ACTIVE_DWELL_MS   180u
 #define WIFI_ADV_PASSIVE_DWELL_MS  250u
@@ -23,6 +27,11 @@ esp_err_t wifi_scanner_init(void)
     ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), TAG, "wifi init");
     ESP_RETURN_ON_ERROR(esp_wifi_set_mode(WIFI_MODE_STA), TAG, "wifi sta mode");
     ESP_RETURN_ON_ERROR(esp_wifi_start(), TAG, "wifi start");
+
+    ESP_RETURN_ON_ERROR(esp_event_handler_instance_register(
+                            WIFI_EVENT, WIFI_EVENT_SCAN_DONE, scan_done_evt,
+                            NULL, &s_scan_done_h),
+                        TAG, "scan_done handler");
 
     wifi_country_t country = {
         .cc = "US", .schan = 1, .nchan = 11,
@@ -89,40 +98,134 @@ static void merge_record(scan_results_t *out, const wifi_ap_record_t *r)
     e->auth    = r->authmode;
 }
 
-static esp_err_t scan_sweep(scan_results_t *out, const wifi_scan_opts_t *opts)
+static volatile wifi_scan_async_state_t s_async_state = WIFI_SCAN_ASYNC_IDLE;
+static bool s_async_2g_only;
+
+#define WIFI_SCAN_POLL_MS  20u
+
+static void scan_done_evt(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
-    ESP_RETURN_ON_ERROR(prepare_scan(opts && opts->band_2g_only), TAG, "prepare");
-
-    wifi_scan_config_t  cfg   = {0};
-    wifi_scan_config_t *cfgp  = NULL;
-    if (opts) {
-        cfg.show_hidden = opts->show_hidden;
-        if (opts->passive) {
-            cfg.scan_type = WIFI_SCAN_TYPE_PASSIVE;
-            if (opts->dwell_ms) cfg.scan_time.passive = opts->dwell_ms;
-        } else {
-            cfg.scan_type = WIFI_SCAN_TYPE_ACTIVE;
-            if (opts->dwell_ms) {
-
-                cfg.scan_time.active.min = opts->dwell_ms;
-                cfg.scan_time.active.max = opts->dwell_ms;
-            }
-        }
-        cfgp = &cfg;
+    (void)arg; (void)base; (void)data;
+    if (id == WIFI_EVENT_SCAN_DONE && s_async_state == WIFI_SCAN_ASYNC_RUNNING) {
+        s_async_state = WIFI_SCAN_ASYNC_DONE;
     }
-    ESP_RETURN_ON_ERROR(esp_wifi_scan_start(cfgp, true), TAG, "scan start");
+}
+
+static esp_err_t async_start_cfg(const wifi_scan_config_t *cfg, bool band_2g_only)
+{
+    if (s_async_state != WIFI_SCAN_ASYNC_IDLE) return ESP_ERR_INVALID_STATE;
+    ESP_RETURN_ON_ERROR(prepare_scan(band_2g_only), TAG, "prepare");
+
+    s_async_2g_only = band_2g_only;
+    s_async_state   = WIFI_SCAN_ASYNC_RUNNING;
+    esp_err_t err = esp_wifi_scan_start(cfg, false);
+    if (err != ESP_OK) {
+        s_async_state = WIFI_SCAN_ASYNC_IDLE;
+        return err;
+    }
+    return ESP_OK;
+}
+
+static void cfg_from_opts(wifi_scan_config_t *cfg, const wifi_scan_opts_t *opts)
+{
+    memset(cfg, 0, sizeof(*cfg));
+    cfg->show_hidden = opts->show_hidden;
+    if (opts->passive) {
+        cfg->scan_type = WIFI_SCAN_TYPE_PASSIVE;
+        if (opts->dwell_ms) cfg->scan_time.passive = opts->dwell_ms;
+    } else {
+        cfg->scan_type = WIFI_SCAN_TYPE_ACTIVE;
+        if (opts->dwell_ms) {
+            cfg->scan_time.active.min = opts->dwell_ms;
+            cfg->scan_time.active.max = opts->dwell_ms;
+        }
+    }
+}
+
+esp_err_t wifi_scan_async_start(const wifi_scan_opts_t *opts)
+{
+    if (!opts) return async_start_cfg(NULL, false);
+    wifi_scan_config_t cfg;
+    cfg_from_opts(&cfg, opts);
+    return async_start_cfg(&cfg, opts->band_2g_only);
+}
+
+esp_err_t wifi_scan_async_start_wardrive(bool include_5g)
+{
+    const wifi_scan_opts_t opts = {
+        .show_hidden  = true,
+        .passive      = false,
+        .dwell_ms     = WIFI_WARDRIVE_DWELL_MS,
+        .band_2g_only = !include_5g,
+    };
+    return wifi_scan_async_start(&opts);
+}
+
+wifi_scan_async_state_t wifi_scan_async_state(void)
+{
+    return s_async_state;
+}
+
+esp_err_t wifi_scan_async_collect(scan_results_t *out)
+{
+    if (!out) return ESP_ERR_INVALID_ARG;
+    if (s_async_state != WIFI_SCAN_ASYNC_DONE) return ESP_ERR_INVALID_STATE;
+    s_async_state = WIFI_SCAN_ASYNC_IDLE;
 
     uint16_t ap_num = 0;
-    ESP_RETURN_ON_ERROR(esp_wifi_scan_get_ap_num(&ap_num), TAG, "get ap num");
+    esp_err_t err = esp_wifi_scan_get_ap_num(&ap_num);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "get ap num: %s", esp_err_to_name(err));
+        if (s_async_2g_only) (void)prepare_scan(false);
+        return err;
+    }
     uint16_t num = (ap_num < WIFI_SCAN_MAX_APS) ? ap_num : WIFI_SCAN_MAX_APS;
 
     static wifi_ap_record_t raw[WIFI_SCAN_MAX_APS];
     memset(raw, 0, sizeof(raw));
-    ESP_RETURN_ON_ERROR(esp_wifi_scan_get_ap_records(&num, raw), TAG, "get records");
+    err = esp_wifi_scan_get_ap_records(&num, raw);
     esp_wifi_clear_ap_list();
+    if (s_async_2g_only) (void)prepare_scan(false);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "get records: %s", esp_err_to_name(err));
+        return err;
+    }
 
     for (uint16_t i = 0; i < num; i++) merge_record(out, &raw[i]);
     return ESP_OK;
+}
+
+void wifi_scan_async_cancel(void)
+{
+    if (s_async_state == WIFI_SCAN_ASYNC_IDLE) return;
+    if (s_async_state == WIFI_SCAN_ASYNC_RUNNING) {
+        esp_err_t err = esp_wifi_scan_stop();
+        if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_STARTED) {
+            ESP_LOGD(TAG, "scan stop: %s", esp_err_to_name(err));
+        }
+
+        for (int i = 0; i < 10 && s_async_state == WIFI_SCAN_ASYNC_RUNNING; i++) {
+            vTaskDelay(pdMS_TO_TICKS(WIFI_SCAN_POLL_MS));
+        }
+    }
+    s_async_state = WIFI_SCAN_ASYNC_IDLE;
+    esp_wifi_clear_ap_list();
+    if (s_async_2g_only) (void)prepare_scan(false);
+}
+
+static esp_err_t scan_sweep(scan_results_t *out, const wifi_scan_opts_t *opts)
+{
+    ESP_RETURN_ON_ERROR(wifi_scan_async_start(opts), TAG, "scan start");
+
+    uint32_t waited = 0;
+    while (wifi_scan_async_state() == WIFI_SCAN_ASYNC_RUNNING) {
+        vTaskDelay(pdMS_TO_TICKS(WIFI_SCAN_POLL_MS));
+        waited += WIFI_SCAN_POLL_MS;
+        if (waited % 10000u == 0) {
+            ESP_LOGW(TAG, "sweep still running after %lu ms", (unsigned long)waited);
+        }
+    }
+    return wifi_scan_async_collect(out);
 }
 
 static void log_results(const scan_results_t *out)
@@ -252,22 +355,16 @@ esp_err_t wifi_scan_channels_append(scan_results_t *out, const uint8_t *chans,
         cfg.scan_time.active.min  = dwell_ms;
         cfg.scan_time.active.max  = dwell_ms;
 
-        esp_err_t err = esp_wifi_scan_start(&cfg, true);
+        esp_err_t err = async_start_cfg(&cfg, false);
         if (err != ESP_OK) {
             ESP_LOGD(TAG, "scan ch %u: %s", chans[i], esp_err_to_name(err));
             continue;
         }
         swept++;
-
-        uint16_t ap_num = 0;
-        if (esp_wifi_scan_get_ap_num(&ap_num) != ESP_OK) continue;
-        uint16_t num = (ap_num < WIFI_SCAN_MAX_APS) ? ap_num : WIFI_SCAN_MAX_APS;
-
-        static wifi_ap_record_t raw[WIFI_SCAN_MAX_APS];
-        memset(raw, 0, sizeof(raw));
-        if (esp_wifi_scan_get_ap_records(&num, raw) != ESP_OK) continue;
-        esp_wifi_clear_ap_list();
-        for (uint16_t k = 0; k < num; k++) merge_record(out, &raw[k]);
+        while (wifi_scan_async_state() == WIFI_SCAN_ASYNC_RUNNING) {
+            vTaskDelay(pdMS_TO_TICKS(WIFI_SCAN_POLL_MS));
+        }
+        (void)wifi_scan_async_collect(out);
     }
 
     ESP_LOGD(TAG, "channel segment: %u APs total over %u/%u channels @ %u ms (%lu ms)",
@@ -306,6 +403,13 @@ esp_err_t wifi_scan_run_channels(scan_results_t *out, const uint8_t *chans,
 
 esp_err_t wifi_scanner_deinit(void)
 {
+    wifi_scan_async_cancel();
+    if (s_scan_done_h) {
+        esp_event_handler_instance_unregister(WIFI_EVENT, WIFI_EVENT_SCAN_DONE,
+                                              s_scan_done_h);
+        s_scan_done_h = NULL;
+    }
+
     esp_err_t err = esp_wifi_stop();
     if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_INIT) {
         ESP_LOGE(TAG, "wifi stop failed: %s", esp_err_to_name(err));

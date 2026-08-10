@@ -348,6 +348,7 @@ static void collect_wifi_wifi(const ap_score_t *scores, uint16_t n)
 
             if ((nic_adj || same_unit) && pdc_one_box_rf(a, b)) {
                 uint32_t d = suffix_delta(a->bssid, b->bssid);
+
                 uint8_t conf = same_unit ? 95 : (d <= 4 ? 90 : 80);
 
                 add_edge(PDC_NODE_WIFI, i, PDC_NODE_WIFI, j,

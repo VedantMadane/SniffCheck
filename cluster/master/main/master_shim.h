@@ -17,11 +17,24 @@ void master_cluster_sentinel_json(char *buf, size_t buflen);
 void master_on_sentinel_cfg(const char *body, int len);
 
 void master_cluster_places_json(char *buf, size_t buflen);
+void master_cluster_infra_json(char *buf, size_t buflen);
+void master_cluster_place_detail_json(int idx, char *buf, size_t buflen);
+void master_on_landmark_edit(const char *body, int len);
+void master_on_learn(const char *body, int len);
 void master_on_place_label(const char *body, int len);
 void master_cluster_hits_json(char *buf, size_t buflen);
 void master_on_settime(uint32_t epoch);
 
+void master_on_tracker_sound(const char *body, int len);
+void master_on_tracker_burst(const char *body, int len);
+void master_on_tracker_burst_stop(void);
+void master_cluster_tracker_json(char *buf, size_t buflen);
+
 void master_on_brain_reset(void);
+
+void master_on_locate_start(const char *body, int len);
+void master_on_locate_stop(void);
+void master_locate_json(char *buf, size_t buflen);
 
 uint32_t    master_cluster_merge_count(void);
 const char *master_cluster_session_id(void);

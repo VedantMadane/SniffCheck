@@ -35,6 +35,22 @@ esp_err_t wifi_scanner_deinit(void);
 
 esp_err_t wifi_scan_run(scan_results_t *out);
 
+typedef enum {
+    WIFI_SCAN_ASYNC_IDLE = 0,
+    WIFI_SCAN_ASYNC_RUNNING,
+    WIFI_SCAN_ASYNC_DONE,
+} wifi_scan_async_state_t;
+
+esp_err_t wifi_scan_async_start(const wifi_scan_opts_t *opts);
+
+esp_err_t wifi_scan_async_start_wardrive(bool include_5g);
+
+wifi_scan_async_state_t wifi_scan_async_state(void);
+
+esp_err_t wifi_scan_async_collect(scan_results_t *out);
+
+void wifi_scan_async_cancel(void);
+
 esp_err_t wifi_scan_run_opts(scan_results_t *out, const wifi_scan_opts_t *opts);
 
 esp_err_t wifi_scan_run_broad(scan_results_t *out, uint8_t active_sweeps, uint32_t max_ms);

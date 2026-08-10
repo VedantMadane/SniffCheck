@@ -45,6 +45,7 @@
 #include "ble_advise.h"
 #include "vetter.h"
 #include "capture_ring.h"
+#include "sd_store.h"
 #include "capture_writer.h"
 #include "pcap_capture.h"
 #include "download_mode.h"
@@ -343,11 +344,43 @@ static void led_reassert(void)
     led_apply(s_led_r, s_led_g, s_led_b, s_led_bri);
 }
 
+static volatile bool s_led_sd_dirty;
+
 static void led_post_blit_guard(void)
 {
     if (!s_led_enabled) {
         led_off();
+        s_led_sd_dirty = false;
+    } else if (s_led_sd_dirty) {
+        s_led_sd_dirty = false;
+        led_reassert();
     }
+}
+
+static void sd_post_write_guard(void)
+{
+    s_led_sd_dirty = true;
+}
+
+static sd_session_summary_t s_archive_sum;
+
+static void archive_session_note(uint16_t wifi_n, uint16_t ble_n,
+                                 uint16_t trackers, uint8_t worst_threat,
+                                 uint16_t scans)
+{
+    s_archive_sum.wifi_aps     = wifi_n;
+    s_archive_sum.ble_devices  = ble_n;
+    s_archive_sum.trackers     = trackers;
+    s_archive_sum.scans        = scans;
+    if (worst_threat > s_archive_sum.worst_threat)
+        s_archive_sum.worst_threat = worst_threat;
+    sd_store_session_summary(&s_archive_sum);
+}
+
+static void archive_session_finish(const char *reason)
+{
+    sd_store_session_summary(&s_archive_sum);
+    sd_store_session_close(reason);
 }
 
 static void led_for_verdict(uint8_t verdict)
@@ -420,6 +453,7 @@ static void settings_load(void)
     if (nvs_get_u8(h, "auto_ap", &auto_ap) == ESP_OK) {
         s_auto_ap_enabled = (auto_ap != 0);
     }
+
     uint8_t boot_scan = s_boot_scan_enabled ? 1 : 0;
     if (nvs_get_u8(h, "boot_scan", &boot_scan) == ESP_OK) {
         s_boot_scan_enabled = (boot_scan != 0);
@@ -2774,6 +2808,7 @@ static const menu_row_t lights_rows[] = {
     { "Screen", menuval_brightness, menusel_cycle_brightness, NULL },
     { "LED",    menuval_led,        menusel_toggle_led,       NULL },
 };
+
 #define MENU_ROWS(a) (a), (uint8_t)(sizeof(a) / sizeof((a)[0]))
 
 static menu_screen_t settings_menu = { "SETTINGS", MENU_ROWS(settings_rows), 0 };
@@ -3200,6 +3235,16 @@ static void do_scan(void)
 
     pup_scan_stats_t tstats;
     pup_collect_stats(scores_tmp, score_count, &ble_tmp, &tstats);
+
+    {
+        uint8_t worst = 0;
+        for (uint16_t i = 0; i < score_count; i++)
+            if (!scores_tmp[i].suppressed && scores_tmp[i].threat_level > worst)
+                worst = scores_tmp[i].threat_level;
+        archive_session_note(score_count, ble_tmp.count, tstats.tracker,
+                             worst, s_capture_scan_idx);
+    }
+
     vp_status_t vst;
     virtual_pup_get(&vst);
     uint32_t pup_age = (s_boot_count > vst.birth_boot)
@@ -3670,11 +3715,27 @@ static void scan_anim_task(void *arg)
 
 static uint8_t least_congested_2g_channel(void);
 
+typedef enum {
+    WALK_PH_WIFI_START = 0,
+    WALK_PH_WIFI_WAIT,
+    WALK_PH_BLE_START,
+    WALK_PH_BLE_WAIT,
+    WALK_PH_FOLD,
+} walk_phase_t;
+
 typedef struct {
     pup_walk_summary_t cur;
     bool abort;
     bool cap_hit;
+    uint8_t  phase;
+
+    uint32_t drawn_sec;
+    uint16_t drawn_wifi;
+    uint16_t drawn_ble;
+    bool     drawn_any;
 } walk_ctx_t;
+
+#define WALK_TICK_MS  120u
 
 static void walk_on_enter(void *ctx)
 {
@@ -3697,26 +3758,55 @@ static void walk_loop(void *ctx)
     static EXT_RAM_BSS_ATTR ble_results_t walk_ble;
     static uint32_t walk_slice = 0;
 
-    bool include_5g = (walk_slice++ % WIFI_WARDRIVE_5G_EVERY) == 0;
-    memset(&walk_wifi, 0, sizeof(walk_wifi));
-    if (wifi_scan_run_wardrive(&walk_wifi, include_5g) == ESP_OK) {
-        uint16_t walk_score_count = 0;
-        memset(walk_scores, 0, sizeof(walk_scores));
-        analyzer_run(&walk_wifi, NULL, walk_scores, &walk_score_count);
-        for (uint16_t i = 0; i < walk_score_count; i++) {
-            const ap_score_t *ap = &walk_scores[i];
-            bool safe = ap->auth != WIFI_AUTH_OPEN && ap->auth != WIFI_AUTH_WEP;
-            virtual_pup_walk_note_wifi_ap(ap, safe);
-        }
-        virtual_pup_walk_end_wifi_sweep();
-    }
     if (s_walk_end_requested) { w->abort = true; return; }
 
-    memset(&walk_ble, 0, sizeof(walk_ble));
-    if (ble_scan_run_ex(&walk_ble, WALK_BLE_WINDOW_MS, true, false) == ESP_OK) {
-        for (uint16_t i = 0; i < walk_ble.count; i++)
-            virtual_pup_walk_note_ble_device(&walk_ble.devices[i]);
-        virtual_pup_walk_end_ble_window();
+    switch (w->phase) {
+    case WALK_PH_WIFI_START: {
+        bool include_5g = (walk_slice % WIFI_WARDRIVE_5G_EVERY) == 0;
+        memset(&walk_wifi, 0, sizeof(walk_wifi));
+        w->phase = (wifi_scan_async_start_wardrive(include_5g) == ESP_OK)
+                     ? WALK_PH_WIFI_WAIT : WALK_PH_BLE_START;
+        break;
+    }
+
+    case WALK_PH_WIFI_WAIT:
+        if (wifi_scan_async_state() == WIFI_SCAN_ASYNC_RUNNING) break;
+        if (wifi_scan_async_collect(&walk_wifi) == ESP_OK) {
+            uint16_t walk_score_count = 0;
+            memset(walk_scores, 0, sizeof(walk_scores));
+            analyzer_run(&walk_wifi, NULL, walk_scores, &walk_score_count);
+            for (uint16_t i = 0; i < walk_score_count; i++) {
+                const ap_score_t *ap = &walk_scores[i];
+                bool safe = ap->auth != WIFI_AUTH_OPEN && ap->auth != WIFI_AUTH_WEP;
+                virtual_pup_walk_note_wifi_ap(ap, safe);
+            }
+            virtual_pup_walk_end_wifi_sweep();
+        }
+        w->phase = WALK_PH_BLE_START;
+        break;
+
+    case WALK_PH_BLE_START:
+        memset(&walk_ble, 0, sizeof(walk_ble));
+        w->phase = (ble_scan_start_ex(&walk_ble, WALK_BLE_WINDOW_MS, true, false) == ESP_OK)
+                     ? WALK_PH_BLE_WAIT : WALK_PH_FOLD;
+        break;
+
+    case WALK_PH_BLE_WAIT:
+        if (ble_scan_busy()) break;
+
+        if (ble_scan_finish(&walk_ble) == ESP_OK) {
+            for (uint16_t i = 0; i < walk_ble.count; i++)
+                virtual_pup_walk_note_ble_device(&walk_ble.devices[i]);
+            virtual_pup_walk_end_ble_window();
+        }
+        w->phase = WALK_PH_FOLD;
+        break;
+
+    case WALK_PH_FOLD:
+    default:
+        walk_slice++;
+        w->phase = WALK_PH_WIFI_START;
+        break;
     }
 
     virtual_pup_walk_get_current(&w->cur);
@@ -3726,6 +3816,15 @@ static void walk_loop(void *ctx)
 static void walk_render(void *ctx)
 {
     walk_ctx_t *w = (walk_ctx_t *)ctx;
+    if (w->drawn_any && w->cur.duration_sec == w->drawn_sec &&
+        w->cur.wifi_unique_bssid == w->drawn_wifi &&
+        w->cur.ble_unique_devices == w->drawn_ble) return;
+
+    w->drawn_sec  = w->cur.duration_sec;
+    w->drawn_wifi = w->cur.wifi_unique_bssid;
+    w->drawn_ble  = w->cur.ble_unique_devices;
+    w->drawn_any  = true;
+
     xSemaphoreTake(s_state_mutex, portMAX_DELAY);
     if (s_ui_mode == UI_MODE_WALK)
         display_walk_screen(virtual_pup_name(), w->cur.duration_sec,
@@ -3736,6 +3835,9 @@ static void walk_render(void *ctx)
 static void walk_on_exit(void *ctx)
 {
     (void)ctx;
+
+    wifi_scan_async_cancel();
+    ble_scan_cancel();
 
     pup_walk_summary_t done = {0};
     if (virtual_pup_walk_end(&done)) {
@@ -3797,6 +3899,7 @@ static void do_walk(void)
         if (ctx.abort) break;
         walk_activity.render(&ctx);
         if (ctx.cap_hit) break;
+        vTaskDelay(pdMS_TO_TICKS(WALK_TICK_MS));
     }
 
     ui_activity_switch(NULL, &ctx);
@@ -3809,6 +3912,7 @@ static void scan_task(void *arg)
         s_regular_scan_override = true;
         do_scan();
     } else {
+
         ESP_LOGI(TAG, "boot scan disabled — waiting at the main menu");
         if (s_state_mutex) {
             xSemaphoreTake(s_state_mutex, portMAX_DELAY);
@@ -3889,6 +3993,7 @@ void app_request_scan_after_download(void)
 
 int app_scan_eta_seconds(void)
 {
+
     return (s_advisor_mode == ADVISOR_MODE_ADV) ? 95 : 20;
 }
 
@@ -4814,6 +4919,7 @@ static void on_usb_cmd(const char *cmd, const char *args)
         capture_emit_footer(CAP_END_SHUTDOWN,
                             s_score_count, s_ble.count,
                             0, 0, 0, s_capture_scan_idx);
+        archive_session_finish("shutdown");
         ESP_LOGI(TAG, "footer emitted");
     } else if (strcmp(cmd, "selftest") == 0) {
         self_test_run(args);
@@ -4864,6 +4970,73 @@ static void on_usb_cmd(const char *cmd, const char *args)
         ESP_LOGI(TAG, "btn: injected %s",
                  ev == BTN_EVENT_SINGLE ? "click (1)" :
                  ev == BTN_EVENT_DOUBLE ? "double (2)" : "hold (3)");
+    } else if (strcmp(cmd, "sd") == 0) {
+        sd_store_stats_t sd;
+        sd_store_get_stats(&sd);
+        ESP_LOGI(TAG, "SD card=%u mounted=%u full=%u  %.2f GB free of %.2f GB volume "
+                 "(%.2f GB card)  recs=%u bytes=%llu errs=%u  file=%s",
+                 sd.card_present ? 1u : 0u, sd.mounted ? 1u : 0u, sd.full ? 1u : 0u,
+                 (double)sd.free_bytes / 1e9, (double)sd.volume_bytes / 1e9,
+                 (double)sd.card_bytes / 1e9,
+                 (unsigned)sd.records, (unsigned long long)sd.written_bytes,
+                 (unsigned)sd.write_errors, sd.path[0] ? sd.path : "(none)");
+        if (sd.card_unreadable)
+            ESP_LOGW(TAG, "SD: a card IS seated but carries no readable filesystem — "
+                          "reformat it FAT32 (not exFAT)");
+        if (args && strcmp(args, "test") == 0) {
+            ESP_LOGI(TAG, "SD selftest: %s",
+                     sd_store_selftest() == ESP_OK ? "PASS" : "FAIL");
+        } else if (args && strcmp(args, "flush") == 0) {
+            sd_store_flush();
+            ESP_LOGI(TAG, "SD flushed");
+        } else if (args && strncmp(args, "cat", 3) == 0) {
+
+            const char *id = args + 3;
+            while (*id == ' ') id++;
+            char sid[SD_SESSION_ID_MAX];
+            if (!*id) {
+                const char *cur = capture_writer_session_id();
+                snprintf(sid, sizeof(sid), "%s", cur ? cur : "");
+                id = sid;
+            }
+            void *h = sd_store_reader_open(id);
+            if (!h) {
+                ESP_LOGW(TAG, "sd cat: no session '%s'", id);
+            } else {
+                static char line[4096];
+                size_t n = 0;
+                for (;;) {
+                    size_t len = sd_store_reader_next(h, line, sizeof(line));
+                    if (len == 0) break;
+                    ESP_LOGI(CAP_DUMP_TAG, "%s", line);
+                    if (++n % 32 == 0) vTaskDelay(1);
+                }
+                sd_store_reader_close(h);
+                ESP_LOGI(TAG, "sd cat: %u records from %s", (unsigned)n, id);
+            }
+        } else if (args && strncmp(args, "meta", 4) == 0) {
+            const char *id = args + 4;
+            while (*id == ' ') id++;
+            char sid[SD_SESSION_ID_MAX];
+            if (!*id) {
+                snprintf(sid, sizeof(sid), "%s", capture_writer_session_id());
+                id = sid;
+            }
+            static char meta[512];
+            size_t n = sd_store_read_meta(id, meta, sizeof(meta));
+            if (n) ESP_LOGI(TAG, "meta %s: %s", id, meta);
+            else   ESP_LOGW(TAG, "meta %s: none", id);
+        } else if (args && strcmp(args, "list") == 0) {
+
+            static sd_session_row_t rows[48];
+            size_t n = sd_store_list_sessions(rows, 48);
+            ESP_LOGI(TAG, "SD sessions: %u", (unsigned)n);
+            for (size_t i = 0; i < n; i++)
+                ESP_LOGI(TAG, "  %s %llu B meta=%u%s", rows[i].id,
+                         (unsigned long long)rows[i].bytes,
+                         rows[i].has_meta ? 1u : 0u,
+                         rows[i].current ? " (recording)" : "");
+        }
     } else if (strcmp(cmd, "pup") == 0) {
         vp_status_t st;
         virtual_pup_get(&st);
@@ -4933,6 +5106,8 @@ void app_main(void)
     };
     ESP_ERROR_CHECK(spi_bus_initialize(SPI_HOST, &bus, SPI_DMA_CH_AUTO));
 
+    ESP_ERROR_CHECK(display_bus_init());
+
     led_state_preload();
     ESP_ERROR_CHECK(led_init(SPI_HOST));
     ESP_ERROR_CHECK(display_init(SPI_HOST));
@@ -4975,6 +5150,16 @@ void app_main(void)
     esp_err_t cap_err = capture_ring_init(4 * 1024 * 1024, 2 * 1024 * 1024);
     if (cap_err == ESP_OK) {
         capture_writer_init(boot_count);
+
+        sd_store_set_post_write_cb(sd_post_write_guard);
+        sd_store_set_bus_cbs(display_bus_lock, display_bus_unlock);
+        if (sd_store_init(SPI_HOST) == ESP_OK) {
+            if (sd_store_session_open(capture_writer_session_id(), "scan",
+                                      capture_writer_fw_version(),
+                                      capture_writer_schema_version()) == ESP_OK)
+                capture_ring_set_sink(sd_store_append);
+        }
+
         capture_emit_header();
         capture_emit_codebook();
     } else {

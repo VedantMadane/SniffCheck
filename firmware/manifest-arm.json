@@ -1,9 +1,16 @@
 {
   "name": "SniffCheck Cluster arm",
-  "version": "cluster-0.3",
+  "version": "cluster-0.4",
   "new_install_prompt_erase": true,
   "builds": [
-    { "chipFamily": "ESP32-C5",
-      "parts": [{ "path": "sniffcheck-cluster-arm-merged.bin", "offset": 0 }] }
+    {
+      "chipFamily": "ESP32-C5",
+      "parts": [
+        {
+          "path": "sniffcheck-cluster-arm-merged.bin",
+          "offset": 0
+        }
+      ]
+    }
   ]
 }

@@ -26,6 +26,10 @@ idf_component_register(
         lcd_st7735
 )
 
+set_source_files_properties(
+    "../../../main/download_http.c"
+    PROPERTIES COMPILE_DEFINITIONS "SC_CLUSTER_HEAD=1")
+
 target_add_binary_data(${COMPONENT_LIB}
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/capture_viewer/index.html" TEXT
     RENAME_TO capture_viewer_html)

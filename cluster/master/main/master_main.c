@@ -254,6 +254,15 @@ void master_on_place_label(const char *body, int len)     { (void)body; (void)le
 void master_on_settime(uint32_t epoch)                    { (void)epoch; }
 void master_on_brain_reset(void)                          { }
 
+void master_on_tracker_sound(const char *body, int len)   { (void)body; (void)len; }
+void master_on_tracker_burst(const char *body, int len)   { (void)body; (void)len; }
+void master_on_tracker_burst_stop(void)                   { }
+void master_cluster_tracker_json(char *buf, size_t buflen){ snprintf(buf, buflen, "{\"burst\":{\"active\":false},\"s3\":{\"busy\":false,\"last\":\"none\",\"audit\":[]}}"); }
+
+void master_on_locate_start(const char *body, int len)   { (void)body; (void)len; }
+void master_on_locate_stop(void)                         { }
+void master_locate_json(char *buf, size_t buflen)        { snprintf(buf, buflen, "{\"active\":false,\"found\":false,\"rssi\":0,\"age_ds\":255,\"samples\":0,\"channel\":0,\"kind\":0,\"mac\":\"00:00:00:00:00:00\"}"); }
+
 void master_cluster_status_json(char *buf, size_t buflen)
 {
     int64_t now = esp_timer_get_time();

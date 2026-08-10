@@ -1,0 +1,622 @@
+
+rules:
+
+  - token: "flipper"
+    class: investigation
+    flags: [INVESTIGATION]
+    name: "Flipper Zero"
+  - token: "pwnagotchi"
+    class: investigation
+    flags: [INVESTIGATION]
+    name: "Pwnagotchi"
+  - token: "pineapple"
+    class: investigation
+    flags: [INVESTIGATION, MALICIOUS]
+    name: "Hak5 Pineapple"
+  - token: "bash bunny"
+    class: investigation
+    flags: [INVESTIGATION]
+    name: "Hak5 Bash Bunny"
+  - token: "wifi-coconut"
+    class: investigation
+    flags: [INVESTIGATION]
+    name: "Hak5 Wi-Fi Coconut"
+  - token: "rubber ducky"
+    class: investigation
+    flags: [INVESTIGATION]
+    name: "Hak5 Rubber Ducky"
+  - token: "marauder"
+    class: investigation
+    flags: [INVESTIGATION]
+    name: "ESP32 Marauder"
+  - token: "bjorn"
+    class: investigation
+    flags: [INVESTIGATION]
+    name: "Bjorn (RPi pentest)"
+  - token: "biscuit"
+    class: investigation
+    flags: [INVESTIGATION]
+    name: "Biscuit Pro"
+  - token: "pandwarf"
+    class: investigation
+    flags: [INVESTIGATION]
+    name: "PandwaRF"
+  - token: "chameleonultra"
+    class: investigation
+    flags: [INVESTIGATION]
+    name: "Chameleon Ultra"
+
+  - token: "hikvision"
+    class: surveillance_cam
+    flags: [SURVEILLANCE, FCC_COVERED]
+    name: "Hikvision camera"
+  - token: "dahua"
+    class: surveillance_cam
+    flags: [SURVEILLANCE, FCC_COVERED]
+    name: "Dahua camera"
+  - token: "reolink"
+    class: surveillance_cam
+    flags: [SURVEILLANCE]
+    name: "Reolink camera"
+  - token: "wyzecam"
+    class: surveillance_cam
+    flags: [SURVEILLANCE]
+    name: "Wyze cam"
+  - token: "eufycam"
+    class: surveillance_cam
+    flags: [SURVEILLANCE]
+    name: "eufyCam"
+
+  - token: "fs ext battery"
+    class: surveillance_cam
+    flags: [SURVEILLANCE]
+    name: "Flock Safety camera"
+  - token: "pigvision"
+    class: surveillance_cam
+    flags: [SURVEILLANCE]
+    name: "Flock Safety camera"
+  - token: "flock"
+    class: surveillance_cam
+    flags: [SURVEILLANCE]
+    name: "Flock Safety device"
+
+  - token: "schlage"
+    class: access_control
+    name: "Schlage lock"
+  - token: "yale"
+    class: access_control
+    name: "Yale lock"
+  - token: "august"
+    class: access_control
+    name: "August lock"
+  - token: "kwikset"
+    class: access_control
+    name: "Kwikset lock"
+  - token: "level lock"
+    class: access_control
+    name: "Level Lock"
+
+  - token: "airtag"
+    class: tracker
+    flags: [TRACKER]
+    name: "AirTag (named)"
+  - token: "smarttag"
+    class: tracker
+    flags: [TRACKER]
+    name: "SmartTag"
+  - token: "tile "
+    class: tracker
+    flags: [TRACKER]
+    name: "Tile"
+  - token: "chipolo"
+    class: tracker
+    flags: [TRACKER]
+    name: "Chipolo"
+  - token: "pebblebee"
+    class: tracker
+    flags: [TRACKER]
+    name: "Pebblebee"
+
+  - token: "esp32"
+    class: dev_module
+    flags: [DEV_MODULE]
+    name: "ESP32"
+  - token: "esp_"
+    class: dev_module
+    flags: [DEV_MODULE]
+    name: "Espressif"
+  - token: "nrf52"
+    class: dev_module
+    flags: [DEV_MODULE]
+    name: "Nordic nRF52"
+  - token: "nrf51"
+    class: dev_module
+    flags: [DEV_MODULE]
+    name: "Nordic nRF51"
+  - token: "adafruit"
+    class: maker_board
+    flags: [MAKER]
+    name: "Adafruit"
+  - token: "feather"
+    class: maker_board
+    flags: [MAKER]
+    name: "Feather (Adafruit)"
+  - token: "raspberry pi"
+    class: maker_board
+    flags: [MAKER]
+    name: "Raspberry Pi"
+  - token: "particle"
+    class: maker_board
+    flags: [MAKER]
+    name: "Particle"
+
+  - token: "meshtastic"
+    class: iot_leaf
+    name: "Meshtastic node"
+  - token: "meshcore"
+    class: iot_leaf
+    name: "MeshCore node"
+
+  - token: "ray-ban"
+    class: wearable
+    name: "Ray-Ban Meta"
+  - token: "meta view"
+    class: wearable
+    name: "Ray-Ban Meta"
+
+  - token: "nest"
+    class: iot_hub
+    name: "Google Nest"
+  - token: "echo"
+    class: iot_hub
+    name: "Amazon Echo"
+  - token: "alexa"
+    class: iot_hub
+    name: "Alexa device"
+  - token: "googlehome"
+    class: iot_hub
+    name: "Google Home"
+  - token: "sonos"
+    class: audio
+    name: "Sonos"
+  - token: "bose"
+    class: audio
+    name: "Bose"
+
+  - token: "iphone 17 pro max"
+    class: phone
+    name: "iPhone 17 Pro Max"
+  - token: "iphone 17 pro"
+    class: phone
+    name: "iPhone 17 Pro"
+  - token: "iphone air"
+    class: phone
+    name: "iPhone Air"
+  - token: "iphone 17"
+    class: phone
+    name: "iPhone 17"
+  - token: "iphone 16 pro max"
+    class: phone
+    name: "iPhone 16 Pro Max"
+  - token: "iphone 16 pro"
+    class: phone
+    name: "iPhone 16 Pro"
+  - token: "iphone 16 plus"
+    class: phone
+    name: "iPhone 16 Plus"
+  - token: "iphone 16e"
+    class: phone
+    name: "iPhone 16e"
+  - token: "iphone 16"
+    class: phone
+    name: "iPhone 16"
+  - token: "iphone 15 pro max"
+    class: phone
+    name: "iPhone 15 Pro Max"
+  - token: "iphone 15 pro"
+    class: phone
+    name: "iPhone 15 Pro"
+  - token: "iphone 15 plus"
+    class: phone
+    name: "iPhone 15 Plus"
+  - token: "iphone 15"
+    class: phone
+    name: "iPhone 15"
+  - token: "iphone 14 pro max"
+    class: phone
+    name: "iPhone 14 Pro Max"
+  - token: "iphone 14 pro"
+    class: phone
+    name: "iPhone 14 Pro"
+  - token: "iphone 14 plus"
+    class: phone
+    name: "iPhone 14 Plus"
+  - token: "iphone 14"
+    class: phone
+    name: "iPhone 14"
+  - token: "iphone 13 pro max"
+    class: phone
+    name: "iPhone 13 Pro Max"
+  - token: "iphone 13 pro"
+    class: phone
+    name: "iPhone 13 Pro"
+  - token: "iphone 13 mini"
+    class: phone
+    name: "iPhone 13 mini"
+  - token: "iphone 13"
+    class: phone
+    name: "iPhone 13"
+  - token: "iphone 12 pro max"
+    class: phone
+    name: "iPhone 12 Pro Max"
+  - token: "iphone 12 pro"
+    class: phone
+    name: "iPhone 12 Pro"
+  - token: "iphone 12 mini"
+    class: phone
+    name: "iPhone 12 mini"
+  - token: "iphone 12"
+    class: phone
+    name: "iPhone 12"
+  - token: "iphone 11 pro max"
+    class: phone
+    name: "iPhone 11 Pro Max"
+  - token: "iphone 11 pro"
+    class: phone
+    name: "iPhone 11 Pro"
+  - token: "iphone 11"
+    class: phone
+    name: "iPhone 11"
+  - token: "iphone se"
+    class: phone
+    name: "iPhone SE"
+  - token: "iphone xs max"
+    class: phone
+    name: "iPhone XS Max"
+  - token: "iphone xs"
+    class: phone
+    name: "iPhone XS"
+  - token: "iphone xr"
+    class: phone
+    name: "iPhone XR"
+  - token: "iphone x"
+    class: phone
+    name: "iPhone X"
+
+  - token: "ipad pro"
+    class: tablet
+    name: "iPad Pro"
+  - token: "ipad air"
+    class: tablet
+    name: "iPad Air"
+  - token: "ipad mini"
+    class: tablet
+    name: "iPad mini"
+
+  - token: "iphone"
+    class: phone
+    make_only: true
+    name: "iPhone"
+  - token: "ipad"
+    class: tablet
+    make_only: true
+    name: "iPad"
+  - token: "macbook"
+    class: laptop
+    name: "MacBook"
+  - token: "imac"
+    class: laptop
+    name: "iMac"
+  - token: "mac mini"
+    class: laptop
+    name: "Mac mini"
+  - token: "mac pro"
+    class: laptop
+    name: "Mac Pro"
+  - token: "mac studio"
+    class: laptop
+    name: "Mac Studio"
+
+  - token: "pixel 9 pro xl"
+    class: phone
+    name: "Pixel 9 Pro XL"
+  - token: "pixel 9 pro fold"
+    class: phone
+    name: "Pixel 9 Pro Fold"
+  - token: "pixel 9 pro"
+    class: phone
+    name: "Pixel 9 Pro"
+  - token: "pixel 9a"
+    class: phone
+    name: "Pixel 9a"
+  - token: "pixel 9"
+    class: phone
+    name: "Pixel 9"
+  - token: "pixel 8 pro"
+    class: phone
+    name: "Pixel 8 Pro"
+  - token: "pixel 8a"
+    class: phone
+    name: "Pixel 8a"
+  - token: "pixel 8"
+    class: phone
+    name: "Pixel 8"
+  - token: "pixel 7 pro"
+    class: phone
+    name: "Pixel 7 Pro"
+  - token: "pixel 7a"
+    class: phone
+    name: "Pixel 7a"
+  - token: "pixel 7"
+    class: phone
+    name: "Pixel 7"
+  - token: "pixel 6 pro"
+    class: phone
+    name: "Pixel 6 Pro"
+  - token: "pixel 6a"
+    class: phone
+    name: "Pixel 6a"
+  - token: "pixel 6"
+    class: phone
+    name: "Pixel 6"
+  - token: "pixel fold"
+    class: phone
+    name: "Pixel Fold"
+  - token: "galaxy s25 ultra"
+    class: phone
+    name: "Samsung Galaxy S25 Ultra"
+  - token: "galaxy s25+"
+    class: phone
+    name: "Samsung Galaxy S25+"
+  - token: "galaxy s25"
+    class: phone
+    name: "Samsung Galaxy S25"
+  - token: "galaxy s24 ultra"
+    class: phone
+    name: "Samsung Galaxy S24 Ultra"
+  - token: "galaxy s24+"
+    class: phone
+    name: "Samsung Galaxy S24+"
+  - token: "galaxy s24"
+    class: phone
+    name: "Samsung Galaxy S24"
+  - token: "galaxy s23 ultra"
+    class: phone
+    name: "Samsung Galaxy S23 Ultra"
+  - token: "galaxy s23+"
+    class: phone
+    name: "Samsung Galaxy S23+"
+  - token: "galaxy s23"
+    class: phone
+    name: "Samsung Galaxy S23"
+  - token: "galaxy s22 ultra"
+    class: phone
+    name: "Samsung Galaxy S22 Ultra"
+  - token: "galaxy s22"
+    class: phone
+    name: "Samsung Galaxy S22"
+  - token: "galaxy s21 ultra"
+    class: phone
+    name: "Samsung Galaxy S21 Ultra"
+  - token: "galaxy s21"
+    class: phone
+    name: "Samsung Galaxy S21"
+  - token: "galaxy z fold"
+    class: phone
+    name: "Samsung Galaxy Z Fold"
+  - token: "galaxy z flip"
+    class: phone
+    name: "Samsung Galaxy Z Flip"
+  - token: "galaxy note 20"
+    class: phone
+    name: "Samsung Galaxy Note 20"
+  - token: "galaxy a55"
+    class: phone
+    name: "Samsung Galaxy A55"
+  - token: "galaxy a54"
+    class: phone
+    name: "Samsung Galaxy A54"
+  - token: "oneplus 13"
+    class: phone
+    name: "OnePlus 13"
+  - token: "oneplus 12"
+    class: phone
+    name: "OnePlus 12"
+  - token: "oneplus 11"
+    class: phone
+    name: "OnePlus 11"
+  - token: "oneplus open"
+    class: phone
+    name: "OnePlus Open"
+  - token: "oneplus nord"
+    class: phone
+    name: "OnePlus Nord"
+  - token: "oneplus"
+    class: phone
+    make_only: true
+    name: "OnePlus"
+  - token: "nothing phone"
+    class: phone
+    make_only: true
+    name: "Nothing Phone"
+  - token: "motorola razr"
+    class: phone
+    name: "Motorola Razr"
+  - token: "moto edge"
+    class: phone
+    name: "Motorola Edge"
+
+  - token: "apple watch"
+    class: wearable
+    name: "Apple Watch"
+  - token: "galaxy watch"
+    class: wearable
+    name: "Galaxy Watch"
+  - token: "garmin"
+    class: wearable
+    name: "Garmin"
+  - token: "fitbit"
+    class: wearable
+    name: "Fitbit"
+
+  - token: "obdii"
+    class: vehicle
+    name: "OBD-II dongle"
+  - token: "obdlink"
+    class: vehicle
+    name: "OBDLink"
+  - token: "tesla"
+    class: vehicle
+    name: "Tesla"
+
+  - token: "uconnect"
+    class: vehicle
+    name: "Stellantis (Uconnect)"
+  - token: "hondalink"
+    class: vehicle
+    name: "Honda"
+  - token: "nissanconnect"
+    class: vehicle
+    name: "Nissan"
+  - token: "fordpass"
+    class: vehicle
+    name: "Ford"
+  - token: "onstar"
+    class: vehicle
+    name: "GM (OnStar)"
+  - token: "mylink"
+    class: vehicle
+    name: "Chevrolet (MyLink)"
+  - token: "sync 3"
+    class: vehicle
+    name: "Ford (SYNC 3)"
+  - token: "f-150"
+    class: vehicle
+    name: "Ford F-150"
+  - token: "rav4"
+    class: vehicle
+    name: "Toyota RAV4"
+  - token: "4runner"
+    class: vehicle
+    name: "Toyota 4Runner"
+  - token: "silverado"
+    class: vehicle
+    name: "Chevrolet Silverado"
+  - token: "wrangler"
+    class: vehicle
+    name: "Jeep Wrangler"
+
+  - token: "the frame"
+    class: iot_appliance
+    name: "Samsung The Frame TV"
+  - token: "samsung tv"
+    class: iot_appliance
+    name: "Samsung TV"
+  - token: "samsung cu"
+    class: iot_appliance
+    name: "Samsung CU-series TV"
+  - token: "cu7000"
+    class: iot_appliance
+    name: "Samsung CU7000 TV"
+  - token: "samsung qn"
+    class: iot_appliance
+    name: "Samsung QN-series TV"
+  - token: "samsung un"
+    class: iot_appliance
+    name: "Samsung UN-series TV"
+  - token: "soundbar"
+    class: audio
+    name: "Soundbar"
+  - token: "homepod"
+    class: audio
+    name: "HomePod"
+  - token: "echo dot"
+    class: audio
+    name: "Echo Dot"
+  - token: "echo show"
+    class: infrastructure
+    name: "Echo Show"
+  - token: "nest hub"
+    class: infrastructure
+    name: "Nest Hub"
+
+  - token: "macbook air"
+    class: laptop
+    name: "Apple MacBook Air"
+  - token: "macbook pro"
+    class: laptop
+    name: "Apple MacBook Pro"
+  - token: "macbook"
+    class: laptop
+    name: "Apple MacBook"
+  - token: "mac mini"
+    class: laptop
+    name: "Apple Mac mini"
+  - token: "mac studio"
+    class: laptop
+    name: "Apple Mac Studio"
+  - token: "imac"
+    class: laptop
+    name: "Apple iMac"
+
+  - token: "thinkpad"
+    class: laptop
+    name: "Lenovo ThinkPad"
+  - token: "ideapad"
+    class: laptop
+    name: "Lenovo IdeaPad"
+
+  - token: "latitude"
+    class: laptop
+    name: "Dell Latitude"
+  - token: "inspiron"
+    class: laptop
+    name: "Dell Inspiron"
+  - token: "dell xps"
+    class: laptop
+    name: "Dell XPS"
+  - token: "dell precision"
+    class: laptop
+    name: "Dell Precision"
+  - token: "alienware"
+    class: laptop
+    name: "Alienware"
+
+  - token: "elitebook"
+    class: laptop
+    name: "HP EliteBook"
+  - token: "probook"
+    class: laptop
+    name: "HP ProBook"
+  - token: "zbook"
+    class: laptop
+    name: "HP ZBook"
+
+  - token: "surface laptop"
+    class: laptop
+    name: "Microsoft Surface Laptop"
+  - token: "surface pro"
+    class: laptop
+    name: "Microsoft Surface Pro"
+  - token: "surface book"
+    class: laptop
+    name: "Microsoft Surface Book"
+
+  - token: "framework laptop"
+    class: laptop
+    name: "Framework Laptop"
+  - token: "razer blade"
+    class: laptop
+    name: "Razer Blade"
+  - token: "galaxy book"
+    class: laptop
+    name: "Samsung Galaxy Book"
+  - token: "lg gram"
+    class: laptop
+    name: "LG gram"
+  - token: "rog zephyrus"
+    class: laptop
+    name: "ASUS ROG Zephyrus"
+  - token: "rog strix"
+    class: laptop
+    name: "ASUS ROG Strix"

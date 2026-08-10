@@ -11,6 +11,7 @@
 #include "esp_system.h"
 #include "esp_random.h"
 #include "nvs_flash.h"
+#include "nvs.h"
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
@@ -20,10 +21,11 @@
 
 #include "cluster_pins.h"
 #include "cluster_proto.h"
+#include "cluster_ui.h"
 #include "node_display.h"
 #include "led.h"
-#include "qrcode.h"
 #include "epup_brain.h"
+#include "infra_cluster.h"
 
 #include "capture_ring.h"
 #include "download_mode.h"
@@ -35,7 +37,7 @@
 #include "virtual_pup_walk.h"
 #include "pup_trophy.h"
 
-#define FW_CKPT "brain-1.0"
+#define FW_CKPT "brain-1.2"
 
 #define BRAIN_I2C_HZ  1000000
 
@@ -98,8 +100,6 @@ static char              s_sess_id[16];
 #define CL_CHUNK_SETTLE_US  300
 
 static void led_blank_cb(void) { led_off(); }
-static void render_screen(const char *state_txt);
-static void draw_join_screen(bool joined);
 
 static uint64_t fnv1a(const char *s, int n)
 {
@@ -166,6 +166,7 @@ static void ring_feed_scanset(const uint8_t *buf, uint32_t len, uint32_t wall_ts
         while (j < len && buf[j] != '\n') j++;
         int ll = (int)(j - i);
         if (ll > 0) {
+
             if (wall_ts && buf[j - 1] == '}' && ll + 20 < (int)sizeof(rl)) {
                 memcpy(rl, buf + i, ll - 1);
                 int o = ll - 1;
@@ -187,6 +188,7 @@ static dev_ent_t *dev_find(uint64_t key)
 
 static void dev_upsert(const char *line, int n, uint32_t scan, uint32_t wall_ts)
 {
+
     if (n <= 0 || n >= DEV_LINE_MAX || line[n - 1] != '}') return;
     char kb[72];
     int kl = line_key(line, n, kb, sizeof kb);
@@ -271,13 +273,34 @@ static struct { bool online; uint32_t recs, flagged, windows; int64_t last_ok_us
 
 static char *s_sent_json;   static int s_sent_json_len;
 static char *s_hits_json;   static int s_hits_json_len;
+static char *s_tracker_json; static int s_tracker_json_len;
+
+typedef struct { uint8_t mac[6]; uint8_t addr_type; uint8_t proto; } tsnd_target_t;
+static volatile bool    s_tsnd_req;
+static tsnd_target_t    s_tsnd_one;
+static volatile uint8_t s_tsnd_action;
+
+#define BURST_MAX 8
+static tsnd_target_t    s_burst[BURST_MAX];
+static volatile int     s_burst_n, s_burst_i;
+static volatile bool    s_burst_active, s_burst_stop;
+static int64_t          s_burst_next_us;
 static SemaphoreHandle_t s_s3_mux;
+
+#define HARVEST_MAX BURST_MAX
+static tsnd_target_t    s_harvest[HARVEST_MAX];
+static volatile int     s_harvest_n;
 
 static char             s_cfg_pending[512];
 static volatile int     s_cfg_pending_len;
 static volatile bool    s_cfg_req;
 static volatile uint32_t s_clock_pending;
 static volatile bool    s_clock_req;
+
+static volatile bool     s_loc_start_req, s_loc_stop_req;
+static cl_locate_req_t   s_loc_pending;
+static volatile bool     s_loc_active;
+static cl_locate_state_t s_loc_best;
 
 static void poll_s3(void)
 {
@@ -327,6 +350,10 @@ static void refresh_s3_blobs(void)
     if (n > 0 && xSemaphoreTake(s_s3_mux, portMAX_DELAY) == pdTRUE) {
         memcpy(s_hits_json, tmp, n + 1); s_hits_json_len = n; xSemaphoreGive(s_s3_mux);
     }
+    n = fetch_s3_blob(CL_CMD_GET_TRACKER, tmp, sizeof tmp);
+    if (n > 0 && s_tracker_json && xSemaphoreTake(s_s3_mux, portMAX_DELAY) == pdTRUE) {
+        memcpy(s_tracker_json, tmp, n + 1); s_tracker_json_len = n; xSemaphoreGive(s_s3_mux);
+    }
 }
 
 static void push_sentcfg_to_s3(const char *body, int n)
@@ -356,6 +383,80 @@ static void push_clock_to_s3(uint32_t epoch)
     i2c_master_transmit(s_s3_dev, (const uint8_t *)&g, sizeof(g), 100);
 }
 
+static SemaphoreHandle_t s_ui_mux;
+static cl_uiframe_t      s_ui_pending;
+static volatile bool     s_ui_pending_req;
+static QueueHandle_t     s_ui_evq;
+static uint32_t          s_ui_ev_seq;
+static bool              s_ui_ev_synced;
+
+static bool              s_ui_have_frame;
+static uint32_t          s_ui_pushes, s_ui_fail;
+
+static void ui_frame_queue(const cl_uiframe_t *f)
+{
+    if (!s_ui_mux) return;
+    if (xSemaphoreTake(s_ui_mux, pdMS_TO_TICKS(50)) != pdTRUE) return;
+    memcpy(&s_ui_pending, f, sizeof s_ui_pending);
+    s_ui_have_frame  = true;
+    s_ui_pending_req = true;
+    xSemaphoreGive(s_ui_mux);
+}
+
+static void ui_frame_refresh(void)
+{
+    if (s_ui_have_frame) s_ui_pending_req = true;
+}
+
+static void push_uiframe_to_s3(void)
+{
+    static cl_chunk_t ch;
+    if (!s_ui_pending_req) return;
+    if (xSemaphoreTake(s_ui_mux, pdMS_TO_TICKS(20)) != pdTRUE) return;
+    memset(&ch, 0, sizeof ch);
+    ch.type      = CL_PUT_UIFRAME;
+    ch.total_len = sizeof(cl_uiframe_t);
+    ch.len       = (uint16_t)sizeof(cl_uiframe_t);
+    memcpy(ch.payload, &s_ui_pending, sizeof(cl_uiframe_t));
+    s_ui_pending_req = false;
+    xSemaphoreGive(s_ui_mux);
+
+    cl_chunk_seal(&ch);
+    if (i2c_master_transmit(s_s3_dev, (const uint8_t *)&ch, sizeof(ch), 100) == ESP_OK)
+        s_ui_pushes++;
+    else
+        s_ui_fail++;
+    esp_rom_delay_us(CL_CHUNK_SETTLE_US);
+}
+
+static void poll_s3_uievent(void)
+{
+    cl_getreq_t g; cl_getreq_build_cmd(&g, CL_CMD_GET_UIEVENT, 0);
+    if (i2c_master_transmit(s_s3_dev, (const uint8_t *)&g, sizeof(g), 100) != ESP_OK) return;
+    esp_rom_delay_us(CL_CHUNK_SETTLE_US);
+    cl_uievent_t e;
+    if (i2c_master_receive(s_s3_dev, (uint8_t *)&e, sizeof(e), 100) != ESP_OK) return;
+    if (!cl_uievent_valid(&e)) return;
+
+    if (!s_ui_ev_synced) { s_ui_ev_seq = e.seq; s_ui_ev_synced = true; return; }
+    if (e.seq == s_ui_ev_seq || e.ev == CL_UI_EV_NONE) return;
+    s_ui_ev_seq = e.seq;
+    uint8_t ev = e.ev;
+    xQueueSend(s_ui_evq, &ev, 0);
+}
+
+static void push_tracker_to_s3(const tsnd_target_t *t, uint8_t action)
+{
+    cl_tracker_sound_t req; memset(&req, 0, sizeof req);
+    req.addr_type  = t->addr_type;
+    req.action     = action;
+    req.proto_hint = t->proto;
+    memcpy(req.mac, t->mac, 6);
+    cl_tracker_sound_seal(&req);
+    i2c_master_transmit(s_s3_dev, (const uint8_t *)&req, sizeof(req), 100);
+    esp_rom_delay_us(CL_CHUNK_SETTLE_US);
+}
+
 typedef enum { REQ_NONE = 0, REQ_SCAN, REQ_WALK, REQ_STOPWALK } req_t;
 static volatile req_t s_req;
 static bool s_walking;
@@ -363,6 +464,9 @@ static bool s_boot_scanned;
 static bool s_rescan_once;
 static volatile bool s_reset_req;
 static volatile uint32_t s_epoch_base;
+
+static volatile bool s_ap_want;
+static bool          s_ap_autolaunch = true;
 
 static int json_field(const char *b, int n, const char *pat, char *out, int outsz)
 {
@@ -381,6 +485,127 @@ static long json_int(const char *b, int n, const char *key, long dflt)
     for (int i = 0; i + pl <= n; i++) if (memcmp(b + i, pat, pl) == 0)
         return strtol(b + i + pl, NULL, 10);
     return dflt;
+}
+
+static bool parse_mac6(const char *s, uint8_t mac[6])
+{
+    int b = 0; unsigned v = 0, nib = 0;
+    for (const char *p = s; *p && b < 6; p++) {
+        int d = (*p >= '0' && *p <= '9') ? *p - '0'
+              : (*p >= 'a' && *p <= 'f') ? *p - 'a' + 10
+              : (*p >= 'A' && *p <= 'F') ? *p - 'A' + 10 : -1;
+        if (d < 0) continue;
+        v = (v << 4) | (unsigned)d;
+        if (++nib == 2) { mac[b++] = (uint8_t)v; v = 0; nib = 0; }
+    }
+    return b == 6;
+}
+
+void master_on_tracker_sound(const char *body, int n)
+{
+    char mac[24] = {0};
+    json_field(body, n, "\"mac\":\"", mac, sizeof mac);
+    tsnd_target_t t; memset(&t, 0, sizeof t);
+    if (!parse_mac6(mac, t.mac)) return;
+    t.addr_type   = (uint8_t)json_int(body, n, "addr_type", 1);
+    t.proto       = (uint8_t)json_int(body, n, "proto", CL_TSND_PROTO_AUTO);
+    s_tsnd_one    = t;
+    s_tsnd_action = (uint8_t)json_int(body, n, "action", CL_TSND_START);
+    s_tsnd_req    = true;
+    alog("tracker sound requested");
+}
+
+void master_on_locate_start(const char *body, int n)
+{
+    char mac[24] = {0};
+    if (json_field(body, n, "\"mac\":\"", mac, sizeof mac) <= 0) return;
+    cl_locate_req_t r; memset(&r, 0, sizeof r);
+    if (!parse_mac6(mac, r.mac)) return;
+    r.kind    = (uint8_t)json_int(body, n, "kind", CL_LOCATE_BLE);
+    r.channel = (uint8_t)json_int(body, n, "channel", 0);
+    cl_locate_req_seal(&r);
+    s_loc_pending   = r;
+    s_loc_start_req = true;
+    alog("locate start %s (%s)", mac, r.kind == CL_LOCATE_WIFI ? "wifi" : "ble");
+}
+
+void master_on_locate_stop(void)
+{
+    s_loc_stop_req = true;
+    alog("locate stop");
+}
+
+void master_locate_json(char *buf, size_t cap)
+{
+    cl_locate_state_t s = s_loc_best;
+    char mac[20];
+    snprintf(mac, sizeof mac, "%02x:%02x:%02x:%02x:%02x:%02x",
+             s.mac[0], s.mac[1], s.mac[2], s.mac[3], s.mac[4], s.mac[5]);
+    snprintf(buf, cap,
+        "{\"active\":%s,\"found\":%s,\"rssi\":%d,\"age_ds\":%u,\"samples\":%lu,"
+        "\"channel\":%u,\"kind\":%u,\"mac\":\"%s\"}",
+        s_loc_active ? "true" : "false", s.found ? "true" : "false", (int)s.rssi,
+        (unsigned)s.age_ds, (unsigned long)s.samples, s.channel, s.kind, mac);
+}
+
+void master_on_tracker_burst(const char *body, int n)
+{
+    int count = 0;
+    const char *p = body, *end = body + n;
+    while (count < BURST_MAX) {
+        const char *m = strstr(p, "\"mac\":\"");
+        if (!m || m >= end) break;
+        int wn = (int)(end - m);
+        const char *brace = strchr(m, '}');
+        if (brace && brace - m < wn) wn = (int)(brace - m);
+        char mac[24] = {0};
+        json_field(m, wn, "\"mac\":\"", mac, sizeof mac);
+        tsnd_target_t t; memset(&t, 0, sizeof t);
+        if (parse_mac6(mac, t.mac)) {
+            t.addr_type = (uint8_t)json_int(m, wn, "addr_type", 1);
+            t.proto     = (uint8_t)json_int(m, wn, "proto", CL_TSND_PROTO_AUTO);
+            s_burst[count++] = t;
+        }
+        p = m + 7;
+    }
+    if (count == 0) return;
+    s_burst_n = count; s_burst_i = 0;
+    s_burst_stop = false; s_burst_next_us = 0; s_burst_active = true;
+    alog("safety burst started");
+}
+
+void master_on_tracker_burst_stop(void)
+{
+    s_burst_stop = true;
+    alog("safety burst stop");
+}
+
+void master_cluster_tracker_json(char *buf, size_t buflen)
+{
+    int off = snprintf(buf, buflen,
+        "{\"burst\":{\"active\":%s,\"total\":%d,\"done\":%d},\"nearby\":[",
+        s_burst_active ? "true" : "false", s_burst_n, s_burst_i);
+
+    for (int i = 0; i < s_harvest_n && off > 0 && off < (int)buflen; i++)
+        off += snprintf(buf + off, buflen - off,
+            "%s{\"mac\":\"%02x:%02x:%02x:%02x:%02x:%02x\",\"at\":%u}",
+            i ? "," : "",
+            s_harvest[i].mac[0], s_harvest[i].mac[1], s_harvest[i].mac[2],
+            s_harvest[i].mac[3], s_harvest[i].mac[4], s_harvest[i].mac[5],
+            s_harvest[i].addr_type);
+    if (off > 0 && off < (int)buflen) off += snprintf(buf + off, buflen - off, "],\"s3\":");
+    bool served = false;
+    if (xSemaphoreTake(s_s3_mux, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (s_tracker_json && s_tracker_json_len > 0 &&
+            off + s_tracker_json_len + 2 < (int)buflen) {
+            memcpy(buf + off, s_tracker_json, s_tracker_json_len);
+            off += s_tracker_json_len; served = true;
+        }
+        xSemaphoreGive(s_s3_mux);
+    }
+    if (!served && off < (int)buflen)
+        off += snprintf(buf + off, buflen - off, "{\"busy\":false,\"last\":\"none\",\"audit\":[]}");
+    if (off < (int)buflen) snprintf(buf + off, buflen - off, "}");
 }
 
 void master_on_rescan_request(void)     { s_req = REQ_SCAN;  alog("scan started (WebAP)"); }
@@ -464,6 +689,106 @@ void master_cluster_places_json(char *buf, size_t buflen)
     if (off > 0 && off < (int)buflen) snprintf(buf + off, buflen - off, "]}");
 }
 
+#define INFRA_VIEW_MAX 48
+void master_cluster_infra_json(char *buf, size_t buflen)
+{
+    static struct { uint64_t unit, sys; uint32_t radios, sightings; char ssid[24], bssid[18]; } u[INFRA_VIEW_MAX];
+    int nu = 0, raw = 0;
+
+    if (s_devtab && s_dev_mux && xSemaphoreTake(s_dev_mux, pdMS_TO_TICKS(80)) == pdTRUE) {
+        for (int i = 0; i < s_dev_n; i++) {
+            const dev_ent_t *d = &s_devtab[i];
+            char type[24];
+            if (!find_str(d->line, d->len, "\"type\":\"", type, sizeof type)) continue;
+            if (strcmp(type, "wifi_ap") != 0) continue;
+            char bssid[24], ssid[40], iehash[24];
+            if (!find_str(d->line, d->len, "\"bssid\":\"", bssid, sizeof bssid)) continue;
+            uint8_t mac[6];
+            if (!infra_parse_mac(bssid, (int)strlen(bssid), mac)) continue;
+            int sl = find_str(d->line, d->len, "\"ssid\":\"", ssid, sizeof ssid);
+            uint32_t ieh = 0;
+            if (find_str(d->line, d->len, "\"ie_pattern_hash\":", iehash, sizeof iehash))
+                ieh = (uint32_t)strtoul(iehash, NULL, 10);
+            uint64_t uk = infra_unit_key(mac, ieh);
+            uint64_t sk = infra_system_key(mac, ssid, sl, ieh);
+            raw++;
+            int idx = -1;
+            for (int k = 0; k < nu; k++) if (u[k].unit == uk) { idx = k; break; }
+            if (idx < 0) {
+                if (nu >= INFRA_VIEW_MAX) continue;
+                idx = nu++;
+                u[idx].unit = uk; u[idx].sys = sk; u[idx].radios = 0; u[idx].sightings = 0;
+                u[idx].ssid[0] = '\0';
+                strlcpy(u[idx].bssid, bssid, sizeof u[idx].bssid);
+            }
+            u[idx].radios++;
+            u[idx].sightings += d->times_seen;
+            if (u[idx].ssid[0] == '\0' && sl > 0) strlcpy(u[idx].ssid, ssid, sizeof u[idx].ssid);
+        }
+        xSemaphoreGive(s_dev_mux);
+    }
+
+    int off = snprintf(buf, buflen, "{\"units\":%d,\"radios\":%d,\"list\":[", nu, raw);
+    for (int i = 0; i < nu && off > 0 && off < (int)buflen; i++) {
+        char sesc[24]; strlcpy(sesc, u[i].ssid, sizeof sesc);
+        for (char *p = sesc; *p; p++) if (*p == '"' || *p == '\\') *p = '\'';
+        off += snprintf(buf + off, buflen - off,
+            "%s{\"unit\":\"%08lx%08lx\",\"sys\":\"%08lx%08lx\",\"ssid\":\"%s\",\"bssid\":\"%s\","
+            "\"radios\":%lu,\"sightings\":%lu}",
+            i ? "," : "",
+            (unsigned long)(u[i].unit >> 32), (unsigned long)(u[i].unit & 0xFFFFFFFF),
+            (unsigned long)(u[i].sys >> 32), (unsigned long)(u[i].sys & 0xFFFFFFFF),
+            sesc, u[i].bssid, (unsigned long)u[i].radios, (unsigned long)u[i].sightings);
+    }
+    if (off > 0 && off < (int)buflen) snprintf(buf + off, buflen - off, "]}");
+}
+
+void master_cluster_place_detail_json(int idx, char *buf, size_t buflen)
+{
+    epup_landmark_t lm[EPUP_LM_MAX];
+    int n = epup_brain_place_detail(idx, lm, EPUP_LM_MAX);
+    int off = snprintf(buf, buflen, "{\"idx\":%d,\"quality\":%d,\"landmarks\":[",
+                       idx, epup_brain_place_quality(idx));
+    for (int i = 0; i < n && off > 0 && off < (int)buflen; i++) {
+        char nm[24]; strlcpy(nm, lm[i].name, sizeof nm);
+        for (char *p = nm; *p; p++) if (*p == '"' || *p == '\\') *p = '\'';
+        off += snprintf(buf + off, buflen - off,
+            "%s{\"unit\":\"%08lx%08lx\",\"name\":\"%s\",\"hits\":%u,\"scans\":%u,"
+            "\"pinned\":%s,\"confirmed\":%s}",
+            i ? "," : "",
+            (unsigned long)(lm[i].unit >> 32), (unsigned long)(lm[i].unit & 0xFFFFFFFF),
+            nm, lm[i].hits, lm[i].scans_seen,
+            (lm[i].flags & EPUP_LM_PINNED)    ? "true" : "false",
+            (lm[i].flags & EPUP_LM_CONFIRMED) ? "true" : "false");
+    }
+    if (off > 0 && off < (int)buflen) snprintf(buf + off, buflen - off, "]}");
+}
+
+void master_on_landmark_edit(const char *body, int n)
+{
+    long idx = json_int(body, n, "idx", -1);
+    char op[16] = {0}, unit[24] = {0};
+    json_field(body, n, "\"op\":\"", op, sizeof op);
+    json_field(body, n, "\"unit\":\"", unit, sizeof unit);
+    uint64_t u = (uint64_t)strtoull(unit, NULL, 16);
+    if (idx < 0) return;
+    if      (!strcmp(op, "pin"))    epup_brain_landmark_pin((int)idx, u, true);
+    else if (!strcmp(op, "unpin"))  epup_brain_landmark_pin((int)idx, u, false);
+    else if (!strcmp(op, "delete")) epup_brain_landmark_delete((int)idx, u);
+    else if (!strcmp(op, "forget")) epup_brain_place_delete((int)idx);
+    alog("environment edited");
+}
+
+void master_on_learn(const char *body, int n)
+{
+    if (json_int(body, n, "cancel", 0)) { epup_brain_learn_cancel(); alog("learn cancelled"); return; }
+    int scans = (int)json_int(body, n, "scans", 3);
+    bool reposition = json_int(body, n, "reposition", 1) != 0;
+    bool fresh      = json_int(body, n, "fresh", 1) != 0;
+    epup_brain_learn_start(scans, reposition, fresh);
+    alog("learning environment (%d scans)", scans);
+}
+
 void master_cluster_status_json(char *buf, size_t buflen)
 {
     int64_t now = esp_timer_get_time();
@@ -489,12 +814,14 @@ void master_cluster_status_json(char *buf, size_t buflen)
                     CL_BRAIN_ADDR, (unsigned long)s_merge_count, (unsigned long)s_merge_count,
                     s_walking ? "true" : "false", (unsigned)rs.records_current, FW_CKPT);
     epup_summary_t ep; epup_brain_get(&ep);
+    epup_learn_t lrn; epup_brain_learn_status(&lrn);
     if (off > 0 && off < (int)buflen) {
         off += snprintf(buf + off, buflen - off,
             ",\"epup\":{\"title\":\"%s\",\"level\":%lu,\"confidence\":%u,\"scans\":%lu,"
             "\"unique\":%lu,\"wifi\":%u,\"ble\":%u,\"new\":%u,\"ema\":%u,\"boots\":%lu,"
             "\"place\":{\"cur\":%d,\"count\":%u,\"sim\":%u,\"known\":%s,\"is_new\":%s,"
-            "\"scans\":%lu,\"label\":\"%s\"}}",
+            "\"scans\":%lu,\"label\":\"%s\"},"
+            "\"learn\":{\"active\":%s,\"want\":%u,\"done\":%u,\"reposition\":%s}}",
             epup_title_label((epup_title_t)ep.title), (unsigned long)ep.level,
             ep.confidence, (unsigned long)ep.total_scans,
             (unsigned long)ep.unique_est, ep.last_wifi, ep.last_ble,
@@ -503,7 +830,9 @@ void master_cluster_status_json(char *buf, size_t buflen)
             ep.place_cur, ep.place_count, ep.place_sim,
             (ep.place_flags & EPUP_PLACE_KNOWN) ? "true" : "false",
             (ep.place_flags & EPUP_PLACE_NEW) ? "true" : "false",
-            (unsigned long)ep.place_scans, ep.place_label);
+            (unsigned long)ep.place_scans, ep.place_label,
+            lrn.active ? "true" : "false", lrn.want, lrn.done,
+            lrn.reposition ? "true" : "false");
     }
     if (off < 0 || off >= (int)buflen) off = (int)buflen - 1;
 
@@ -679,12 +1008,53 @@ static bool ingest_arm(int i, uint32_t seq)
     return true;
 }
 
+static bool blk_contains(const char *b, int n, const char *pat)
+{
+    int pl = (int)strlen(pat);
+    for (int i = 0; i + pl <= n; i++) if (memcmp(b + i, pat, pl) == 0) return true;
+    return false;
+}
+
+static void harvest_tracker_line(const char *line, int n)
+{
+    if (!blk_contains(line, n, "\"type\":\"tracker\"")) return;
+    if (blk_contains(line, n, "\"tracker_kind\":\"tile\"")) return;
+
+    if (blk_contains(line, n, "\"tracker_kind\":\"find_my_maintained\"")) return;
+    char mac[24] = {0};
+    if (json_field(line, n, "\"addr\":\"", mac, sizeof mac) <= 0) return;
+    tsnd_target_t t; memset(&t, 0, sizeof t);
+    if (!parse_mac6(mac, t.mac)) return;
+    t.addr_type = (uint8_t)json_int(line, n, "addr_type", 1);
+    t.proto     = CL_TSND_PROTO_AUTO;
+    for (int i = 0; i < s_harvest_n; i++)
+        if (memcmp(s_harvest[i].mac, t.mac, 6) == 0) { s_harvest[i] = t; return; }
+    if (s_harvest_n < HARVEST_MAX) s_harvest[s_harvest_n++] = t;
+    else {
+        memmove(&s_harvest[0], &s_harvest[1], (HARVEST_MAX - 1) * sizeof(tsnd_target_t));
+        s_harvest[HARVEST_MAX - 1] = t;
+    }
+}
+
+static void harvest_from_merge(const uint8_t *buf, uint32_t len)
+{
+    uint32_t i = 0;
+    while (i < len) {
+        uint32_t j = i;
+        while (j < len && buf[j] != '\n') j++;
+        if (j > i) harvest_tracker_line((const char *)(buf + i), (int)(j - i));
+        i = j + 1;
+    }
+}
+
 static void merge_window(void)
 {
     do_merge();
+
     uint32_t wall_ts = s_epoch_base
         ? (uint32_t)(s_epoch_base + esp_timer_get_time() / 1000000) : 0;
     dev_table_ingest(s_merge_buf, s_merge_len, s_merge_count, wall_ts);
+    harvest_from_merge(s_merge_buf, s_merge_len);
     ESP_LOGI(TAG, "MERGE #%lu: %lu uniq, %lu dup, %lu bytes (arm1=%lu arm2=%lu recs) devtab=%d/%d evict=%lu",
              (unsigned long)s_merge_count, (unsigned long)s_merge_uniq,
              (unsigned long)s_merge_dup, (unsigned long)s_merge_len,
@@ -693,13 +1063,6 @@ static void merge_window(void)
     epup_brain_observe((const char *)s_merge_buf, s_merge_len);
 
     push_merge_to_s3();
-
-    epup_summary_t ep; epup_brain_get(&ep);
-    char st[24];
-    snprintf(st, sizeof(st), "%s L%lu %lu%%",
-             epup_title_label((epup_title_t)ep.title),
-             (unsigned long)ep.level, (unsigned long)ep.confidence);
-    render_screen(st);
 
     s_arm[0].have = s_arm[1].have = false;
 }
@@ -744,8 +1107,6 @@ static void bus_task(void *arg)
     (void)arg;
     bool arm_was_online[N_ARMS] = { false };
     bool scan_inflight = false;
-    int  scr = 0;
-    bool joined_prev = false;
 
     for (;;) {
         bus_health_check();
@@ -759,10 +1120,69 @@ static void bus_task(void *arg)
             refresh_s3_blobs();
         }
         if (s_clock_req) { s_clock_req = false; push_clock_to_s3(s_clock_pending); }
+
+        if (s_tsnd_req) {
+            s_tsnd_req = false;
+            push_tracker_to_s3(&s_tsnd_one, s_tsnd_action);
+            refresh_s3_blobs();
+        }
+
+        if (s_loc_start_req) {
+            s_loc_start_req = false;
+            for (int i = 0; i < N_ARMS; i++)
+                i2c_master_transmit(s_dev[i], (const uint8_t *)&s_loc_pending,
+                                    sizeof(s_loc_pending), 100);
+            memset((void *)&s_loc_best, 0, sizeof(s_loc_best));
+            s_loc_active = true;
+        }
+        if (s_loc_stop_req) {
+            s_loc_stop_req = false;
+            cl_cmd_frame_t f; cl_cmd_build(&f, CL_CMD_STOP_LOCATE, 0);
+            for (int i = 0; i < N_ARMS; i++)
+                i2c_master_transmit(s_dev[i], (const uint8_t *)&f, sizeof(f), 100);
+            s_loc_active = false;
+        }
+        if (s_loc_active) {
+            cl_locate_state_t best; memset(&best, 0, sizeof best); bool have = false;
+            for (int i = 0; i < N_ARMS; i++) {
+                cl_cmd_frame_t g; cl_cmd_build(&g, CL_CMD_GET_LOCATE, 0);
+                if (i2c_master_transmit(s_dev[i], (const uint8_t *)&g, sizeof(g), 100) != ESP_OK)
+                    continue;
+                cl_locate_state_t ls;
+                if (i2c_master_receive(s_dev[i], (uint8_t *)&ls, sizeof(ls), 100) != ESP_OK)
+                    continue;
+                if (!cl_locate_state_valid(&ls)) continue;
+                if (!have) { best = ls; have = true; }
+                else if (ls.found && (!best.found || ls.age_ds < best.age_ds ||
+                         (ls.age_ds == best.age_ds && ls.rssi > best.rssi)))
+                    best = ls;
+            }
+            if (have) s_loc_best = best;
+        }
+        if (s_burst_active) {
+            int64_t bnow = esp_timer_get_time();
+            if (s_burst_stop || s_burst_i >= s_burst_n) {
+                if (s_burst_stop) push_tracker_to_s3(&s_burst[0], CL_TSND_CANCEL);
+                s_burst_active = false;
+            } else if (bnow >= s_burst_next_us) {
+                push_tracker_to_s3(&s_burst[s_burst_i], CL_TSND_START);
+                s_burst_i++;
+                s_burst_next_us = bnow + 6000000LL;
+                refresh_s3_blobs();
+            }
+        }
         {
             static int64_t last_blob_us;
             int64_t bnow = esp_timer_get_time();
             if (bnow - last_blob_us >= 1000000LL) { last_blob_us = bnow; refresh_s3_blobs(); }
+        }
+
+        push_uiframe_to_s3();
+        {
+            static int64_t last_uiev_us, last_uirep_us;
+            int64_t bnow = esp_timer_get_time();
+            if (bnow - last_uiev_us >= 300000LL) { last_uiev_us = bnow; poll_s3_uievent(); }
+            if (bnow - last_uirep_us >= 3000000LL) { last_uirep_us = bnow; ui_frame_refresh(); }
         }
 
         if (s_reset_req) {
@@ -797,7 +1217,7 @@ static void bus_task(void *arg)
         }
 
         bool want_scan = !s_boot_scanned || s_walking || s_rescan_once;
-        if (want_scan && online == N_ARMS && !scan_inflight &&
+        if (want_scan && online == N_ARMS && !scan_inflight && !s_loc_active &&
             !(s_arm[0].have || s_arm[1].have)) {
             const char *why = !s_boot_scanned ? "boot" : s_walking ? "walk" : "rescan";
             ESP_LOGI(TAG, "LINK %d/%d -> broadcast SCAN (adv) [%s]", online, N_ARMS, why);
@@ -806,93 +1226,42 @@ static void bus_task(void *arg)
             s_boot_scanned = true;
         }
 
-        if (!download_mode_is_active()) {
-            if (scr != 1) {
-                display_clear(COLOR_NEARBLACK);
-                display_draw_string(2, 34, "Starting AP...", COLOR_AMBER, COLOR_NEARBLACK, 1);
-                scr = 1;
-            }
-        } else {
-            bool joined = download_mode_get_client_count() > 0;
-            if (scr != 2 || joined != joined_prev) {
-                draw_join_screen(joined);
-                joined_prev = joined;
-                scr = 2;
-            }
-        }
-
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
-#define QR_BOX_PX 72
-#define QR_X0     4
-#define QR_Y0     4
-#define QR_RCOL   80
-static uint16_t s_qrbuf[QR_BOX_PX * QR_BOX_PX];
-static char     s_stat[26];
-
-static void qr_draw_cb(esp_qrcode_handle_t qr)
+static int arms_online(void)
 {
-    int size = esp_qrcode_get_size(qr);
-    int border = 2, total = size + 2 * border;
-    int scale = QR_BOX_PX / total; if (scale < 1) scale = 1;
-    int px = total * scale; if (px > QR_BOX_PX) px = QR_BOX_PX;
-    for (int i = 0; i < px * px; i++) s_qrbuf[i] = COLOR_WHITE;
-    for (int y = 0; y < size; y++)
-        for (int x = 0; x < size; x++)
-            if (esp_qrcode_get_module(qr, x, y)) {
-                int bx = (border + x) * scale, by = (border + y) * scale;
-                for (int dy = 0; dy < scale && by + dy < px; dy++)
-                    for (int dx = 0; dx < scale && bx + dx < px; dx++)
-                        s_qrbuf[(by + dy) * px + (bx + dx)] = COLOR_BLACK;
-            }
-    display_draw_image(QR_X0, QR_Y0, px, px, s_qrbuf);
-}
-
-static void draw_status_line(void)
-{
-    display_fill_rect(0, 70, DISPLAY_W, 10, COLOR_NEARBLACK);
-    display_draw_string(2, 70, s_stat, COLOR_AMBER, COLOR_NEARBLACK, 1);
-}
-
-static void draw_join_screen(bool joined)
-{
-    display_clear(COLOR_NEARBLACK);
-    const char *ssid = download_mode_get_ssid();
-    const char *pass = download_mode_get_passphrase();
-    char payload[80];
-    if (joined) snprintf(payload, sizeof(payload), "http://192.168.4.1/");
-    else        snprintf(payload, sizeof(payload), "WIFI:T:WPA2;S:%s;P:%s;;", ssid, pass);
-    esp_qrcode_config_t qcfg = ESP_QRCODE_CONFIG_DEFAULT();
-    qcfg.display_func       = qr_draw_cb;
-    qcfg.max_qrcode_version = 4;
-    qcfg.qrcode_ecc_level   = ESP_QRCODE_ECC_LOW;
-    if (esp_qrcode_generate(&qcfg, payload) != ESP_OK)
-        display_draw_string(QR_X0, 34, "QR err", COLOR_RED, COLOR_NEARBLACK, 1);
-
-    display_draw_string(QR_RCOL, 4, "BRAIN AP", COLOR_HEADER, COLOR_NEARBLACK, 1);
-    if (joined) {
-        display_draw_string(QR_RCOL, 16, "scan to open", COLOR_WHITE, COLOR_NEARBLACK, 1);
-        display_draw_string(QR_RCOL, 27, "192.168.4.1", COLOR_AMBER, COLOR_NEARBLACK, 1);
-    } else {
-        display_draw_string(QR_RCOL, 16, ssid, COLOR_WHITE, COLOR_NEARBLACK, 1);
-        display_draw_string(QR_RCOL, 27, pass, COLOR_AMBER, COLOR_NEARBLACK, 1);
-    }
-    display_draw_string(QR_RCOL, 42, FW_CKPT, COLOR_GREEN, COLOR_NEARBLACK, 1);
-    draw_status_line();
-}
-
-static void render_screen(const char *state_txt)
-{
-    (void)state_txt;
     int online = 0;
     int64_t now = esp_timer_get_time();
     for (int i = 0; i < N_ARMS; i++)
         if (s_link[i].ok && (now - s_link[i].last_ok_us) < 1500000LL) online++;
-    snprintf(s_stat, sizeof(s_stat), "LINK%d/%d m#%lu SD%lu", online, N_ARMS,
+    return online;
+}
+
+static void status_line(char *out, size_t cap)
+{
+    snprintf(out, cap, "LINK%d/%d m#%lu SD%lu", arms_online(), N_ARMS,
              (unsigned long)s_merge_count, (unsigned long)s_s3.recs);
-    draw_status_line();
+}
+
+static void s3_ui_line(int idx, char *out, size_t cap)
+{
+    char key[8];
+    snprintf(key, sizeof key, "\"ui%d\":\"", idx);
+    out[0] = '\0';
+    if (xSemaphoreTake(s_s3_mux, pdMS_TO_TICKS(50)) != pdTRUE) return;
+    if (s_sent_json && s_sent_json_len > 0) {
+        const char *p = strstr(s_sent_json, key);
+        if (p) {
+            p += strlen(key);
+            size_t n = 0;
+            while (p[n] && p[n] != '"' && n < cap - 1) n++;
+            memcpy(out, p, n);
+            out[n] = '\0';
+        }
+    }
+    xSemaphoreGive(s_s3_mux);
 }
 
 static void log_task(void *arg)
@@ -907,13 +1276,14 @@ static void log_task(void *arg)
             for (int i = 0; i < N_ARMS; i++)
                 if (s_link[i].ok && (now - s_link[i].last_ok_us) < 1500000LL) online++;
             epup_summary_t ep; epup_brain_get(&ep);
-            ESP_LOGI(TAG, "BRAIN-MASTER [%s] up=%llds LINK %d/%d (a1=%s a2=%s) merge#%lu(%luuq %ludp) S3push=%lu/%lu busrst=%lu ePup:%s L%lu %lu%% scans=%lu uniq~%lu",
+            ESP_LOGI(TAG, "BRAIN-MASTER [%s] up=%llds LINK %d/%d (a1=%s a2=%s) merge#%lu(%luuq %ludp) S3push=%lu/%lu UI=%lu/%lu busrst=%lu ePup:%s L%lu %lu%% scans=%lu uniq~%lu",
                      FW_CKPT, (long long)(now / 1000000), online, N_ARMS,
                      s_link[0].ok && (now-s_link[0].last_ok_us)<1500000LL ? "OK":"--",
                      s_link[1].ok && (now-s_link[1].last_ok_us)<1500000LL ? "OK":"--",
                      (unsigned long)s_merge_count, (unsigned long)s_merge_uniq,
                      (unsigned long)s_merge_dup,
                      (unsigned long)s_s3_pushes, (unsigned long)s_s3_fail,
+                     (unsigned long)s_ui_pushes, (unsigned long)s_ui_fail,
                      (unsigned long)s_bus_resets,
                      epup_title_label((epup_title_t)ep.title), (unsigned long)ep.level,
                      (unsigned long)ep.confidence, (unsigned long)ep.total_scans,
@@ -926,18 +1296,346 @@ static void log_task(void *arg)
 static void web_task(void *arg)
 {
     (void)arg;
-    bool up = false;
+
+    httpd_handle_t registered = NULL;
     for (;;) {
-        if (!download_mode_is_active()) download_mode_request_enable();
-        if (!up) {
-            httpd_handle_t sv = download_http_server();
-            if (sv && cluster_web_start(sv) == ESP_OK) {
-                up = true;
+        bool active = download_mode_is_active();
+        if (s_ap_want && !active)       download_mode_request_enable();
+        else if (!s_ap_want && active)  download_mode_request_disable(CAP_END_USER_DISABLE);
+
+        httpd_handle_t sv = download_http_server();
+        if (sv && sv != registered) {
+            if (cluster_web_start(sv) == ESP_OK) {
+                registered = sv;
                 alog("WebAP up at 192.168.4.1");
                 ESP_LOGI(TAG, "WebAP up — dashboard at http://192.168.4.1/");
             }
+        } else if (!sv) {
+            registered = NULL;
         }
         vTaskDelay(pdMS_TO_TICKS(250));
+    }
+}
+
+#define BRAIN_PIN_BOOT      28
+#define BRAIN_LONG_HOLD_MS  2500
+#define BRAIN_DBL_GAP_MS    450
+
+typedef enum { BEV_NONE = 0, BEV_SINGLE, BEV_DOUBLE, BEV_LONG } bev_t;
+typedef enum {
+    MSCR_MAIN = 0, MSCR_AP, MSCR_AP_LIVE, MSCR_WALK, MSCR_SENTINEL, MSCR_HOWL, MSCR_RESCAN,
+    MSCR_S3
+} mscr_t;
+
+static mscr_t   s_mscr = MSCR_MAIN;
+static int      s_msel;
+static bool     s_sent_armed = true;
+static uint32_t s_rescan_base_merge;
+static int      s_rescan_ticks;
+
+static void ap_autolaunch_load(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("brain", NVS_READONLY, &h) == ESP_OK) {
+        uint8_t v = 1;
+        if (nvs_get_u8(h, "ap_auto", &v) == ESP_OK) s_ap_autolaunch = (v != 0);
+        nvs_close(h);
+    }
+}
+static void ap_autolaunch_save(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("brain", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, "ap_auto", s_ap_autolaunch ? 1 : 0);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+static void sentinel_sync_shadow(void)
+{
+    if (xSemaphoreTake(s_s3_mux, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (s_sent_json && s_sent_json_len > 0) {
+            if (blk_contains(s_sent_json, s_sent_json_len, "\"armed\":true"))       s_sent_armed = true;
+            else if (blk_contains(s_sent_json, s_sent_json_len, "\"armed\":false")) s_sent_armed = false;
+        }
+        xSemaphoreGive(s_s3_mux);
+    }
+}
+static void sentinel_set_armed(bool on)
+{
+    const char *b = on ? "{\"armed\":1}" : "{\"armed\":0}";
+    master_on_sentinel_cfg(b, (int)strlen(b));
+    alog("sentinel %s (device)", on ? "armed" : "disarmed");
+}
+
+static void howl_start(void)
+{
+    if (s_harvest_n <= 0) { alog("Howl: no trackers nearby"); return; }
+    int n = s_harvest_n < BURST_MAX ? s_harvest_n : BURST_MAX;
+    for (int i = 0; i < n; i++) s_burst[i] = s_harvest[i];
+    s_burst_n = n; s_burst_i = 0; s_burst_stop = false; s_burst_next_us = 0;
+    s_burst_active = true;
+    alog("Howl started (device): %d tracker(s)", n);
+}
+static void howl_stop(void) { s_burst_stop = true; alog("Howl stop (device)"); }
+
+static int menu_count(mscr_t s)
+{
+    switch (s) {
+    case MSCR_MAIN:                                        return 5;
+    case MSCR_AP:                                          return 3;
+    case MSCR_WALK: case MSCR_SENTINEL: case MSCR_HOWL:    return 2;
+    default:                                              return 0;
+    }
+}
+
+static void menu_compose(cl_uiframe_t *f)
+{
+    char l0[CL_UI_ITEM], l1[CL_UI_ITEM], extra[CL_UI_EXTRA];
+
+    switch (s_mscr) {
+    case MSCR_MAIN:
+        cl_ui_frame_reset(f, CL_UI_SCR_MENU, "SNIFFCHECK BRAIN", "1:next  2:select");
+        cl_ui_frame_item(f, "AP");
+        cl_ui_frame_item(f, "Walk");
+        cl_ui_frame_item(f, "Sentinel");
+        cl_ui_frame_item(f, "Rescan");
+        cl_ui_frame_item(f, "S3");
+        f->sel = (int8_t)s_msel;
+        return;
+
+    case MSCR_AP:
+        cl_ui_frame_reset(f, CL_UI_SCR_MENU, "AP", "2:sel  hold:back");
+        snprintf(l0, sizeof l0, "%s", s_ap_want ? "Stop AP" : "Start AP");
+        snprintf(l1, sizeof l1, "Auto-Launch:%s", s_ap_autolaunch ? "ON" : "OFF");
+        cl_ui_frame_item(f, l0);
+        cl_ui_frame_item(f, l1);
+        cl_ui_frame_item(f, "QR");
+        f->sel = (int8_t)s_msel;
+        return;
+
+    case MSCR_AP_LIVE: {
+
+        bool joined = download_mode_get_client_count() > 0;
+        const char *ssid = download_mode_get_ssid();
+        const char *pass = download_mode_get_passphrase();
+        cl_ui_frame_reset(f, CL_UI_SCR_QR, "BRAIN AP", "hold: back");
+        if (joined) {
+            snprintf(f->qr, CL_UI_QR, "http://192.168.4.1/");
+            cl_ui_frame_item(f, "scan to open");
+            cl_ui_frame_item(f, "192.168.4.1");
+        } else {
+            snprintf(f->qr, CL_UI_QR, "WIFI:T:WPA2;S:%s;P:%s;;", ssid, pass);
+            cl_ui_frame_item(f, ssid);
+            cl_ui_frame_item(f, pass);
+        }
+        cl_ui_frame_item(f, FW_CKPT);
+        status_line(extra, sizeof extra);
+        cl_ui_frame_extra(f, extra, 0);
+        return;
+    }
+
+    case MSCR_WALK:
+        cl_ui_frame_reset(f, CL_UI_SCR_MENU, "WALK", "2:sel  hold:back");
+        cl_ui_frame_item(f, "Start Walk");
+        cl_ui_frame_item(f, "Stop Walk");
+        f->sel = (int8_t)s_msel;
+        snprintf(extra, sizeof extra, "%s arms %d/%d m#%lu",
+                 s_walking ? "WALKING" : "stopped", arms_online(), N_ARMS,
+                 (unsigned long)s_merge_count);
+        cl_ui_frame_extra(f, extra, s_walking ? 1 : 0);
+        return;
+
+    case MSCR_SENTINEL:
+        cl_ui_frame_reset(f, CL_UI_SCR_MENU, "SENTINEL", "2:sel  hold:back");
+        snprintf(l0, sizeof l0, "Sentinel: %s", s_sent_armed ? "ON" : "OFF");
+        cl_ui_frame_item(f, l0);
+        cl_ui_frame_item(f, "Howl");
+        f->sel = (int8_t)s_msel;
+        return;
+
+    case MSCR_HOWL:
+        cl_ui_frame_reset(f, CL_UI_SCR_MENU, "HOWL", "2:sel  hold:back");
+        cl_ui_frame_item(f, "Start Howl");
+        cl_ui_frame_item(f, "Stop Howl");
+        f->sel = (int8_t)s_msel;
+        snprintf(extra, sizeof extra, "%d nearby  ring %d/%d",
+                 s_harvest_n, s_burst_i, s_burst_n);
+        cl_ui_frame_extra(f, extra, s_burst_active ? 1 : 0);
+        return;
+
+    case MSCR_RESCAN:
+        cl_ui_frame_reset(f, CL_UI_SCR_MENU, "RESCAN", "returns when done");
+        cl_ui_frame_item(f, "scanning...");
+        return;
+
+    case MSCR_S3: {
+
+        bool online = s_s3.online &&
+                      (esp_timer_get_time() - s_s3.last_ok_us) < 3000000LL;
+        cl_ui_frame_reset(f, CL_UI_SCR_MENU, "S3 NODE", "hold: back");
+        if (!online) {
+            cl_ui_frame_item(f, "offline");
+            cl_ui_frame_item(f, "check Qwiic cable");
+            return;
+        }
+        for (int i = 0; i < 4; i++) {
+            char line[CL_UI_ITEM];
+            s3_ui_line(i, line, sizeof line);
+            if (line[0]) cl_ui_frame_item(f, line);
+        }
+        if (f->n_items == 0) cl_ui_frame_item(f, "no data yet");
+        snprintf(extra, sizeof extra, "windows %lu", (unsigned long)s_s3.windows);
+        cl_ui_frame_extra(f, extra, 1);
+        return;
+    }
+    }
+}
+
+static void menu_render(void)
+{
+    static cl_uiframe_t f, last;
+    static bool have_last;
+
+    menu_compose(&f);
+    if (!cl_ui_draw_diff(&f, &last, have_last)) return;
+    memcpy(&last, &f, sizeof last);
+    have_last = true;
+
+    ui_frame_queue(&f);
+}
+
+static void menu_back(void)
+{
+    switch (s_mscr) {
+    case MSCR_HOWL:                                   s_mscr = MSCR_SENTINEL; s_msel = 0; break;
+    case MSCR_AP_LIVE:  s_mscr = MSCR_AP;   s_msel = 2; break;
+    case MSCR_S3:                                     s_mscr = MSCR_MAIN;     s_msel = 4; break;
+    case MSCR_AP: case MSCR_WALK: case MSCR_SENTINEL: s_mscr = MSCR_MAIN;     s_msel = 0; break;
+    default: break;
+    }
+}
+
+static void menu_select(void)
+{
+    switch (s_mscr) {
+    case MSCR_MAIN:
+        switch (s_msel) {
+        case 0: s_mscr = MSCR_AP;       s_msel = 0; break;
+        case 1: s_mscr = MSCR_WALK;     s_msel = 0; break;
+        case 2: s_mscr = MSCR_SENTINEL; s_msel = 0; sentinel_sync_shadow(); break;
+        case 3: s_rescan_base_merge = s_merge_count; s_rescan_ticks = 0;
+                s_req = REQ_SCAN; alog("rescan (device)"); s_mscr = MSCR_RESCAN; break;
+        case 4: s_mscr = MSCR_S3;       s_msel = 0; break;
+        }
+        break;
+    case MSCR_AP:
+        if (s_msel == 0) {
+            s_ap_want = !s_ap_want;
+            alog("AP %s (device)", s_ap_want ? "start" : "stop");
+        } else if (s_msel == 1) {
+            s_ap_autolaunch = !s_ap_autolaunch;
+            ap_autolaunch_save();
+        } else {
+            s_ap_want = true;
+            s_mscr = MSCR_AP_LIVE;
+        }
+        break;
+    case MSCR_WALK:
+        if (s_msel == 0) { s_req = REQ_WALK;     alog("walk started (device)"); }
+        else             { s_req = REQ_STOPWALK; alog("walk stopped (device)"); }
+        break;
+    case MSCR_SENTINEL:
+        if (s_msel == 0) { s_sent_armed = !s_sent_armed; sentinel_set_armed(s_sent_armed); }
+        else             { s_mscr = MSCR_HOWL; s_msel = 0; }
+        break;
+    case MSCR_HOWL:
+        if (s_msel == 0) howl_start();
+        else             howl_stop();
+        break;
+    default: break;
+    }
+}
+
+static bev_t brain_wait_button(uint32_t timeout_ms)
+{
+    uint32_t waited = 0;
+    while (gpio_get_level(BRAIN_PIN_BOOT) != 0) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+        waited += 20;
+        if (waited >= timeout_ms) return BEV_NONE;
+    }
+    vTaskDelay(pdMS_TO_TICKS(30));
+    if (gpio_get_level(BRAIN_PIN_BOOT) != 0) return BEV_NONE;
+
+    uint32_t held = 0;
+    while (gpio_get_level(BRAIN_PIN_BOOT) == 0 && held < BRAIN_LONG_HOLD_MS) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+        held += 20;
+    }
+    if (gpio_get_level(BRAIN_PIN_BOOT) == 0 && held >= BRAIN_LONG_HOLD_MS) {
+        while (gpio_get_level(BRAIN_PIN_BOOT) == 0) vTaskDelay(pdMS_TO_TICKS(20));
+        return BEV_LONG;
+    }
+    uint32_t gap = 0;
+    while (gap < BRAIN_DBL_GAP_MS) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+        gap += 20;
+        if (gpio_get_level(BRAIN_PIN_BOOT) == 0) {
+            vTaskDelay(pdMS_TO_TICKS(30));
+            if (gpio_get_level(BRAIN_PIN_BOOT) != 0) continue;
+            while (gpio_get_level(BRAIN_PIN_BOOT) == 0) vTaskDelay(pdMS_TO_TICKS(20));
+            return BEV_DOUBLE;
+        }
+    }
+    return BEV_SINGLE;
+}
+
+static void menu_task(void *arg)
+{
+    (void)arg;
+    gpio_config_t cfg = {
+        .pin_bit_mask = (1ULL << BRAIN_PIN_BOOT),
+        .mode         = GPIO_MODE_INPUT,
+        .pull_up_en   = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&cfg);
+    menu_render();
+
+    for (;;) {
+        bev_t ev = brain_wait_button(400);
+
+        if (ev == BEV_NONE && s_ui_evq) {
+            uint8_t rev;
+            if (xQueueReceive(s_ui_evq, &rev, 0) == pdTRUE) {
+                ev = (rev == CL_UI_EV_SINGLE) ? BEV_SINGLE
+                   : (rev == CL_UI_EV_DOUBLE) ? BEV_DOUBLE
+                   : (rev == CL_UI_EV_LONG)   ? BEV_LONG : BEV_NONE;
+                if (ev != BEV_NONE) alog("S3 button: %s",
+                    ev == BEV_SINGLE ? "next" : ev == BEV_DOUBLE ? "select" : "back");
+            }
+        }
+
+        if (ev == BEV_NONE) {
+            if (s_mscr == MSCR_RESCAN) {
+                if (s_merge_count != s_rescan_base_merge || ++s_rescan_ticks > 60) {
+                    s_mscr = MSCR_MAIN; s_msel = 0;
+                    menu_render();
+                    continue;
+                }
+            }
+
+            menu_render();
+            continue;
+        }
+
+        if (ev == BEV_SINGLE) { int n = menu_count(s_mscr); if (n > 0) s_msel = (s_msel + 1) % n; }
+        else if (ev == BEV_DOUBLE) menu_select();
+        else if (ev == BEV_LONG)   menu_back();
+        menu_render();
     }
 }
 
@@ -994,12 +1692,16 @@ void app_main(void)
              (unsigned)((DEV_MAX * sizeof(dev_ent_t)) / 1024),
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024), s_sess_id);
 
-    s_s3_mux = xSemaphoreCreateMutex();
+    s_s3_mux  = xSemaphoreCreateMutex();
+    s_ui_mux  = xSemaphoreCreateMutex();
+    s_ui_evq  = xQueueCreate(4, sizeof(uint8_t));
     uint32_t jcaps = (caps == MALLOC_CAP_SPIRAM) ? MALLOC_CAP_SPIRAM : MALLOC_CAP_8BIT;
     s_sent_json = heap_caps_malloc(6144, jcaps);
     s_hits_json = heap_caps_malloc(6144, jcaps);
     if (s_sent_json) s_sent_json[0] = '\0';
     if (s_hits_json) s_hits_json[0] = '\0';
+    s_tracker_json = heap_caps_malloc(2048, jcaps);
+    if (s_tracker_json) s_tracker_json[0] = '\0';
 
     epup_brain_init(0);
 
@@ -1022,11 +1724,15 @@ void app_main(void)
     download_mode_init();
 
     i2c_master_setup();
-    render_screen("mastering");
 
-    xTaskCreate(bus_task, "brain_bus", 6144, NULL, 6, NULL);
-    xTaskCreate(log_task, "brain_log", 3072, NULL, 4, NULL);
-    xTaskCreate(web_task, "brain_web", 4096, NULL, 5, NULL);
+    ap_autolaunch_load();
+    s_ap_want = s_ap_autolaunch;
+    ESP_LOGI(TAG, "AP auto-launch %s", s_ap_autolaunch ? "ON" : "OFF");
+
+    xTaskCreate(bus_task,  "brain_bus",  6144, NULL, 6, NULL);
+    xTaskCreate(log_task,  "brain_log",  3072, NULL, 4, NULL);
+    xTaskCreate(web_task,  "brain_web",  4096, NULL, 5, NULL);
+    xTaskCreate(menu_task, "brain_menu", 4096, NULL, 5, NULL);
     ESP_LOGI(TAG, "app_main done — I2C MASTER + WebAP host (arms 0x%02x/0x%02x, S3 0x%02x)",
              CL_ARM1_ADDR, CL_ARM2_ADDR, CL_S3_ADDR);
 }

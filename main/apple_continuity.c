@@ -1,5 +1,4 @@
 
-
 #include "apple_continuity.h"
 #include <stdio.h>
 #include <string.h>

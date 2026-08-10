@@ -1,9 +1,16 @@
 {
   "name": "SniffCheck Cluster brain (update)",
-  "version": "cluster-s3-1.1",
-  "new_install_prompt_erase": false,
+  "version": "cluster-s3-1.2",
+  "new_install_prompt_erase": true,
   "builds": [
-    { "chipFamily": "ESP32-C5",
-      "parts": [{ "path": "sniffcheck-cluster-brain-app.bin", "offset": 65536 }] }
+    {
+      "chipFamily": "ESP32-C5",
+      "parts": [
+        {
+          "path": "sniffcheck-cluster-brain-app.bin",
+          "offset": 0
+        }
+      ]
+    }
   ]
 }

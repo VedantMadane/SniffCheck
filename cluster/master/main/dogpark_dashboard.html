@@ -100,13 +100,14 @@ html.embed main{padding-top:8px}
 <main>
   <div class="card"><h3>ePup <span class="small">(the C5 brain — learns your RF world)</span></h3>
     <div id="d-epup"><div class="small">waiting for the brain…</div></div></div>
+  <div class="card"><h3>Environments <span class="small">(places your ePup knows · tap one to see its landmarks)</span></h3>
+    <div id="d-env"><div class="small">…</div></div>
+    <button class="btn" id="c-learn" style="margin-top:8px">Learn this environment</button></div>
   <div class="card"><h3>Arms</h3><div id="d-arms"><div class="small">connecting…</div></div></div>
   <div class="card"><h3>Controls</h3><div id="d-ctrl"></div>
     <div class="small" style="margin-top:6px">Rescan runs a deep Wi-Fi+BLE audit on every arm. The Dog Park AP never closes.</div></div>
   <div class="card"><h3>ePup activity <span class="small">(what the pack is doing &amp; seeing · newest first)</span></h3>
     <div id="d-alog"><div class="small">no activity yet…</div></div></div>
-  <div class="card"><h3>Sentinel <span class="small">(flagged signatures &amp; your watchlist)</span></h3>
-    <div id="d-sentinel"><div class="small">loading…</div></div></div>
   <div class="card"><h3>Live results <span class="small">(streaming from the arms · newest at the bottom)</span></h3><div id="dashlog" class="wf"></div></div>
   <div class="card"><h3>Map <span class="small">(work in progress)</span></h3>
     <div class="small">Walk and scan points will plot here. GPS is already stamped onto every
@@ -137,7 +138,7 @@ html.embed main{padding-top:8px}
 
   let status=null;
   function pollStatus(){fetch('/api/cluster/status',{cache:'no-store'})
-    .then(r=>r.json()).then(j=>{status=j;renderEpup();renderArms();renderCtrl();}).catch(()=>{});}
+    .then(r=>r.json()).then(j=>{status=j;renderEpup();renderArms();renderCtrl();renderEnv();}).catch(()=>{});}
   function renderEpup(){const el=$('d-epup');if(!el)return;
     const e=status&&status.epup;
     if(!e){el.innerHTML='<div class="small">'+(status&&status.brain&&status.brain.online
@@ -151,7 +152,18 @@ html.embed main{padding-top:8px}
       +'<div class="row" style="margin-top:6px">'
         +'<span class="epill">~'+(e.unique|0)+' unique seen</span>'
         +'<span class="epill">this window: W'+(e.wifi|0)+' B'+(e.ble|0)+'</span>'
-        +'<span class="epill">'+(e.new|0)+' new</span></div>';}
+        +'<span class="epill">'+(e.new|0)+' new</span></div>'
+      +envPrompt(e);}
+  function envPrompt(e){const p=e&&e.place, l=e&&e.learn;
+    if(l&&l.active)return '<div class="row small" style="margin-top:6px;color:var(--acc2)">'
+      +'📡 Learning this environment… scan '+(l.done|0)+' of '+(l.want|0)
+      +(l.reposition?' — reposition and it will scan again':'')+'</div>';
+    if(p&&p.is_new)return '<div class="row" style="margin-top:6px">'
+      +'<span class="small" style="color:var(--acc)">New environment — the ePup hasn’t seen this place before.</span> '
+      +'<button class="btn" id="c-learn2">Learn Environment</button></div>';
+    if(p&&p.cur>=0&&p.label)return '<div class="row small" style="margin-top:6px">Here now: <b>'
+      +esc(p.label)+'</b>'+(p.known?' · known':' · still learning')+'</div>';
+    return '';}
   function fmtAge(ms){if(ms==null||ms<0)return'never';if(ms<1200)return'live';
     if(ms<60000)return(ms/1000).toFixed(1)+'s ago';return Math.round(ms/60000)+'m ago';}
   function linkPct(o){const p=o&&o.polls|0;return p>0?Math.round((o.ok|0)*100/p):0;}
@@ -186,6 +198,82 @@ html.embed main{padding-top:8px}
       +'<button class="btn" id="c-walk">'+(walking?'Stop walk':'Start walk')+'</button>';
     $('c-scan').onclick=()=>fetch('/api/cluster/scan',{method:'POST'}).then(()=>setTimeout(pollStatus,300)).catch(()=>{});
     $('c-walk').onclick=()=>fetch('/api/cluster/walk?start='+(walking?0:1),{method:'POST'}).then(()=>setTimeout(pollStatus,300)).catch(()=>{});}
+
+  /* ---- Environments: list learned places, drill into landmarks, edit them ---- */
+  let envOpen=-1;
+  function renderEnv(){const el=$('d-env');if(!el)return;
+    fetch('/api/cluster/places',{cache:'no-store'}).then(r=>r.json()).then(j=>{
+      const cur=j.cur, ps=j.places||[];
+      if(!ps.length){el.innerHTML='<div class="small">No environments learned yet. Rescan a few times in one place, or tap “Learn this environment”.</div>';return;}
+      el.innerHTML=ps.map(p=>{
+        const nm=p.label||('Place '+((p.idx|0)+1));
+        const here=p.idx===cur?'<span class="epill" style="color:var(--safe)">here now</span>':'';
+        const badge=p.known?'<span class="epill">known</span>':'<span class="epill">learning</span>';
+        let h='<div class="row" data-env="'+p.idx+'" style="cursor:pointer"><b>'+esc(nm)+'</b> '+here+badge
+          +' <span class="small">· '+(p.landmarks|0)+' landmarks · '+(p.scans|0)+' scans</span></div>';
+        if(envOpen===p.idx)h+='<div id="env-d-'+p.idx+'" class="small" style="margin:2px 0 8px 10px">loading…</div>';
+        return h;}).join('');
+      el.querySelectorAll('[data-env]').forEach(r=>r.onclick=()=>{
+        const i=+r.getAttribute('data-env');envOpen=(envOpen===i?-1:i);renderEnv();});
+      if(envOpen>=0)loadDetail(envOpen);
+    }).catch(()=>{});}
+  function loadDetail(i){fetch('/api/cluster/place/detail?idx='+i,{cache:'no-store'})
+    .then(r=>r.json()).then(d=>{const el=$('env-d-'+i);if(!el)return;
+      const q=d.quality|0;
+      const lms=(d.landmarks||[]).slice().sort((a,b)=>(b.scans|0)-(a.scans|0));
+      let h='<div class="row">spatial confidence '+q+'%'+(q&&q<60?' — learned from a single spot, may be less reliable':'')+'</div>';
+      h+=lms.map(l=>'<div class="row">'+(l.confirmed?'★ ':'· ')+'<b>'+esc(l.name)+'</b> '
+        +'<span class="small">'+(l.scans|0)+'× seen</span>'
+        +(l.pinned?' <span class="epill">pinned</span>':'')
+        +' <button class="flagbtn" data-op="'+(l.pinned?'unpin':'pin')+'" data-u="'+l.unit+'" data-i="'+i+'">'+(l.pinned?'unpin':'pin')+'</button>'
+        +' <button class="flagbtn" data-op="delete" data-u="'+l.unit+'" data-i="'+i+'">remove</button></div>'
+        ).join('')||'<div class="small">no landmarks yet</div>';
+      h+='<div class="row" style="margin-top:6px"><button class="btn" data-rename="'+i+'">Rename</button>'
+        +'<button class="btn" data-forget="'+i+'">Forget place</button></div>';
+      el.innerHTML=h;
+      el.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>envEdit(
+        {idx:+b.getAttribute('data-i'),op:b.getAttribute('data-op'),unit:b.getAttribute('data-u')}));
+      el.querySelectorAll('[data-rename]').forEach(b=>b.onclick=()=>{const nm=prompt('Name this environment:');
+        if(nm)fetch('/api/cluster/place/label',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({idx:+b.getAttribute('data-rename'),label:nm.slice(0,15)})}).then(()=>setTimeout(renderEnv,200));});
+      el.querySelectorAll('[data-forget]').forEach(b=>b.onclick=()=>{if(confirm('Forget this environment and its landmarks?'))
+        envEdit({idx:+b.getAttribute('data-forget'),op:'forget',unit:'0'});});
+    }).catch(()=>{});}
+  function envEdit(o){fetch('/api/cluster/place/landmark',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(o)}).then(()=>setTimeout(renderEnv,200)).catch(()=>{});}
+
+  /* ---- Learn Environment: guided N-scan enrollment with reposition timing ---- */
+  function learnPopup(){
+    const ln=(status&&status.epup&&status.epup.learn)||{};
+    const wrap=document.createElement('div');
+    wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:50';
+    wrap.innerHTML='<div class="card" style="max-width:360px;width:92%"><h3>Learn Environment</h3>'
+      +'<div class="small">The ePup takes several scans to map the fixed Wi-Fi here and build landmarks for this place.</div>'
+      +'<div class="row" style="margin-top:8px">Number of scans: <input id="l-n" type="number" min="1" max="20" value="'+(ln.want||4)+'" style="width:60px"></div>'
+      +'<div class="row">Seconds between scans (to reposition): <input id="l-t" type="number" min="0" max="120" value="20" style="width:60px"></div>'
+      +'<label class="row" style="gap:6px"><input id="l-stat" type="checkbox"> I’ll stay in one spot (no repositioning)</label>'
+      +'<div class="small" id="l-note">Repositioning between scans lets the ePup tell fixed landmarks from people passing through.</div>'
+      +'<div class="row" style="margin-top:10px"><button class="btn" id="l-go">Start</button>'
+      +'<button class="btn" id="l-x">Cancel</button></div></div>';
+    document.body.appendChild(wrap);
+    const stat=wrap.querySelector('#l-stat');
+    stat.onchange=()=>{wrap.querySelector('#l-note').textContent=stat.checked
+      ?'Staying put means the ePup can’t separate fixtures from passers-by, so this place is marked lower confidence.'
+      :'Repositioning between scans lets the ePup tell fixed landmarks from people passing through.';};
+    wrap.querySelector('#l-x').onclick=()=>wrap.remove();
+    wrap.querySelector('#l-go').onclick=()=>{
+      const n=Math.max(1,Math.min(20,+wrap.querySelector('#l-n').value||4));
+      const gap=Math.max(0,Math.min(120,+wrap.querySelector('#l-t').value||20));
+      const reposition=!stat.checked;
+      wrap.remove();
+      fetch('/api/cluster/learn',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({scans:n,reposition:reposition,fresh:true})}).then(()=>runLearn(n,gap));};}
+  function runLearn(n,gap){let done=0;
+    (function step(){if(done>=n)return;
+      fetch('/api/cluster/scan',{method:'POST'}).then(()=>{done++;setTimeout(pollStatus,400);
+        if(done<n)setTimeout(step,Math.max(1,gap)*1000+2600);}).catch(()=>{});})();}
+  document.addEventListener('click',e=>{const t=e.target;
+    if(t&&(t.id==='c-learn'||t.id==='c-learn2'))learnPopup();});
 
   function iconSpan(id,label){return '<span class="dicon" role="img" aria-label="'+esc(label)+
     '" title="'+esc(label)+'"><svg class="ic"><use href="#'+id+'"/></svg></span>';}
@@ -227,6 +315,11 @@ html.embed main{padding-top:8px}
       +sigBar(o.rssi)
       +(mac?'<button class="flagbtn" title="Flag this device for the sentinel" data-mac="'
         +esc(mac)+'" data-nm="'+esc(String(idOf(o)).slice(0,18))+'">⚑</button>':'')
+      +(o.type==='tracker'&&mac?((o.tracker_kind==='tile'||o.tracker_kind==='find_my_maintained')
+          ?'<span class="small" title="'+(o.tracker_kind==='tile'?'Tile rings only for its owner (authenticated) — it has no non-owner sound':'Find My tag is with its owner (maintained) — not separated, so no non-owner sound')+'">detect-only</span>'
+          :'<button class="flagbtn tsnd" title="Bark: play safety sound (transmits · best-effort, Find My / DULT only)" data-tsnd="'
+            +esc(mac)+'">Bark</button>')
+        :'')
       +'<span class="t">'+esc(fmtWall(o.ts_wall))+'</span>';}
   function ingestLaw(o){
     if(o.type!=='law_enforcement_presence'||!Array.isArray(o.entries))return;
@@ -238,6 +331,8 @@ html.embed main{padding-top:8px}
     for(let i=0;i<ls.length;i++){const s=ls[i].trim();if(!s||s[0]!=='{')continue;
       let o;try{o=JSON.parse(s);}catch(e){continue;}
       ingestLaw(o);
+      if(o.type==='tracker'&&o.tracker_kind!=='tile'&&o.tracker_kind!=='find_my_maintained'){const tm=macOf(o);if(tm)trackers.set(tm,
+        {mac:tm.toLowerCase(),addr_type:(typeof o.addr_type==='number'?o.addr_type:1),proto:0});}
       if(!OBS.has(o.type))continue;const k=keyOf(o);if(seen.has(k))continue;seen.add(k);add.push(o);}
     if(!add.length)return;
     const frag=document.createDocumentFragment();
@@ -307,12 +402,54 @@ html.embed main{padding-top:8px}
     mac.value=b.dataset.mac.toLowerCase();nm.value=b.dataset.nm||'';
     $('d-sentinel').scrollIntoView({behavior:'smooth',block:'center'});mac.focus();});
 
-  pollStatus();pollLog();pollAlog();pollSentinel();
+  // Tracker safety-sound (transmits): manual, explicit, best-effort. See DULT.
+  const trackers=new Map();
+  function playSound(mac){
+    const t=trackers.get(String(mac).toUpperCase())||{mac:String(mac).toLowerCase(),addr_type:1,proto:0};
+    if(!confirm('Bark at '+t.mac+'?\n\nThis TRANSMITS a non-owner anti-stalking sound. Best-effort — only DULT / Find My accessories respond, and an accepted command is not proof of audible sound.'))return;
+    fetch('/api/cluster/tracker/sound',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({mac:t.mac,addr_type:t.addr_type,proto:t.proto,action:0})})
+      .then(()=>setTimeout(pollTracker,300)).catch(()=>{});}
+  function safetyBurst(){
+    const list=[...trackers.values()].slice(0,8);
+    if(!list.length){alert('No trackers seen yet.');return;}
+    if(!confirm('Howl: ring up to '+list.length+' nearby tracker(s), one at a time?\n\nThis TRANSMITS. You can Stop anytime.'))return;
+    fetch('/api/cluster/tracker/burst',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({targets:list})}).then(()=>setTimeout(pollTracker,300)).catch(()=>{});}
+  function burstStop(){fetch('/api/cluster/tracker/burst/stop',{method:'POST'})
+    .then(()=>setTimeout(pollTracker,200)).catch(()=>{});}
+  function renderTracker(d){const el=$('d-howl');if(!el)return;
+    const b=(d&&d.burst)||{},s3=(d&&d.s3)||{};
+    const busy=s3.busy?'<b style="color:var(--warn,#e80)">transmitting…</b>':'idle';
+    const last=(s3.last&&s3.last!=='none')?' · last: '+esc(s3.last):'';
+    let h='<div class="row small" style="margin-top:8px;border-top:1px solid var(--line,#334);padding-top:6px"><b>Tracker safety</b> — '+busy+last+'</div>';
+    h+='<div class="small" style="margin:4px 0">'+trackers.size+' ringable tracker(s) nearby (Find My / DULT). Tiles and unknown trackers are detect-only. Ringing transmits a non-owner safety sound — best-effort; an accepted command is not proof of audible sound. <b>Bark</b> (button on a tracker in Live results) rings just that one; <b>Howl</b> rings every ringable tracker.</div>';
+    h+='<div class="srow" style="gap:6px">';
+    if(b.active)h+='<button class="btn" id="tk-stop">Stop howl ('+(b.done|0)+'/'+(b.total|0)+')</button>';
+    else h+='<button class="btn" id="tk-burst">Howl</button>';
+    h+='</div>';
+    if(trackers.size){h+='<div class="small" style="margin:6px 0 2px">Bark a single tracker:</div>';
+      for(const [mac] of trackers){
+        h+='<div class="srow" style="gap:6px"><span class="small" style="flex:1">'+esc(mac)+'</span>'
+          +'<button class="flagbtn tsnd" data-tsnd="'+esc(mac)+'">Bark</button></div>';}}
+    const aud=Array.isArray(s3.audit)?s3.audit.slice(0,5):[];
+    if(aud.length)h+='<div class="small" style="margin-top:6px">Recent: '
+      +aud.map(a=>esc(a.mac)+'→'+esc(a.result)).join(' · ')+'</div>';
+    el.innerHTML=h;
+    const bb=$('tk-burst');if(bb)bb.onclick=safetyBurst;
+    const st=$('tk-stop');if(st)st.onclick=burstStop;}
+  function pollTracker(){fetch('/api/cluster/tracker',{cache:'no-store'})
+    .then(r=>r.json()).then(renderTracker).catch(()=>{});}
+  document.addEventListener('click',e=>{const b=e.target.closest('.tsnd[data-tsnd]');if(!b)return;
+    e.stopPropagation();playSound(b.dataset.tsnd);});
+
+  pollStatus();pollLog();pollAlog();pollSentinel();pollTracker();
   if(secure)startGps();
   setInterval(pollLog,1200);
   setInterval(pollStatus,3000);
   setInterval(pollAlog,3000);
   setInterval(pollSentinel,4000);
+  setInterval(pollTracker,4000);
 })();
 </script>
 </body>

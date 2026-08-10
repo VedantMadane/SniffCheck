@@ -29,6 +29,7 @@ set(srcs
     "anqp_analyzer.c"
     "vetter.c"
     "capture_ring.c"
+    "sd_store.c"
     "capture_writer.c"
     "download_mode.c"
     "download_http.c"
@@ -43,6 +44,9 @@ idf_component_register(
     INCLUDE_DIRS "."
     PRIV_REQUIRES
         esp_driver_spi
+        esp_driver_sdspi
+        sdmmc
+        fatfs
         esp_driver_gpio
         esp_driver_ledc
         esp_lcd

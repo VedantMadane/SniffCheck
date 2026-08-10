@@ -7,28 +7,24 @@ The web flasher loads `../manifest.json`, and the flash engine writes the refere
 
 Images shipped here:
 
-| Firmware                              | Board     | Merged image                              |
-|---------------------------------------|-----------|-------------------------------------------|
-| SniffCheck (standalone)               | ESP32-C5  | `sniffcheck-merged.bin`                   |
-| Dog Park cluster — brain              | ESP32-C5  | `sniffcheck-cluster-brain-merged.bin`     |
-| Dog Park cluster — arm                | ESP32-C5  | `sniffcheck-cluster-arm-merged.bin`       |
-| Dog Park cluster — S3 node            | ESP32-S3  | `sniffcheck-cluster-s3node-merged.bin`    |
+| Firmware                     | Board     | Merged image                              |
+|------------------------------|-----------|-------------------------------------------|
+| SniffCheck (standalone)      | ESP32-C5  | `sniffcheck-merged.bin`                   |
+| Dog Park cluster — brain     | ESP32-C5  | `sniffcheck-cluster-brain-merged.bin`     |
+| Dog Park cluster — arm       | ESP32-C5  | `sniffcheck-cluster-arm-merged.bin`       |
+| Dog Park cluster — S3 node   | ESP32-S3  | `sniffcheck-cluster-s3node-merged.bin`    |
 
-The cluster **arm** merged image bundles the vendor database (`data/eui.bin`) at
-`0x310000`, so scanned devices resolve to real vendor names and categories.
+The standalone and arm images embed the vendor identification database at
+`0x310000`, so they scan correctly on first boot. The S3-node image is the only
+ESP32-S3 build — the flasher checks the chip family before writing, and the S3's
+bootloader sits at `0x0` where the C5's sits at `0x2000`.
 
-> **The three Dog Park cluster images are from an earlier source snapshot than
-> the `main/` source in this repo.** The cluster projects compile several files
-> out of `main/` (the arm builds `analyzer.c`, `wifi_scanner.c` and others; the
-> brain embeds the report viewer), and `main/` has moved ahead of them. Building
-> a cluster role from this tree will therefore produce a binary that differs
-> from the one shipped here. The standalone `sniffcheck-merged.bin` **is** built
-> from the source in this repo. The cluster images will be refreshed in their
-> own release, once they can be re-verified on the four-board rig.
+A second arm needs its own build: `ARM_INDEX` defaults to 1 (I²C address `0x11`),
+so arm 2 is `idf.py -DARM_INDEX=2 build`. Only the arm-1 image ships here.
 
-`checksums.txt` holds a `sha256` for every `.bin`; the S3-node image is the only
-ESP32-S3 build (the flasher checks the chip family before writing).
+`checksums.txt` holds a `sha256` for every `.bin`. Verify from this directory's
+parent: `sha256sum -c firmware/checksums.txt`.
 
-To publish a new build: rebuild the role, regenerate its merged (and app) image, drop
-the `.bin` here, update `checksums.txt`, and bump `version` in `../manifest.json` (and
-the matching `manifest-*.json`).
+To publish a new build: rebuild the role, regenerate its merged (and app) image
+with `tools/make-cluster-images.sh`, update `checksums.txt`, and bump `version` in
+`../manifest.json` and the matching `manifest-*.json`.

@@ -45,6 +45,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include <stdio.h>
 #include <string.h>
@@ -112,8 +113,13 @@ static void backlight_init(void)
     backlight_set_percent(100);
 }
 
+static bool on_color_done(esp_lcd_panel_io_handle_t io,
+                          esp_lcd_panel_io_event_data_t *ed, void *ctx);
+
 esp_err_t display_init(spi_host_device_t host)
 {
+    ESP_RETURN_ON_ERROR(display_bus_init(), TAG, "spi2 arbitration init failed");
+
     backlight_init();
 
     esp_lcd_panel_io_handle_t io;
@@ -125,6 +131,7 @@ esp_err_t display_init(spi_host_device_t host)
         .lcd_param_bits    = LCD_PARAM_BITS,
         .spi_mode          = 0,
         .trans_queue_depth = 10,
+        .on_color_trans_done = on_color_done,
     };
     ESP_RETURN_ON_ERROR(
         esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)host, &io_cfg, &io),
@@ -160,10 +167,45 @@ void display_set_post_blit_cb(void (*cb)(void))
     s_post_blit_cb = cb;
 }
 
+static SemaphoreHandle_t s_bus_mux;
+static SemaphoreHandle_t s_blit_done;
+
+esp_err_t display_bus_init(void)
+{
+    if (!s_bus_mux)  s_bus_mux  = xSemaphoreCreateRecursiveMutex();
+    if (!s_blit_done) s_blit_done = xSemaphoreCreateBinary();
+    return (s_bus_mux && s_blit_done) ? ESP_OK : ESP_ERR_NO_MEM;
+}
+
+void display_bus_lock(void)
+{
+    if (s_bus_mux) xSemaphoreTakeRecursive(s_bus_mux, portMAX_DELAY);
+}
+
+void display_bus_unlock(void)
+{
+    if (s_bus_mux) xSemaphoreGiveRecursive(s_bus_mux);
+}
+
+static bool IRAM_ATTR on_color_done(esp_lcd_panel_io_handle_t io,
+                                   esp_lcd_panel_io_event_data_t *ed, void *ctx)
+{
+    BaseType_t hp = pdFALSE;
+    xSemaphoreGiveFromISR(s_blit_done, &hp);
+    return hp == pdTRUE;
+}
+
 static inline void sc_blit(int x0, int y0, int x1, int y1, const uint16_t *buf)
 {
+    display_bus_lock();
+
+    xSemaphoreTake(s_blit_done, 0);
     esp_lcd_panel_draw_bitmap(s_panel, x0, y0, x1, y1, buf);
+
+    if (xSemaphoreTake(s_blit_done, pdMS_TO_TICKS(200)) != pdTRUE)
+        ESP_LOGW(TAG, "blit completion timed out — bus may still be busy");
     if (s_post_blit_cb) s_post_blit_cb();
+    display_bus_unlock();
 }
 
 #define FILL_CHUNK_ROWS 4
@@ -1963,4 +2005,3 @@ uint8_t display_details_ble_lite(const ble_device_t *d, uint8_t page_idx)
     }
     return TOTAL;
 }
-

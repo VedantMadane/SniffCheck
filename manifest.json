@@ -1,6 +1,6 @@
 {
   "name": "SniffCheck",
-  "version": "87.0.111",
+  "version": "87.0.112",
   "new_install_prompt_erase": true,
   "builds": [
     {
@@ -8,51 +8,6 @@
       "parts": [
         {
           "path": "firmware/sniffcheck-merged.bin",
-          "offset": 0
-        }
-      ]
-    },
-    {
-      "chipFamily": "ESP32-C5",
-      "parts": [
-        {
-          "path": "firmware/sniffcheck-node-c5.bin",
-          "offset": 0
-        }
-      ]
-    },
-    {
-      "chipFamily": "ESP32-C5",
-      "parts": [
-        {
-          "path": "firmware/sniffcheck-cluster-master-merged.bin",
-          "offset": 0
-        }
-      ]
-    },
-    {
-      "chipFamily": "ESP32-C5",
-      "parts": [
-        {
-          "path": "firmware/sniffcheck-cluster-arm-merged.bin",
-          "offset": 0
-        }
-      ]
-    },
-    {
-      "chipFamily": "ESP32-C5",
-      "parts": [
-        {
-          "path": "firmware/sniffcheck-cluster-brain-merged.bin",
-          "offset": 0
-        }
-      ]
-    },
-    {
-      "chipFamily": "ESP32-S3",
-      "parts": [
-        {
-          "path": "firmware/sniffcheck-cluster-s3node-merged.bin",
           "offset": 0
         }
       ]

@@ -18,6 +18,8 @@ extern const char _binary_dogpark_dashboard_html_start[];
 static esp_err_t dogpark_get(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html");
+
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_send(req, _binary_dogpark_dashboard_html_start, HTTPD_RESP_USE_STRLEN);
 }
 
@@ -147,6 +149,57 @@ static esp_err_t sentinel_post(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t tracker_get(httpd_req_t *req)
+{
+    static char body[2560];
+    master_cluster_tracker_json(body, sizeof(body));
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
+}
+
+static int recv_body(httpd_req_t *req, char *buf, int cap)
+{
+    int n = req->content_len < cap - 1 ? req->content_len : cap - 1;
+    int got = 0;
+    while (got < n) {
+        int r = httpd_req_recv(req, buf + got, n - got);
+        if (r <= 0) return -1;
+        got += r;
+    }
+    buf[got] = '\0';
+    return got;
+}
+
+static esp_err_t tracker_sound_post(httpd_req_t *req)
+{
+    char buf[256];
+    int got = recv_body(req, buf, sizeof buf);
+    if (got < 0) { httpd_resp_send_500(req); return ESP_FAIL; }
+    master_on_tracker_sound(buf, got);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static esp_err_t tracker_burst_post(httpd_req_t *req)
+{
+    char buf[1024];
+    int got = recv_body(req, buf, sizeof buf);
+    if (got < 0) { httpd_resp_send_500(req); return ESP_FAIL; }
+    master_on_tracker_burst(buf, got);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static esp_err_t tracker_burst_stop_post(httpd_req_t *req)
+{
+    master_on_tracker_burst_stop();
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
 static esp_err_t scan_post(httpd_req_t *req)
 {
     master_on_rescan_request();
@@ -193,6 +246,61 @@ static esp_err_t places_get(httpd_req_t *req)
     master_cluster_places_json(body, sizeof(body));
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
+}
+
+static esp_err_t infra_get(httpd_req_t *req)
+{
+    static char body[4096];
+    master_cluster_infra_json(body, sizeof(body));
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
+}
+
+static esp_err_t place_detail_get(httpd_req_t *req)
+{
+    int idx = 0;
+    char q[24], sv[8];
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
+        httpd_query_key_value(q, "idx", sv, sizeof(sv)) == ESP_OK)
+        idx = atoi(sv);
+    static char body[3072];
+    master_cluster_place_detail_json(idx, body, sizeof(body));
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
+}
+
+static esp_err_t landmark_edit_post(httpd_req_t *req)
+{
+    char buf[128];
+    int n = req->content_len < (int)sizeof(buf) - 1 ? req->content_len : (int)sizeof(buf) - 1;
+    int got = 0;
+    while (got < n) {
+        int r = httpd_req_recv(req, buf + got, n - got);
+        if (r <= 0) { httpd_resp_send_500(req); return ESP_FAIL; }
+        got += r;
+    }
+    buf[got] = '\0';
+    master_on_landmark_edit(buf, got);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+
+static esp_err_t learn_post(httpd_req_t *req)
+{
+    char buf[128];
+    int n = req->content_len < (int)sizeof(buf) - 1 ? req->content_len : (int)sizeof(buf) - 1;
+    int got = 0;
+    while (got < n) {
+        int r = httpd_req_recv(req, buf + got, n - got);
+        if (r <= 0) { httpd_resp_send_500(req); return ESP_FAIL; }
+        got += r;
+    }
+    buf[got] = '\0';
+    master_on_learn(buf, got);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
 }
 
 static esp_err_t place_label_post(httpd_req_t *req)
@@ -275,6 +383,31 @@ static esp_err_t brain_reset_post(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t locate_start_post(httpd_req_t *req)
+{
+    char buf[256];
+    int got = recv_body(req, buf, sizeof buf);
+    if (got < 0) { httpd_resp_send_500(req); return ESP_FAIL; }
+    master_on_locate_start(buf, got);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+static esp_err_t locate_stop_post(httpd_req_t *req)
+{
+    master_on_locate_stop();
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    return ESP_OK;
+}
+static esp_err_t locate_get(httpd_req_t *req)
+{
+    static char body[256];
+    master_locate_json(body, sizeof(body));
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
+}
+
 esp_err_t cluster_web_start(httpd_handle_t server)
 {
     if (!server) return ESP_ERR_INVALID_STATE;
@@ -290,10 +423,21 @@ esp_err_t cluster_web_start(httpd_handle_t server)
         { .uri = "/api/cluster/walk",   .method = HTTP_POST, .handler = walk_post },
         { .uri = "/api/cluster/epup/label", .method = HTTP_POST, .handler = epup_label_post },
         { .uri = "/api/cluster/places", .method = HTTP_GET,  .handler = places_get },
+        { .uri = "/api/cluster/infra",  .method = HTTP_GET,  .handler = infra_get },
+        { .uri = "/api/cluster/place/detail", .method = HTTP_GET,  .handler = place_detail_get },
+        { .uri = "/api/cluster/place/landmark", .method = HTTP_POST, .handler = landmark_edit_post },
+        { .uri = "/api/cluster/learn", .method = HTTP_POST, .handler = learn_post },
         { .uri = "/api/cluster/place/label", .method = HTTP_POST, .handler = place_label_post },
         { .uri = "/api/cluster/sentinel/hits", .method = HTTP_GET, .handler = hits_get },
+        { .uri = "/api/cluster/tracker",            .method = HTTP_GET,  .handler = tracker_get },
+        { .uri = "/api/cluster/tracker/sound",      .method = HTTP_POST, .handler = tracker_sound_post },
+        { .uri = "/api/cluster/tracker/burst",      .method = HTTP_POST, .handler = tracker_burst_post },
+        { .uri = "/api/cluster/tracker/burst/stop", .method = HTTP_POST, .handler = tracker_burst_stop_post },
         { .uri = "/api/cluster/time",   .method = HTTP_POST, .handler = time_post },
         { .uri = "/api/cluster/brain/reset", .method = HTTP_POST, .handler = brain_reset_post },
+        { .uri = "/api/cluster/locate",       .method = HTTP_GET,  .handler = locate_get },
+        { .uri = "/api/cluster/locate/start", .method = HTTP_POST, .handler = locate_start_post },
+        { .uri = "/api/cluster/locate/stop",  .method = HTTP_POST, .handler = locate_stop_post },
     };
     for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {
         esp_err_t e = httpd_register_uri_handler(server, &routes[i]);

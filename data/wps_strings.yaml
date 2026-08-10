@@ -1,0 +1,117 @@
+
+strings:
+  - mfg: "ASUSTeK Computer Inc."
+    class: consumer_ap
+    name: "ASUS"
+  - mfg: "NETGEAR, Inc."
+    class: consumer_ap
+    name: "Netgear"
+  - mfg: "NETGEAR"
+    class: consumer_ap
+    name: "Netgear"
+  - mfg: "TP-LINK Technologies Co., Ltd."
+    class: consumer_ap
+    name: "TP-Link"
+  - mfg: "TP-LINK"
+    class: consumer_ap
+    name: "TP-Link"
+  - mfg: "TP-Link"
+    class: consumer_ap
+    name: "TP-Link"
+  - mfg: "Linksys"
+    class: consumer_ap
+    name: "Linksys"
+  - mfg: "Belkin International"
+    class: consumer_ap
+    name: "Belkin"
+  - mfg: "D-Link Corporation"
+    class: consumer_ap
+    name: "D-Link"
+  - mfg: "D-Link"
+    class: consumer_ap
+    name: "D-Link"
+  - mfg: "Buffalo Inc."
+    class: consumer_ap
+    name: "Buffalo"
+  - mfg: "Cisco-Linksys, LLC"
+    class: consumer_ap
+    name: "Linksys"
+  - mfg: "Cisco Systems, Inc."
+    class: enterprise_ap
+    name: "Cisco"
+  - mfg: "Aruba Networks"
+    class: enterprise_ap
+    name: "Aruba"
+  - mfg: "Aruba, a Hewlett Packard Enterprise company"
+    class: enterprise_ap
+    name: "Aruba"
+  - mfg: "Hewlett Packard Enterprise"
+    class: enterprise_ap
+    name: "HPE"
+  - mfg: "Ruckus Wireless"
+    class: enterprise_ap
+    name: "Ruckus"
+  - mfg: "CommScope, Inc"
+    class: enterprise_ap
+    name: "CommScope"
+  - mfg: "Ubiquiti Networks"
+    class: enterprise_ap
+    name: "Ubiquiti"
+  - mfg: "Ubiquiti Inc"
+    class: enterprise_ap
+    name: "Ubiquiti"
+  - mfg: "MikroTik"
+    class: enterprise_ap
+    name: "MikroTik"
+  - mfg: "Zyxel Communications Corp"
+    class: consumer_ap
+    name: "Zyxel"
+  - mfg: "Huawei Technologies Co., Ltd"
+    class: consumer_ap
+    flags: [FCC_COVERED]
+    name: "Huawei"
+  - mfg: "ZTE Corporation"
+    class: consumer_ap
+    flags: [FCC_COVERED]
+    name: "ZTE"
+  - mfg: "Xiaomi Communications Co Ltd"
+    class: consumer_ap
+    name: "Xiaomi"
+  - mfg: "Tenda Technology Co.,Ltd"
+    class: consumer_ap
+    name: "Tenda"
+  - mfg: "Realtek Semiconductor Corp."
+    class: consumer_ap
+    name: "Realtek"
+  - mfg: "MediaTek Inc."
+    class: consumer_ap
+    name: "MediaTek"
+  - mfg: "Broadcom"
+    class: consumer_ap
+    name: "Broadcom"
+  - mfg: "AVM GmbH"
+    class: consumer_ap
+    name: "AVM (Fritz!Box)"
+  - mfg: "Sagemcom"
+    class: consumer_ap
+    name: "Sagemcom"
+  - mfg: "Technicolor"
+    class: consumer_ap
+    name: "Technicolor"
+  - mfg: "Arris Group, Inc"
+    class: consumer_ap
+    name: "Arris"
+  - mfg: "ARRIS"
+    class: consumer_ap
+    name: "Arris"
+  - mfg: "Synology Inc."
+    class: consumer_ap
+    name: "Synology"
+  - mfg: "Espressif Systems"
+    class: dev_module
+    flags: [DEV_MODULE]
+    name: "Espressif"
+  - mfg: "Espressif"
+    class: dev_module
+    flags: [DEV_MODULE]
+    name: "Espressif"

@@ -29,6 +29,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -157,10 +158,25 @@ void display_set_post_blit_cb(void (*cb)(void))
     s_post_blit_cb = cb;
 }
 
+static SemaphoreHandle_t s_bus_mux;
+
+void display_bus_lock(void)
+{
+    if (!s_bus_mux) s_bus_mux = xSemaphoreCreateRecursiveMutex();
+    if (s_bus_mux)  xSemaphoreTakeRecursive(s_bus_mux, portMAX_DELAY);
+}
+
+void display_bus_unlock(void)
+{
+    if (s_bus_mux) xSemaphoreGiveRecursive(s_bus_mux);
+}
+
 static inline void sc_blit(int x0, int y0, int x1, int y1, const uint16_t *buf)
 {
+    display_bus_lock();
     esp_lcd_panel_draw_bitmap(s_panel, x0, y0, x1, y1, buf);
     if (s_post_blit_cb) s_post_blit_cb();
+    display_bus_unlock();
 }
 
 void display_fill_rect(int x, int y, int w, int h, uint16_t color_be)
@@ -691,4 +707,3 @@ void display_advisor_scoring_results(uint16_t n_nets, uint16_t n_ble)
     display_draw_string(x, 66, ble_lbl, COLOR_HEADER, LILY_BOOT_BG, 1);
     display_draw_string(x + ble_lbl_w, 66, ble_n, COLOR_WHITE, LILY_BOOT_BG, 1);
 }
-

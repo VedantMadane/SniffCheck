@@ -1,0 +1,14 @@
+
+subtypes:
+  - subtype: 0x01
+    class: mobile
+    name: "CDP beacon"
+  - subtype: 0x03
+    class: mobile
+    name: "Swift Pair"
+  - subtype: 0x04
+    class: iot_leaf
+    name: "Surface device discovery"
+  - subtype: 0x05
+    class: mobile
+    name: "Phone Link companion"

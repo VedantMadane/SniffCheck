@@ -1,0 +1,231 @@
+
+option_60_strings:
+
+  - vc: "MSFT 5.0"
+    class: laptop
+    name: "Microsoft Windows"
+  - vc: "MSFT 5.7"
+    class: laptop
+    name: "Microsoft Windows 11"
+  - vc: "MSFT 98"
+    class: laptop
+    name: "Microsoft Windows 9x"
+
+  - vc: "dhcpcd-9"
+    class: laptop
+    name: "Linux (dhcpcd)"
+  - vc: "dhcpcd-10"
+    class: laptop
+    name: "Linux (dhcpcd)"
+  - vc: "udhcp 1.0"
+    class: laptop
+    name: "Linux (udhcp)"
+  - vc: "udhcp 1.31"
+    class: laptop
+    name: "Linux (udhcp)"
+
+  - vc: "android-dhcp-12"
+    class: phone
+    name: "Android 12"
+  - vc: "android-dhcp-13"
+    class: phone
+    name: "Android 13"
+  - vc: "android-dhcp-14"
+    class: phone
+    name: "Android 14"
+  - vc: "android-dhcp-15"
+    class: phone
+    name: "Android 15"
+
+  - vc: "Roku"
+    class: iot_leaf
+    name: "Roku device"
+  - vc: "RokuTV"
+    class: iot_leaf
+    name: "Roku TV"
+  - vc: "Sonos"
+    class: audio
+    name: "Sonos speaker"
+  - vc: "Nest_Learning_Thermostat"
+    class: iot_leaf
+    name: "Nest Thermostat"
+  - vc: "Amazon"
+    class: iot_hub
+    name: "Amazon device"
+  - vc: "AmazonEcho"
+    class: iot_hub
+    name: "Amazon Echo"
+  - vc: "iotivity"
+    class: iot_leaf
+    name: "IoTivity device"
+  - vc: "homekit"
+    class: iot_leaf
+    name: "HomeKit device"
+  - vc: "appletv"
+    class: iot_leaf
+    name: "Apple TV"
+
+  - vc: "Cisco Systems"
+    class: enterprise_ap
+    name: "Cisco device"
+  - vc: "Cisco AP"
+    class: enterprise_ap
+    name: "Cisco AP"
+  - vc: "Aruba"
+    class: enterprise_ap
+    name: "Aruba device"
+  - vc: "Aruba AP"
+    class: enterprise_ap
+    name: "Aruba AP"
+  - vc: "ArubaInstantAP"
+    class: enterprise_ap
+    name: "Aruba Instant AP"
+
+  - vc: "Polycom-VVX"
+    class: infrastructure
+    name: "Polycom VVX"
+  - vc: "Yealink-T46"
+    class: infrastructure
+    name: "Yealink T46"
+  - vc: "Yealink-T48"
+    class: infrastructure
+    name: "Yealink T48"
+
+  - vc: "Hewlett-Packard JetDirect"
+    class: infrastructure
+    name: "HP JetDirect"
+  - vc: "BROTHER"
+    class: infrastructure
+    name: "Brother printer"
+  - vc: "EpsonNet"
+    class: infrastructure
+    name: "Epson printer"
+
+  - vc: "HIK-2018"
+    class: surveillance_cam
+    flags: [SURVEILLANCE, FCC_COVERED]
+    name: "Hikvision camera"
+  - vc: "Dahua"
+    class: surveillance_cam
+    flags: [SURVEILLANCE, FCC_COVERED]
+    name: "Dahua camera"
+  - vc: "AXIS"
+    class: surveillance_cam
+    name: "Axis camera"
+
+  - vc: "esp-idf"
+    class: dev_module
+    flags: [DEV_MODULE]
+    name: "Espressif (esp-idf)"
+  - vc: "espressif"
+    class: dev_module
+    flags: [DEV_MODULE]
+    name: "Espressif"
+
+option_55_fingerprints:
+
+  - prl: [1, 3, 6, 15, 31, 33, 43, 44, 46, 47, 119, 121, 249, 252]
+    class: laptop
+    name: "Windows 10/11 (DHCP)"
+  - prl: [1, 15, 3, 6, 44, 46, 47, 31, 33, 121, 249, 43]
+    class: laptop
+    name: "Windows Server (DHCP)"
+  - prl: [1, 3, 6, 15, 31, 33, 43, 44, 46, 47, 121, 249, 252]
+    class: laptop
+    name: "Windows 7 (DHCP)"
+  - prl: [1, 15, 3, 6, 44, 46, 47, 31, 33, 121, 249, 43]
+    class: laptop
+    name: "Windows 8/8.1 (DHCP)"
+
+  - prl: [1, 121, 3, 6, 15, 119, 252, 95, 44, 46, 101]
+    class: laptop
+    name: "macOS (modern)"
+  - prl: [1, 3, 6, 15, 119, 95, 252, 44, 46]
+    class: laptop
+    name: "macOS (legacy)"
+  - prl: [1, 121, 3, 6, 15, 119, 252]
+    class: phone
+    name: "iOS"
+  - prl: [1, 3, 6, 15, 119, 252]
+    class: phone
+    name: "iOS (older)"
+
+  - prl: [1, 3, 6, 15, 26, 28, 51, 58, 59, 43]
+    class: phone
+    name: "Android 10/11"
+  - prl: [1, 3, 6, 15, 26, 28, 51, 58, 59]
+    class: phone
+    name: "Android 12+"
+  - prl: [1, 3, 6, 15, 26, 28, 51, 58, 59, 43, 114]
+    class: phone
+    name: "Android (Samsung)"
+
+  - prl: [1, 28, 2, 3, 15, 6, 119, 12, 44, 47, 26, 121, 42]
+    class: laptop
+    name: "Linux dhcpcd"
+  - prl: [1, 3, 6, 12, 15, 28, 33, 42, 43, 44, 46, 47, 51, 54, 58, 59, 121, 249, 252]
+    class: laptop
+    name: "Linux ISC dhclient"
+  - prl: [1, 3, 6, 12, 15, 28, 40, 41, 42, 26]
+    class: laptop
+    name: "Linux udhcp (BusyBox)"
+  - prl: [1, 28, 3, 15, 6, 119, 12, 44, 47, 26, 121, 42]
+    class: laptop
+    name: "Linux dhcpcd (NetworkManager)"
+
+  - prl: [1, 33, 3, 6, 12, 15, 26, 28, 42, 51, 54, 58, 59, 119, 121]
+    class: laptop
+    name: "ChromeOS"
+
+  - prl: [1, 121, 3, 6, 15, 119, 252]
+    class: iot_leaf
+    name: "Apple TV / HomePod"
+
+  - prl: [1, 3, 6, 15, 28, 33, 51, 58, 59]
+    class: iot_leaf
+    name: "Generic IoT"
+  - prl: [1, 3, 28, 6]
+    class: iot_leaf
+    name: "Minimal embedded"
+  - prl: [1, 3, 6, 15, 33, 43]
+    class: iot_leaf
+    name: "Embedded ESP32 default (lwIP)"
+  - prl: [1, 3, 28, 6, 15, 33, 42, 121]
+    class: iot_leaf
+    name: "Sonos speaker"
+  - prl: [1, 28, 121, 33, 3, 6, 15, 26]
+    class: iot_leaf
+    name: "Nest device"
+  - prl: [1, 3, 6, 15, 119, 252, 95, 44, 46]
+    class: iot_leaf
+    name: "Roku"
+
+  - prl: [1, 66, 6, 3, 15, 150, 35, 156, 159, 160, 42, 4, 2]
+    class: infrastructure
+    name: "Polycom VoIP"
+  - prl: [1, 66, 6, 3, 15, 42, 150, 43, 66]
+    class: infrastructure
+    name: "Yealink VoIP"
+  - prl: [1, 66, 6, 3, 15, 42, 4, 60, 43, 66]
+    class: infrastructure
+    name: "Cisco SPA"
+
+  - prl: [1, 3, 6, 12, 15, 28, 33, 42, 43]
+    class: infrastructure
+    name: "HP JetDirect"
+
+  - prl: [1, 3, 6, 15, 28, 33, 42, 43, 121]
+    class: surveillance_cam
+    flags: [SURVEILLANCE]
+    name: "Hikvision / Dahua camera"
+  - prl: [1, 3, 6, 12, 15, 28, 42, 43]
+    class: surveillance_cam
+    name: "Axis camera"
+
+  - prl: [1, 3, 6, 15, 31, 33, 43, 44, 46, 47, 121, 249]
+    class: laptop
+    name: "Xbox / PlayStation"
+
+  - prl: [1, 3, 6, 12, 15, 28, 40, 41, 42]
+    class: iot_leaf
+    name: "LG / Samsung smart TV"

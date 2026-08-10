@@ -481,7 +481,6 @@ static bool likely_sibling_virtual_bssid(const ap_score_t *a, const ap_score_t *
     return same_physical_router(a->bssid, b->bssid);
 }
 
-
 static EXT_RAM_BSS_ATTR twin_finding_t s_twin[SC_TWIN_MAX_FINDINGS];
 static uint16_t                        s_twin_n;
 
@@ -507,6 +506,7 @@ static void twin_record(const uint8_t a[6], const uint8_t b[6],
         twin_finding_t *f = &s_twin[i];
         if (memcmp(f->target, lo, 6) != 0 || memcmp(f->peer, hi, 6) != 0) continue;
         if (f->trigger != (uint8_t)trigger) continue;
+
         f->evidence |= evidence;
         if (decision > f->decision) f->decision = (uint8_t)decision;
         return;
@@ -741,6 +741,7 @@ static uint8_t twin_score(
             uint32_t ev = twin_pair_evidence(ap->bssid, ap->ssid, ap->auth, ap->channel,
                                              downgrade_peer->bssid, downgrade_peer->ssid,
                                              downgrade_peer->auth, downgrade_peer->channel);
+
             twin_record(ap->bssid, downgrade_peer->bssid,
                         TWIN_TRIGGER_OPEN_CLONE,
                         same_administered_wlan_records(ap, downgrade_peer)
@@ -776,6 +777,7 @@ static uint8_t twin_score(
     if (mod <= -10) s->twin_detected = true;
 
     if (mod <= -10) {
+
         int rssi_term   = 0;
         int suffix_term = 0;
         if (diff_oui_peer && peer_count >= 1 &&
@@ -1043,7 +1045,7 @@ esp_err_t analyzer_run(const scan_results_t *results,
                         0, true);
 
             ESP_LOGI(TAG,
-                "sibling virtual BSSID: \"%s\" %02X:%02X:%02X:%02X:%02X:%02X ch%u"
+                "[113] sibling virtual BSSID: \"%s\" %02X:%02X:%02X:%02X:%02X:%02X ch%u"
                 " <-> \"%s\" %02X:%02X:%02X:%02X:%02X:%02X ch%u (no twin evidence)",
                 scores[i].ssid, scores[i].bssid[0], scores[i].bssid[1], scores[i].bssid[2],
                 scores[i].bssid[3], scores[i].bssid[4], scores[i].bssid[5], scores[i].channel,
@@ -1255,6 +1257,7 @@ static bool crowd_dev_is_person(const ble_device_t *d)
 
 static crowd_bucket_t crowd_bucket_for(uint16_t evidence)
 {
+
     if (evidence == 0)   return CROWD_QUIET;
     if (evidence <= 10)  return CROWD_FEW;
     if (evidence <= 30)  return CROWD_SOME;

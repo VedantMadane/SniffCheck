@@ -1,0 +1,231 @@
+
+uuids:
+
+  - uuid: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+    name: "Nordic UART Service (NUS)"
+    class: dev_module
+    flags: [DEV_MODULE]
+  - uuid: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+    name: "Nordic UART TX"
+    class: dev_module
+    flags: [DEV_MODULE]
+  - uuid: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+    name: "Nordic UART RX"
+    class: dev_module
+    flags: [DEV_MODULE]
+  - uuid: "8EC90001-F315-4F60-9FB8-838830DAEA50"
+    name: "Nordic DFU (Buttonless)"
+    class: dev_module
+    flags: [DEV_MODULE]
+  - uuid: "00001530-1212-EFDE-1523-785FEABCD123"
+    name: "Nordic Legacy DFU"
+    class: dev_module
+    flags: [DEV_MODULE]
+
+  - uuid: "0000FFE0-0000-1000-8000-00805F9B34FB"
+    name: "HM-10 BLE Serial (clone)"
+    class: dev_module
+    flags: [DEV_MODULE]
+  - uuid: "0000FFE1-0000-1000-8000-00805F9B34FB"
+    name: "HM-10 BLE Serial Tx/Rx"
+    class: dev_module
+    flags: [DEV_MODULE]
+  - uuid: "49535343-FE7D-4AE5-8FA9-9FAFD205E455"
+    name: "ISSC Transparent UART"
+    class: dev_module
+    flags: [DEV_MODULE]
+  - uuid: "569A1101-B87F-490C-92CB-11BA5EA5167C"
+    name: "LairdConnectivity vSP"
+    class: dev_module
+    flags: [DEV_MODULE]
+
+  - uuid: "6BA1B218-15A8-461F-9FA8-5DCAE273EAFD"
+    name: "Meshtastic service"
+    class: iot_leaf
+
+  - uuid: "0000FEED-0000-1000-8000-00805F9B34FB"
+    name: "Tile (FEED expanded)"
+    class: tracker
+  - uuid: "0000FEEC-0000-1000-8000-00805F9B34FB"
+    name: "Tile (FEEC expanded)"
+    class: tracker
+  - uuid: "0000FEEB-0000-1000-8000-00805F9B34FB"
+    name: "Tile (FEEB expanded)"
+    class: tracker
+  - uuid: "0000FD5A-0000-1000-8000-00805F9B34FB"
+    name: "Samsung SmartTag service"
+    class: tracker
+  - uuid: "0000FD44-0000-1000-8000-00805F9B34FB"
+    name: "Apple Find My Network"
+    class: tracker
+  - uuid: "00001818-0000-1000-8000-00805F9B34FB"
+    name: "Cycling Power (often on trackers w/ motion)"
+    class: wearable
+
+  - uuid: "3082F012-643F-4D9E-A6B7-86B95B3CDB30"
+    name: "Flipper Zero Serial (community-documented)"
+    class: investigation
+    flags: [INVESTIGATION]
+  - uuid: "19ED82AE-ED21-4C9D-4145-228E61FE0000"
+    name: "Hak5 Bash Bunny BLE (community-documented)"
+    class: investigation
+    flags: [INVESTIGATION]
+  - uuid: "0000FFF0-0000-1000-8000-00805F9B34FB"
+    name: "Generic vendor service (FFF0)"
+    class: unknown
+
+  - uuid: "9FA480E0-4967-4542-9390-D343DC5D04AE"
+    name: "Apple Continuity service"
+    class: mobile
+  - uuid: "D0611E78-BBB4-4591-A5F8-487910AE4366"
+    name: "Apple Continuity (Handoff)"
+    class: mobile
+  - uuid: "7905F431-B5CE-4E99-A40F-4B1E122D00D0"
+    name: "Apple Notification Center Service"
+    class: mobile
+  - uuid: "89D3502B-0F36-433A-8EF4-C502AD55F8DC"
+    name: "Apple Media Service"
+    class: mobile
+
+  - uuid: "0000FE2C-0000-1000-8000-00805F9B34FB"
+    name: "Google Fast Pair Service"
+    class: mobile
+  - uuid: "0000FDA0-0000-1000-8000-00805F9B34FB"
+    name: "Microsoft Swift Pair / CDP"
+    class: mobile
+
+  - uuid: "0000A902-0000-1000-8000-00805F9B34FB"
+    name: "Ring Doorbell BLE config"
+    class: surveillance_cam
+    flags: [SURVEILLANCE]
+  - uuid: "0000FE9A-0000-1000-8000-00805F9B34FB"
+    name: "Estimote (asset trackers / cameras)"
+    class: beacon
+  - uuid: "0000FDB2-0000-1000-8000-00805F9B34FB"
+    name: "Hikvision BLE provisioning"
+    class: surveillance_cam
+    flags: [SURVEILLANCE, FCC_COVERED]
+  - uuid: "0000FE61-0000-1000-8000-00805F9B34FB"
+    name: "Logitech BLE (camera control)"
+    class: surveillance_cam
+
+  - uuid: "0000FE24-0000-1000-8000-00805F9B34FB"
+    name: "August Lock service"
+    class: access_control
+  - uuid: "0000FE3C-0000-1000-8000-00805F9B34FB"
+    name: "alibaba (Aliyun Link)"
+    class: iot_leaf
+  - uuid: "0000FD81-0000-1000-8000-00805F9B34FB"
+    name: "Yale Lock BLE"
+    class: access_control
+  - uuid: "0000FDD0-0000-1000-8000-00805F9B34FB"
+    name: "Schlage Encode"
+    class: access_control
+
+  - uuid: "0000FEE7-0000-1000-8000-00805F9B34FB"
+    name: "Xiaomi Mi Band / Wear"
+    class: wearable
+  - uuid: "0000FEE0-0000-1000-8000-00805F9B34FB"
+    name: "Xiaomi Mi Wearable"
+    class: wearable
+  - uuid: "00006A4E-3032-4AE4-A1FB-218F50A04AC0"
+    name: "Whoop strap (community-documented)"
+    class: wearable
+  - uuid: "0000FDC0-0000-1000-8000-00805F9B34FB"
+    name: "Garmin watch service"
+    class: wearable
+  - uuid: "6E40FFF0-B5A3-F393-E0A9-E50E24DCCA9E"
+    name: "Polar H10 / Verity sensor"
+    class: wearable
+  - uuid: "0000FE25-0000-1000-8000-00805F9B34FB"
+    name: "Apple Watch / iBeacon service"
+    class: wearable
+
+  - uuid: "0000FE07-0000-1000-8000-00805F9B34FB"
+    name: "Sonos setup service"
+    class: audio
+  - uuid: "0000FE40-0000-1000-8000-00805F9B34FB"
+    name: "Bose connect"
+    class: audio
+  - uuid: "F8D1FBE4-7966-4334-8024-FF96C9330E15"
+    name: "Bose AR firmware"
+    class: audio
+  - uuid: "0000FD3D-0000-1000-8000-00805F9B34FB"
+    name: "Sony LinkBuds / WF series"
+    class: audio
+  - uuid: "0000FE2D-0000-1000-8000-00805F9B34FB"
+    name: "Sonos S2 system"
+    class: audio
+
+  - uuid: "0000FE0F-0000-1000-8000-00805F9B34FB"
+    name: "Philips Hue commissioning"
+    class: iot_leaf
+  - uuid: "0000FE83-0000-1000-8000-00805F9B34FB"
+    name: "LIFX bulb BLE"
+    class: iot_leaf
+  - uuid: "0000FE9F-0000-1000-8000-00805F9B34FB"
+    name: "Google Nest / Cast device"
+    class: iot_hub
+  - uuid: "0000FE03-0000-1000-8000-00805F9B34FB"
+    name: "Amazon device service"
+    class: iot_hub
+  - uuid: "0000FEF3-0000-1000-8000-00805F9B34FB"
+    name: "Google Pixel device"
+    class: mobile
+  - uuid: "0000FDA2-0000-1000-8000-00805F9B34FB"
+    name: "Govee BLE controller"
+    class: iot_leaf
+  - uuid: "0000FE9B-0000-1000-8000-00805F9B34FB"
+    name: "Aqara hub / sensor"
+    class: iot_leaf
+  - uuid: "0000FEC9-0000-1000-8000-00805F9B34FB"
+    name: "Apple HomeKit Accessory Information"
+    class: iot_leaf
+  - uuid: "0000FE56-0000-1000-8000-00805F9B34FB"
+    name: "Google Home / Cast"
+    class: iot_hub
+
+  - uuid: "0000FFF8-0000-1000-8000-00805F9B34FB"
+    name: "Tesla BLE key"
+    class: vehicle
+  - uuid: "00009A82-0000-1000-8000-00805F9B34FB"
+    name: "OBDLink MX+ (community-documented)"
+    class: vehicle
+
+  - uuid: "0000FEBE-0000-1000-8000-00805F9B34FB"
+    name: "Bose hearing aid"
+    class: medical
+  - uuid: "0000FDDE-0000-1000-8000-00805F9B34FB"
+    name: "Dexcom G6/G7 (CGM)"
+    class: medical
+  - uuid: "0000FDE3-0000-1000-8000-00805F9B34FB"
+    name: "Abbott Diabetes Care (FreeStyle)"
+    class: medical
+  - uuid: "0000FDB6-0000-1000-8000-00805F9B34FB"
+    name: "Omron BP monitor"
+    class: medical
+
+  - uuid: "0000FFF6-0000-1000-8000-00805F9B34FB"
+    name: "Matter commissioning (FFF6 expanded)"
+    class: standards
+    flags: [STANDARDS]
+  - uuid: "0000FFFA-0000-1000-8000-00805F9B34FB"
+    name: "ASTM Remote ID (drones)"
+    class: standards
+    flags: [STANDARDS]
+  - uuid: "0000FFFD-0000-1000-8000-00805F9B34FB"
+    name: "FIDO2 / U2F (FFFD expanded)"
+    class: standards
+    flags: [STANDARDS]
+  - uuid: "0000FD6F-0000-1000-8000-00805F9B34FB"
+    name: "GAEN exposure notification (FD6F expanded)"
+    class: standards
+    flags: [STANDARDS]
+  - uuid: "00001827-0000-1000-8000-00805F9B34FB"
+    name: "Mesh Provisioning"
+    class: standards
+    flags: [STANDARDS]
+  - uuid: "00001828-0000-1000-8000-00805F9B34FB"
+    name: "Mesh Proxy"
+    class: standards
+    flags: [STANDARDS]

@@ -2,6 +2,7 @@
 #include "driver/spi_master.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "display.h"
 #include <string.h>
 
 #define LED_CLK_HZ  (10 * 1000 * 1000)
@@ -44,7 +45,10 @@ void led_set(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness)
         .length    = FRAME_BYTES * 8,
         .tx_buffer = buf,
     };
+
+    display_bus_lock();
     spi_device_transmit(s_dev, &t);
+    display_bus_unlock();
     heap_caps_free(buf);
 }
 

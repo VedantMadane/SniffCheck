@@ -2,9 +2,13 @@ idf_component_register(
     SRCS
         "head_main.c"
         "head_sd.c"
+        "head_ui.c"
         "sentinel_registry.c"
+        "action_sched.c"
+        "driver_dult.c"
         "../../../main/led.c"
         "../../common/cluster_proto.c"
+        "../../common/cluster_ui.c"
         "../../common/sentinel.c"
         "../../../dogpark-node/main/node_display.c"
     INCLUDE_DIRS
@@ -18,6 +22,7 @@ idf_component_register(
         esp_wifi esp_netif esp_event bt
     REQUIRES
         lcd_st7735
+        qrcode
 )
 
 set_source_files_properties(

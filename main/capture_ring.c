@@ -22,6 +22,7 @@ static uint32_t            s_recs_dropped;
 static uint64_t            s_bytes_total;
 static SemaphoreHandle_t   s_mtx;
 static uint64_t            s_evict_seq;
+static capture_ring_sink_t s_sink;
 
 static inline uint32_t read_u32_le(size_t off)
 {
@@ -127,7 +128,14 @@ size_t capture_ring_write(const char *line, size_t len)
     s_recs_current++;
     s_bytes_total += frame;
     xSemaphoreGive(s_mtx);
+
+    if (s_sink) s_sink(line, len);
     return frame;
+}
+
+void capture_ring_set_sink(capture_ring_sink_t fn)
+{
+    s_sink = fn;
 }
 
 void capture_ring_reader_open(capture_ring_reader_t *r)

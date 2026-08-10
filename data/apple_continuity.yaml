@@ -1,0 +1,64 @@
+
+subtypes:
+  - subtype: 0x02
+    class: beacon
+    name: "iBeacon"
+  - subtype: 0x03
+    class: mobile
+    name: "AirPrint"
+  - subtype: 0x05
+    class: mobile
+    name: "AirDrop"
+  - subtype: 0x06
+    class: iot_leaf
+    name: "HomeKit"
+  - subtype: 0x07
+    class: audio
+    name: "AirPods proximity"
+  - subtype: 0x08
+    class: mobile
+    name: "Hey Siri ranging"
+  - subtype: 0x09
+    class: audio
+    name: "AirPlay target"
+  - subtype: 0x0A
+    class: mobile
+    name: "Apple TV state"
+  - subtype: 0x0B
+    class: mobile
+    name: "MagicSwitch"
+  - subtype: 0x0C
+    class: mobile
+    name: "Handoff"
+  - subtype: 0x0D
+    class: mobile
+    name: "WiFi settings"
+  - subtype: 0x0E
+    class: mobile
+    name: "Instant Hotspot"
+  - subtype: 0x0F
+    class: mobile
+    name: "WiFi Join Network"
+  - subtype: 0x10
+    class: mobile
+    name: "Nearby Info"
+  - subtype: 0x11
+    class: wearable
+    name: "Apple Watch Continuity"
+  - subtype: 0x12
+    class: tracker
+    flags: [TRACKER]
+    name: "Find My (subtype 0x12)"
+  - subtype: 0x14
+    class: mobile
+    name: "Apple Pay (proximity)"
+  - subtype: 0x16
+    class: tracker
+    flags: [TRACKER]
+    name: "Find My (separated)"
+  - subtype: 0x18
+    class: mobile
+    name: "HomeKit relay"
+  - subtype: 0x1B
+    class: mobile
+    name: "Apple Sharing target"

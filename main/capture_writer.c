@@ -23,7 +23,7 @@
 static const char *TAG = "sc_capwrt";
 
 #ifndef SNIFFCHECK_FW_VERSION
-#define SNIFFCHECK_FW_VERSION  "87.0.111"
+#define SNIFFCHECK_FW_VERSION  "87.0.112"
 #endif
 #ifndef SNIFFCHECK_FW_COMMIT
 #define SNIFFCHECK_FW_COMMIT   "dev"
@@ -1018,6 +1018,7 @@ void capture_emit_tracker_if_applicable(const ble_device_t *d, uint16_t scan_ind
 
     char *line = line_lock();
     if (!line) return;
+
     uint8_t addr_type = (d->addr_subtype == BLE_ADDR_SUB_PUBLIC) ? 0 : 1;
     int n = snprintf(line, LINE_BUF,
         "{\"type\":\"tracker\",\"ts_us\":%lld,\"scan_index\":%u,"
@@ -1497,6 +1498,7 @@ void capture_emit_twin_findings(uint16_t scan_index)
             "\"finding_id\":\"%s\",\"target_ref\":\"%s\",\"peer_ref\":\"%s\","
             "\"trigger\":\"%s\",\"relationship_class\":\"%s\",\"decision\":\"%s\","
             "\"symmetric\":%s,\"weight\":%d,\"evidence\":{"
+
             "\"exact_ssid_match\":%s,\"security_mismatch\":%s,\"same_channel\":%s,"
             "\"conserved_mac_structure\":%s,\"same_public_oui\":%s,\"both_laa\":%s,"
             "\"chain_ssid\":%s,\"rssi_gap\":%s,\"suffix_delta\":%s,"
@@ -1551,6 +1553,7 @@ static int collect_ap_threat_rules(const ap_score_t *ap, threat_rule_t *out)
 
     if (ap->twin_detected)
         out[n++] = (threat_rule_t){"twin_detected", "medium", "wifi_ap",
+
             "Possible Evil-Twin pattern. Be cautious"};
     if (ap->eui_flags & (EUI_FLAG_FCC_COVERED | EUI_FLAG_SURVEILLANCE))
         out[n++] = (threat_rule_t){"surveillance_vendor", "medium", "wifi_ap",
@@ -1638,6 +1641,7 @@ static int append_threat_rule_ids(char *line, int n,
 static const char *twin_message(const twin_finding_t *f, const char *fallback)
 {
     if (!f) {
+
         return "Possible Evil-Twin pattern; the peer was not recorded. Be cautious";
     }
 
@@ -1693,6 +1697,7 @@ static const char *twin_alert_extra(const char *rule_id, const ap_score_t *ap,
 
     char fid[48], peer[24];
     twin_finding_id(fid, sizeof(fid), scan_index, idx);
+
     append_mac(peer, sizeof(peer),
                memcmp(f->target, ap->bssid, 6) == 0 ? f->peer : f->target);
 

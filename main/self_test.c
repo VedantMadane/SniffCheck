@@ -1030,30 +1030,31 @@ static void run_twin_tests(void)
             if (s->twin_detected || s->open_clone) xf_twin = true;
             if (s->sibling_service_peer) xf_sibling++;
         }
-        tw_check("XFINITY-1 [TARGET] differently-named Xfinity siblings not twin_detected", !xf_twin);
-        tw_check("XFINITY-1 [TARGET] Xfinity pair classified as sibling virtual BSSID", xf_sibling == 2);
+        tw_check("113-XF1 [TARGET] differently-named Xfinity siblings not twin_detected", !xf_twin);
+        tw_check("113-XF1 [TARGET] Xfinity pair classified as sibling virtual BSSID", xf_sibling == 2);
 
         const twin_finding_t *xf = analyzer_twin_finding_for(XM, TWIN_TRIGGER_NONE);
-        tw_check("XFINITY-2 pair finding recorded for the Xfinity pair", xf != NULL);
+        tw_check("113-XF1 [113b] pair finding recorded for the Xfinity pair", xf != NULL);
         if (xf) {
-            tw_check("XFINITY-2 finding names the other BSSID as peer",
+            tw_check("113-XF1 [113b] finding names the other BSSID as peer",
                      (memcmp(xf->target, XM, 6) == 0 && memcmp(xf->peer, XW, 6) == 0) ||
                      (memcmp(xf->target, XW, 6) == 0 && memcmp(xf->peer, XM, 6) == 0));
-            tw_check("XFINITY-2 decision is no_twin_evidence",
+            tw_check("113-XF1 [113b] decision is no_twin_evidence",
                      xf->decision == TWIN_DECISION_NO_EVIDENCE);
-            tw_check("XFINITY-2 trigger is relationship_only",
+            tw_check("113-XF1 [113b] trigger is relationship_only",
                      xf->trigger == TWIN_TRIGGER_RELATIONSHIP_ONLY);
-            tw_check("XFINITY-2 relationship is likely_sibling_virtual_bssid",
+            tw_check("113-XF1 [113b] relationship is likely_sibling_virtual_bssid",
                      xf->relationship == TWIN_REL_LIKELY_SIBLING_VIRTUAL_BSSID);
-            tw_check("XFINITY-2 exact_ssid_match is false",
+
+            tw_check("113-XF1 [113b] exact_ssid_match is false",
                      (xf->evidence & TWIN_EV_EXACT_SSID_MATCH) == 0);
-            tw_check("XFINITY-2 suppressing evidence retained (MAC structure + channel)",
+            tw_check("113-XF1 [113b] suppressing evidence retained (MAC structure + channel)",
                      (xf->evidence & TWIN_EV_CONSERVED_MAC_STRUCTURE) &&
                      (xf->evidence & TWIN_EV_SAME_CHANNEL) &&
                      (xf->evidence & TWIN_EV_BOTH_LAA));
-            tw_check("XFINITY-2 security mismatch recorded, not hidden",
+            tw_check("113-XF1 [113b] security mismatch recorded, not hidden",
                      (xf->evidence & TWIN_EV_SECURITY_MISMATCH) != 0);
-            tw_check("XFINITY-2 symmetric — neither member named as a clone",
+            tw_check("113-XF1 [113b] symmetric — neither member named as a clone",
                      xf->symmetric);
         }
     }
@@ -1071,21 +1072,21 @@ static void run_twin_tests(void)
         bool flagged = false;
         for (uint16_t i = 0; i < count; i++)
             if (s_tw_scores[i].open_clone) flagged = true;
-        tw_check("DOWNGRADE-1 open clone of a protected SSID still alerts", flagged);
+        tw_check("113-DOWN1 open clone of a protected SSID still alerts", flagged);
 
         const twin_finding_t *d = analyzer_twin_finding_for(OPEN, TWIN_TRIGGER_OPEN_CLONE);
-        tw_check("DOWNGRADE-2 open_clone finding recorded", d != NULL);
+        tw_check("113-DOWN1 [113b] open_clone finding recorded", d != NULL);
         if (d) {
-            tw_check("DOWNGRADE-2 pair is the two HomeNet-5G BSSIDs",
+            tw_check("113-DOWN1 [113b] pair is the two HomeNet-5G BSSIDs",
                      (memcmp(d->target, PROT, 6) == 0 && memcmp(d->peer, OPEN, 6) == 0) ||
                      (memcmp(d->target, OPEN, 6) == 0 && memcmp(d->peer, PROT, 6) == 0));
-            tw_check("DOWNGRADE-2 exact_ssid_match is true",
+            tw_check("113-DOWN1 [113b] exact_ssid_match is true",
                      (d->evidence & TWIN_EV_EXACT_SSID_MATCH) != 0);
-            tw_check("DOWNGRADE-2 security_mismatch is the trigger evidence",
+            tw_check("113-DOWN1 [113b] security_mismatch is the trigger evidence",
                      (d->evidence & TWIN_EV_SECURITY_MISMATCH) != 0);
-            tw_check("DOWNGRADE-2 decision is high_confidence",
+            tw_check("113-DOWN1 [113b] decision is high_confidence",
                      d->decision == TWIN_DECISION_HIGH_CONFIDENCE);
-            tw_check("DOWNGRADE-2 unrelated identity — not a managed ESS peer",
+            tw_check("113-DOWN1 [113b] unrelated identity — not a managed ESS peer",
                      d->relationship != TWIN_REL_LIKELY_MANAGED_ESS_PEER);
         }
     }
@@ -1116,7 +1117,7 @@ static void run_twin_tests(void)
         analyzer_run(&s_tw_results, NULL, s_tw_scores, &count);
         uint16_t rev_n = analyzer_twin_finding_count();
 
-        tw_check("ORDER-1 same finding count under both input orders",
+        tw_check("113-ASYM1 [113b] same finding count under both input orders",
                  fwd_n == rev_n && fwd_n > 0);
 
         bool all_matched = (fwd_n == rev_n);
@@ -1135,7 +1136,7 @@ static void run_twin_tests(void)
             }
             if (!found) {
                 all_matched = false;
-                ESP_LOGW(TAG, "   ORDER unmatched pair %02X:%02X:%02X:%02X:%02X:%02X"
+                ESP_LOGW(TAG, "   ASYM1 unmatched pair %02X:%02X:%02X:%02X:%02X:%02X"
                               " <-> %02X:%02X:%02X:%02X:%02X:%02X trigger=%s",
                          r->target[0], r->target[1], r->target[2],
                          r->target[3], r->target[4], r->target[5],
@@ -1144,7 +1145,7 @@ static void run_twin_tests(void)
                          analyzer_twin_trigger_label(r->trigger));
             }
         }
-        tw_check("ORDER-1 identical pairs, evidence and decisions either way",
+        tw_check("113-ASYM1 [113b] identical pairs, evidence and decisions either way",
                  all_matched);
     }
     tw_drain();
@@ -1153,7 +1154,7 @@ static void run_twin_tests(void)
         memset(&s_tw_results, 0, sizeof(s_tw_results));
         count = 0;
         analyzer_run(&s_tw_results, NULL, s_tw_scores, &count);
-        tw_check("pair findings cleared by an empty scan",
+        tw_check("113b findings cleared by an empty scan",
                  analyzer_twin_finding_count() == 0);
     }
     tw_drain();

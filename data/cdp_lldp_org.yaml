@@ -1,0 +1,70 @@
+
+cdp_org_ouis:
+  - oui: "00:00:0C"
+    class: enterprise_ap
+    name: "Cisco"
+  - oui: "00:18:0A"
+    class: enterprise_ap
+    name: "Meraki (Cisco)"
+
+lldp_org_ouis:
+  - oui: "00:80:C2"
+    class: standards
+    name: "IEEE 802.1"
+  - oui: "00:12:0F"
+    class: standards
+    name: "IEEE 802.3"
+  - oui: "00:12:BB"
+    class: standards
+    name: "TIA-1057 (LLDP-MED)"
+  - oui: "00:0E:CF"
+    class: infrastructure
+    name: "Profinet"
+  - oui: "00:00:0C"
+    class: enterprise_ap
+    name: "Cisco LLDP"
+  - oui: "00:01:42"
+    class: enterprise_ap
+    name: "Cisco SystemOID"
+  - oui: "00:0F:AC"
+    class: standards
+    name: "IEEE 802.11"
+  - oui: "00:18:0A"
+    class: enterprise_ap
+    name: "Meraki"
+  - oui: "00:0B:86"
+    class: enterprise_ap
+    name: "Aruba"
+  - oui: "00:1B:21"
+    class: enterprise_ap
+    name: "Intel (LLDP-Agent)"
+  - oui: "00:90:F5"
+    class: enterprise_ap
+    name: "Extreme Networks"
+  - oui: "00:01:30"
+    class: enterprise_ap
+    name: "Extreme Networks"
+  - oui: "00:50:43"
+    class: enterprise_ap
+    name: "Marvell"
+  - oui: "00:01:42"
+    class: enterprise_ap
+    name: "Cisco"
+  - oui: "00:E0:52"
+    class: enterprise_ap
+    name: "Foundry / Brocade"
+  - oui: "00:60:1D"
+    class: enterprise_ap
+    name: "Lucent"
+  - oui: "00:80:F0"
+    class: enterprise_ap
+    name: "Avaya"
+  - oui: "00:04:96"
+    class: enterprise_ap
+    name: "Extreme Networks"
+  - oui: "00:09:0F"
+    class: enterprise_ap
+    name: "Fortinet"
+  - oui: "00:90:7F"
+    class: enterprise_ap
+    name: "Watchguard"

@@ -118,7 +118,6 @@ uint8_t analyzer_threat_to_verdict(uint8_t threat_level);
 
 const char *analyzer_twin_class(const ap_score_t *s);
 
-
 typedef enum {
     TWIN_TRIGGER_NONE = 0,
     TWIN_TRIGGER_OPEN_CLONE,
@@ -142,6 +141,7 @@ typedef enum {
 } twin_decision_t;
 
 #define TWIN_EV_EXACT_SSID_MATCH         (1u <<  0)
+
 #define TWIN_EV_SECURITY_MISMATCH        (1u <<  2)
 #define TWIN_EV_SAME_CHANNEL             (1u <<  3)
 #define TWIN_EV_CONSERVED_MAC_STRUCTURE  (1u <<  4)

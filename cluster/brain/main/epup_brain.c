@@ -2,11 +2,13 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "cluster_proto.h"
+#include "infra_cluster.h"
 
 static const char *TAG = "epup-brain";
 
@@ -35,14 +37,21 @@ typedef struct __attribute__((packed)) {
 #define BLOOM_MASK (BLOOM_BITS - 1)
 #define BLOOM_K    4
 
-#define PLACE_MAX        6
-#define PLACE_SIG_BYTES  32u
-#define PLACE_SIG_BITS   (PLACE_SIG_BYTES * 8u)
-#define PLACE_SIG_MASK   (PLACE_SIG_BITS - 1)
-#define PLACE_K          3
-#define PLACE_MATCH_PCT  55
-#define PLACE_KNOWN_MIN  3
-#define PLACE_MIN_WIFI   2
+#define PLACE_MAX          6
+#define LM_MAX             24
+#define LM_NAME            20
+#define WIN_MAX            48
+#define PLACE_MIN_UNITS    2
+#define PLACE_MATCH_PCT    35
+#define PLACE_MIN_DISTINCT 2
+#define PLACE_KNOWN_MIN    3
+#define LM_CONFIRM_SCANS   2
+#define LM_PRUNE_AFTER     6
+#define LM_PRUNE_PCT       15
+#define PLACE_SCHEMA_VER   2
+
+#define LM_F_PINNED        0x01u
+#define LM_F_CONFIRMED     0x02u
 
 #define EMA_SHIFT  6
 
@@ -66,13 +75,25 @@ static brain_t B;
 static int      s_dirty;
 static uint32_t s_boot_now;
 
-typedef struct {
-    uint8_t  sig[PLACE_SIG_BYTES];
-    char     label[16];
-    uint32_t scans;
-    uint32_t born_boot;
-    uint32_t last_seq;
+typedef struct __attribute__((packed)) {
+    uint64_t unit;
+    uint16_t hits;
+    uint8_t  scans_seen;
+    uint8_t  flags;
+    char     name[LM_NAME];
+} landmark_t;
+
+typedef struct __attribute__((packed)) {
+    landmark_t lm[LM_MAX];
+    uint8_t    lm_count;
+    uint8_t    quality;
+    char       label[16];
+    uint32_t   scans;
+    uint32_t   born_boot;
+    uint32_t   last_seq;
 } place_t;
+
+typedef struct { uint64_t unit; uint16_t cnt; char name[LM_NAME]; } win_unit_t;
 
 static struct {
     place_t  places[PLACE_MAX];
@@ -83,6 +104,14 @@ static struct {
     bool     is_new;
     uint32_t seq;
 } P = { .cur = -1 };
+
+static struct {
+    bool    active;
+    int8_t  target;
+    uint8_t want, done;
+    bool    reposition;
+    bool    fresh;
+} L = { .target = -1 };
 
 static void place_persist_save(nvs_handle_t h);
 
@@ -218,32 +247,63 @@ static bool bloom_touch(uint64_t h)
     return novel;
 }
 
-static inline int popcnt8(uint8_t b) { return __builtin_popcount(b); }
-
-static void sig_set(uint8_t *sig, uint64_t h)
+static landmark_t *lm_find(place_t *p, uint64_t unit)
 {
-    for (int k = 0; k < PLACE_K; k++) {
-        uint64_t hk = h ^ (0xD6E8FEB86659FD93ULL * (uint64_t)(k + 1));
-        hk ^= hk >> 32; hk *= 0xFF51AFD7ED558CCDULL; hk ^= hk >> 29;
-        uint32_t bit = (uint32_t)(hk & PLACE_SIG_MASK);
-        sig[bit >> 3] |= (uint8_t)(1u << (bit & 7));
+    for (int i = 0; i < p->lm_count; i++) if (p->lm[i].unit == unit) return &p->lm[i];
+    return NULL;
+}
+
+static int lm_confirmed(const place_t *p)
+{
+    int c = 0; for (int i = 0; i < p->lm_count; i++) if (p->lm[i].flags & LM_F_CONFIRMED) c++;
+    return c;
+}
+
+static int unit_df(uint64_t unit)
+{
+    int df = 0; for (int i = 0; i < P.count; i++) if (lm_find(&P.places[i], unit)) df++;
+    return df;
+}
+
+static int unit_weight(uint64_t unit) { return 100 / (unit_df(unit) + 1); }
+
+static landmark_t *lm_weakest(place_t *p)
+{
+    landmark_t *w = NULL;
+    for (int i = 0; i < p->lm_count; i++) {
+        landmark_t *l = &p->lm[i];
+        if (l->flags & LM_F_PINNED) continue;
+        if (!w || l->scans_seen < w->scans_seen ||
+            (l->scans_seen == w->scans_seen && l->hits < w->hits)) w = l;
     }
-}
-static int sig_popcount(const uint8_t *a)
-{
-    int c = 0; for (unsigned i = 0; i < PLACE_SIG_BYTES; i++) c += popcnt8(a[i]); return c;
+    return w;
 }
 
-static int sig_containment(const uint8_t *win, int win_pc, const uint8_t *place)
+static void place_prune(place_t *p)
 {
-    if (win_pc <= 0) return 0;
-    int both = 0;
-    for (unsigned i = 0; i < PLACE_SIG_BYTES; i++) both += popcnt8(win[i] & place[i]);
-    return both * 100 / win_pc;
+    int o = 0;
+    for (int i = 0; i < p->lm_count; i++) {
+        landmark_t *l = &p->lm[i];
+        bool keep = (l->flags & (LM_F_PINNED | LM_F_CONFIRMED)) ||
+                    ((uint32_t)l->scans_seen * 100 >= p->scans * LM_PRUNE_PCT);
+        if (keep) { if (o != i) p->lm[o] = *l;
+                    o++; }
+    }
+    p->lm_count = (uint8_t)o;
 }
-static void sig_or(uint8_t *dst, const uint8_t *src)
+
+static void place_prune_enroll(place_t *p, int want)
 {
-    for (unsigned i = 0; i < PLACE_SIG_BYTES; i++) dst[i] |= src[i];
+    int need = (want + 1) / 2; if (need < 1) need = 1;
+    int o = 0;
+    for (int i = 0; i < p->lm_count; i++) {
+        landmark_t *l = &p->lm[i];
+        if ((l->flags & LM_F_PINNED) || l->scans_seen >= need) {
+            if (o != i) p->lm[o] = *l;
+            o++;
+        }
+    }
+    p->lm_count = (uint8_t)o;
 }
 
 #define EPUP_NVS_PLACES "places"
@@ -256,46 +316,130 @@ typedef struct __attribute__((packed)) {
 
 static void place_persist_save(nvs_handle_t h)
 {
-    place_persist_t pp;
-    memset(&pp, 0, sizeof(pp));
-    pp.magic = EPUP_SUMMARY_MAGIC; pp.schema_ver = EPUP_SCHEMA_VER;
-    pp.count = P.count; pp.cur = P.cur; pp.seq = P.seq;
-    memcpy(pp.places, P.places, sizeof(pp.places));
-    pp.crc = cl_crc16((const uint8_t *)&pp, sizeof(pp) - sizeof(pp.crc));
-    nvs_set_blob(h, EPUP_NVS_PLACES, &pp, sizeof(pp));
+    place_persist_t *pp = calloc(1, sizeof(*pp));
+    if (!pp) return;
+    pp->magic = EPUP_SUMMARY_MAGIC; pp->schema_ver = PLACE_SCHEMA_VER;
+    pp->count = P.count; pp->cur = P.cur; pp->seq = P.seq;
+    memcpy(pp->places, P.places, sizeof(pp->places));
+    pp->crc = cl_crc16((const uint8_t *)pp, sizeof(*pp) - sizeof(pp->crc));
+    nvs_set_blob(h, EPUP_NVS_PLACES, pp, sizeof(*pp));
+    free(pp);
 }
 
 static void place_persist_load(void)
 {
     nvs_handle_t h;
     if (nvs_open(EPUP_NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
-    place_persist_t pp; size_t sz = sizeof(pp);
-    esp_err_t e = nvs_get_blob(h, EPUP_NVS_PLACES, &pp, &sz);
+    place_persist_t *pp = calloc(1, sizeof(*pp));
+    if (!pp) { nvs_close(h); return; }
+    size_t sz = sizeof(*pp);
+    esp_err_t e = nvs_get_blob(h, EPUP_NVS_PLACES, pp, &sz);
     nvs_close(h);
-    if (e != ESP_OK || sz != sizeof(pp)) return;
-    if (pp.magic != EPUP_SUMMARY_MAGIC || pp.schema_ver != EPUP_SCHEMA_VER) return;
-    if (cl_crc16((const uint8_t *)&pp, sizeof(pp) - sizeof(pp.crc)) != pp.crc) return;
-    if (pp.count > PLACE_MAX) return;
-    P.count = pp.count; P.cur = -1; P.seq = pp.seq;
-    memcpy(P.places, pp.places, sizeof(P.places));
+    if (e == ESP_OK && sz == sizeof(*pp) &&
+        pp->magic == EPUP_SUMMARY_MAGIC && pp->schema_ver == PLACE_SCHEMA_VER &&
+        cl_crc16((const uint8_t *)pp, sizeof(*pp) - sizeof(pp->crc)) == pp->crc &&
+        pp->count <= PLACE_MAX) {
+        P.count = pp->count; P.cur = -1; P.seq = pp->seq;
+        memcpy(P.places, pp->places, sizeof(P.places));
+    }
+    free(pp);
 }
 
-static void place_fold(const uint8_t *winsig, int win_wifi)
+static void place_absorb(place_t *pl, const win_unit_t *win, int win_n)
 {
-    if (win_wifi < PLACE_MIN_WIFI) {
-        P.sim = 0; P.is_new = false;
-        return;
+    for (int w = 0; w < win_n; w++) {
+        landmark_t *lm = lm_find(pl, win[w].unit);
+        if (!lm) {
+            lm = (pl->lm_count < LM_MAX) ? &pl->lm[pl->lm_count++] : lm_weakest(pl);
+            if (!lm) continue;
+            if (lm->unit != win[w].unit) { memset(lm, 0, sizeof(*lm)); lm->unit = win[w].unit; }
+        }
+        if (lm->hits < 0xFFFF) lm->hits = (uint16_t)(lm->hits + win[w].cnt);
+        if (lm->scans_seen < 0xFF) lm->scans_seen++;
+        if (lm->name[0] == '\0' && win[w].name[0]) strlcpy(lm->name, win[w].name, LM_NAME);
+        if (lm->scans_seen >= LM_CONFIRM_SCANS) lm->flags |= LM_F_CONFIRMED;
     }
-    int win_pc = sig_popcount(winsig);
+}
 
-    int best = -1, best_c = -1;
+static void place_enroll(const win_unit_t *win, int win_n)
+{
+    if (win_n < PLACE_MIN_UNITS) { P.sim = 0; P.is_new = false; return; }
+
+    if (L.target < 0) {
+        int idx;
+        if (!L.fresh && P.cur >= 0 && P.cur < P.count) {
+            idx = P.cur; P.is_new = false;
+        } else {
+            if (P.count < PLACE_MAX) idx = P.count++;
+            else { idx = 0; uint32_t o = P.places[0].last_seq;
+                   for (int i = 1; i < P.count; i++)
+                       if (P.places[i].last_seq < o) { o = P.places[i].last_seq; idx = i; } }
+            memset(&P.places[idx], 0, sizeof(place_t));
+            P.places[idx].born_boot = B.born_boot;
+            P.is_new = true;
+        }
+        L.target = (int8_t)idx;
+    }
+
+    place_t *pl = &P.places[L.target];
+    pl->scans++;
+    pl->last_seq = ++P.seq;
+    place_absorb(pl, win, win_n);
+    L.done++;
+
+    P.cur = L.target;
+    P.sim = 100;
+    P.known = (lm_confirmed(pl) >= PLACE_MIN_DISTINCT);
+
+    if (L.done >= L.want) {
+        if (L.reposition) {
+            place_prune_enroll(pl, L.want);
+            pl->quality = 100;
+        } else {
+            pl->quality = 55;
+        }
+        P.known = (lm_confirmed(pl) >= PLACE_MIN_DISTINCT);
+        ESP_LOGI(TAG, "enroll done: env[%d] %u landmarks (%s, q=%u)",
+                 L.target, lm_confirmed(pl), L.reposition ? "repositioned" : "stationary",
+                 pl->quality);
+        L.active = false; L.target = -1;
+        persist_save();
+    }
+}
+
+static void place_fold(const win_unit_t *win, int win_n)
+{
+    if (L.active) { place_enroll(win, win_n); return; }
+    if (win_n < PLACE_MIN_UNITS) { P.sim = 0; P.is_new = false; return; }
+
+    int best = -1, best_sim = -1, best_distinct = 0;
     for (int i = 0; i < P.count; i++) {
-        int c = sig_containment(winsig, win_pc, P.places[i].sig);
-        if (c > best_c) { best_c = c; best = i; }
+        place_t *p = &P.places[i];
+        int inter = 0, distinct = 0, wsum_win = 0;
+        for (int w = 0; w < win_n; w++) {
+            int wt = unit_weight(win[w].unit);
+            wsum_win += wt;
+            landmark_t *lm = lm_find(p, win[w].unit);
+            if (lm) {
+                inter += wt;
+                if ((lm->flags & LM_F_CONFIRMED) && unit_df(win[w].unit) <= 1) distinct++;
+            }
+        }
+        int wsum_place_only = 0;
+        for (int k = 0; k < p->lm_count; k++) {
+            bool in_win = false;
+            for (int w = 0; w < win_n; w++)
+                if (win[w].unit == p->lm[k].unit) { in_win = true; break; }
+            if (!in_win) wsum_place_only += unit_weight(p->lm[k].unit);
+        }
+        int uni = wsum_win + wsum_place_only;
+        int sim = uni > 0 ? inter * 100 / uni : 0;
+        if (sim > best_sim) { best_sim = sim; best = i; best_distinct = distinct; }
     }
 
+    bool matched = (best >= 0 && best_sim >= PLACE_MATCH_PCT && best_distinct >= PLACE_MIN_DISTINCT);
     int idx;
-    if (best >= 0 && best_c >= PLACE_MATCH_PCT) {
+    if (matched) {
         idx = best; P.is_new = false;
     } else {
         if (P.count < PLACE_MAX) {
@@ -311,12 +455,40 @@ static void place_fold(const uint8_t *winsig, int win_wifi)
     }
 
     place_t *pl = &P.places[idx];
-    sig_or(pl->sig, winsig);
     pl->scans++;
     pl->last_seq = ++P.seq;
+    place_absorb(pl, win, win_n);
+
+    if (pl->scans >= LM_PRUNE_AFTER) place_prune(pl);
+
+    if (pl->quality < 90) {
+        uint32_t q = pl->scans * 10; if (q > 90) q = 90;
+        if ((uint8_t)q > pl->quality) pl->quality = (uint8_t)q;
+    }
+
     P.cur   = (int8_t)idx;
-    P.sim   = (uint8_t)(best_c < 0 ? 100 : best_c);
-    P.known = (pl->scans >= PLACE_KNOWN_MIN);
+    P.sim   = (uint8_t)(best_sim < 0 ? 0 : best_sim);
+    P.known = (pl->scans >= PLACE_KNOWN_MIN && lm_confirmed(pl) >= PLACE_MIN_DISTINCT);
+}
+
+static int win_add(win_unit_t *win, int n, const char *line, int ll)
+{
+    char bssid[24], ssid[40], ieh[24];
+    if (!find_str(line, ll, "\"bssid\":\"", bssid, sizeof bssid)) return n;
+    uint8_t mac[6];
+    if (!infra_parse_mac(bssid, (int)strlen(bssid), mac)) return n;
+    int sl = find_str(line, ll, "\"ssid\":\"", ssid, sizeof ssid);
+    uint32_t ie = 0;
+    if (find_str(line, ll, "\"ie_pattern_hash\":", ieh, sizeof ieh))
+        ie = (uint32_t)strtoul(ieh, NULL, 10);
+    uint64_t u = infra_unit_key(mac, ie);
+    for (int k = 0; k < n; k++)
+        if (win[k].unit == u) { if (win[k].cnt < 0xFFFF) win[k].cnt++; return n; }
+    if (n >= WIN_MAX) return n;
+    win[n].unit = u; win[n].cnt = 1;
+    if (sl > 0) strlcpy(win[n].name, ssid, LM_NAME);
+    else snprintf(win[n].name, LM_NAME, "%02x:%02x:%02x\xC2\xB7unit", mac[0], mac[1], mac[2]);
+    return n + 1;
 }
 
 bool epup_brain_init(uint32_t boot_count)
@@ -362,7 +534,8 @@ void epup_brain_observe(const char *jsonl, size_t len)
     if (!B.ready || !jsonl || len == 0) return;
 
     uint32_t wifi = 0, ble = 0, newdev = 0, rows = 0;
-    uint8_t  winsig[PLACE_SIG_BYTES] = {0};
+    static win_unit_t win[WIN_MAX];
+    int win_n = 0;
     size_t i = 0;
     while (i < len) {
         size_t j = i;
@@ -376,14 +549,15 @@ void epup_brain_observe(const char *jsonl, size_t len)
                 uint64_t h = fnv1a(key, kl);
                 cm_add(h);
                 if (bloom_touch(h)) { newdev++; B.unique_est++; }
-                if (is_wifi) { wifi++; sig_set(winsig, h); } else ble++;
+                if (is_wifi) { wifi++; win_n = win_add(win, win_n, jsonl + i, linelen); }
+                else ble++;
                 rows++;
             }
         }
         i = j + 1;
     }
 
-    place_fold(winsig, (int)wifi);
+    place_fold(win, win_n);
 
     uint32_t total = wifi + ble;
 
@@ -398,7 +572,7 @@ void epup_brain_observe(const char *jsonl, size_t len)
     B.total_obs += rows;
     B.total_scans++;
 
-    if (++s_dirty >= EPUP_FLUSH_EVERY) persist_save();
+    if (++s_dirty >= EPUP_FLUSH_EVERY || P.is_new) persist_save();
 
     ESP_LOGI(TAG, "observe #%lu: %lu rows (wifi=%lu ble=%lu new=%lu) uniq~%lu ema=%ld L%lu "
                   "place=%d/%u sim=%u%% %s%s",
@@ -482,10 +656,11 @@ void epup_brain_places(cl_places_t *out)
         memcpy(e->label, pl->label, sizeof(e->label));
         e->label[sizeof(e->label) - 1] = '\0';
         e->scans     = pl->scans;
-        e->landmarks = (uint16_t)sig_popcount(pl->sig);
+        e->landmarks = (uint16_t)lm_confirmed(pl);
         e->idx       = i;
         uint8_t f = 0;
-        if (pl->scans >= PLACE_KNOWN_MIN) f |= CL_PLACE_F_KNOWN;
+        if (pl->scans >= PLACE_KNOWN_MIN && lm_confirmed(pl) >= PLACE_MIN_DISTINCT)
+            f |= CL_PLACE_F_KNOWN;
         if (P.cur == (int8_t)i)           f |= CL_PLACE_F_CURRENT;
         e->flags = f;
     }
@@ -501,8 +676,102 @@ void epup_brain_place_label(int i, const char *label)
     ESP_LOGI(TAG, "place[%d] labelled \"%s\"", i, P.places[i].label);
 }
 
+int epup_brain_place_detail(int idx, epup_landmark_t *out, int max)
+{
+    if (idx < 0 || idx >= P.count || !out || max <= 0) return 0;
+    place_t *p = &P.places[idx];
+    int n = p->lm_count < max ? p->lm_count : max;
+    for (int i = 0; i < n; i++) {
+        out[i].unit       = p->lm[i].unit;
+        out[i].hits       = p->lm[i].hits;
+        out[i].scans_seen = p->lm[i].scans_seen;
+        out[i].flags      = p->lm[i].flags;
+        strlcpy(out[i].name, p->lm[i].name, sizeof out[i].name);
+    }
+    return n;
+}
+
+int epup_brain_place_quality(int idx)
+{
+    if (idx < 0 || idx >= P.count) return 0;
+    return P.places[idx].quality;
+}
+
+void epup_brain_landmark_pin(int place, uint64_t unit, bool pin)
+{
+    if (place < 0 || place >= P.count) return;
+    landmark_t *l = lm_find(&P.places[place], unit);
+    if (!l) return;
+    if (pin) l->flags |= LM_F_PINNED; else l->flags &= (uint8_t)~LM_F_PINNED;
+    persist_save();
+    ESP_LOGI(TAG, "place[%d] landmark %s", place, pin ? "pinned" : "unpinned");
+}
+
+void epup_brain_landmark_delete(int place, uint64_t unit)
+{
+    if (place < 0 || place >= P.count) return;
+    place_t *p = &P.places[place];
+    for (int i = 0; i < p->lm_count; i++) {
+        if (p->lm[i].unit != unit) continue;
+        for (int k = i + 1; k < p->lm_count; k++) p->lm[k - 1] = p->lm[k];
+        p->lm_count--;
+        persist_save();
+        ESP_LOGI(TAG, "place[%d] landmark deleted (%d left)", place, p->lm_count);
+        return;
+    }
+}
+
+void epup_brain_place_delete(int idx)
+{
+    if (idx < 0 || idx >= P.count) return;
+    for (int k = idx + 1; k < P.count; k++) P.places[k - 1] = P.places[k];
+    P.count--;
+    memset(&P.places[P.count], 0, sizeof(place_t));
+    if (P.cur == idx) P.cur = -1;
+    else if (P.cur > idx) P.cur--;
+
+    if (L.active) {
+        if (L.target == idx) { L.active = false; L.target = -1; }
+        else if (L.target > idx) L.target--;
+    }
+    persist_save();
+    ESP_LOGW(TAG, "environment %d forgotten (%u left)", idx, P.count);
+}
+
+void epup_brain_learn_start(int want_scans, bool reposition, bool fresh)
+{
+    if (want_scans < 1) want_scans = 1;
+    if (want_scans > 20) want_scans = 20;
+    L.active = true;
+    L.target = -1;
+    L.want = (uint8_t)want_scans;
+    L.done = 0;
+    L.reposition = reposition;
+    L.fresh = fresh;
+    ESP_LOGI(TAG, "learn start: %d scans, %s%s", want_scans,
+             reposition ? "reposition between scans" : "stationary",
+             fresh ? ", new environment" : ", current environment");
+}
+
+void epup_brain_learn_cancel(void)
+{
+    if (!L.active) return;
+    L.active = false; L.target = -1;
+    ESP_LOGW(TAG, "learn cancelled");
+}
+
+void epup_brain_learn_status(epup_learn_t *out)
+{
+    if (!out) return;
+    out->active     = L.active;
+    out->want       = L.want;
+    out->done       = L.done;
+    out->reposition = L.reposition;
+    out->target     = L.target;
+}
+
 #define EPUP_CKPT_MAGIC   0x504B4345u
-#define EPUP_CKPT_SCHEMA  1u
+#define EPUP_CKPT_SCHEMA  2u
 #define CM_BYTES     (CM_DEPTH * CM_WIDTH * (uint32_t)sizeof(uint16_t))
 #define BLOOM_BYTES  (BLOOM_BITS / 8u)
 

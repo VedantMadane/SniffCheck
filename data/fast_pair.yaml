@@ -1,0 +1,59 @@
+
+models:
+
+  - model_id: 0x000007
+    class: audio
+    name: "Google Pixel Buds A"
+  - model_id: 0x00000C
+    class: audio
+    name: "Google Pixel Buds Pro"
+  - model_id: 0x00000E
+    class: audio
+    name: "Google Pixel Buds 2"
+  - model_id: 0x9ADB11
+    class: audio
+    name: "Google Pixel Buds A"
+
+  - model_id: 0x100001
+    class: audio
+    name: "Sony WF-1000XM4"
+  - model_id: 0x200001
+    class: audio
+    name: "Sony WH-1000XM4"
+  - model_id: 0x101001
+    class: audio
+    name: "Sony WF-1000XM5"
+  - model_id: 0x201001
+    class: audio
+    name: "Sony WH-1000XM5"
+  - model_id: 0x102001
+    class: audio
+    name: "Sony LinkBuds"
+  - model_id: 0x202001
+    class: audio
+    name: "Sony LinkBuds S"
+
+  - model_id: 0x9ADB1F
+    class: audio
+    name: "Bose QC Earbuds II"
+  - model_id: 0xCD8256
+    class: audio
+    name: "Bose QC Ultra Headphones"
+
+  - model_id: 0x2A410B
+    class: audio
+    name: "Microsoft Surface Earbuds"
+
+  - model_id: 0xF52494
+    class: audio
+    name: "JBL Live Pro 2"
+  - model_id: 0xF00001
+    class: audio
+    name: "JBL Tune Series"
+
+  - model_id: 0xC4BFE7
+    class: audio
+    name: "Jabra Elite 7 Pro"
+  - model_id: 0xB0BBD6
+    class: audio
+    name: "Jabra Elite 4"
