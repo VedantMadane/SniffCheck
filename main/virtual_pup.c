@@ -88,18 +88,18 @@ static void virtual_pup_save(void)
         ESP_LOGW(TAG, "save open failed: %s", esp_err_to_name(err));
         return;
     }
-    nvs_set_u32(h, VP_K_WIFI, s_wifi);
-    nvs_set_u32(h, VP_K_BLE, s_ble);
-    nvs_set_u64(h, VP_K_XP, s_xp);
-    nvs_set_u32(h, VP_K_BIRTH, s_birth);
-    nvs_set_u8(h, VP_K_AVATAR, s_avatar);
-    nvs_set_u32(h, VP_K_SCANS, s_scans);
-    nvs_set_u32(h, VP_K_PETS, s_pets);
-    nvs_set_u32(h, VP_K_TREATS, s_treats);
-    nvs_set_u32(h, VP_K_HISCORE, s_hiscore);
-    nvs_set_u32(h, VP_K_PLAYS, s_plays);
-    nvs_set_str(h, VP_K_NAME, s_name);
-    nvs_commit(h);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, VP_K_WIFI, s_wifi));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, VP_K_BLE, s_ble));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u64(h, VP_K_XP, s_xp));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, VP_K_BIRTH, s_birth));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u8(h, VP_K_AVATAR, s_avatar));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, VP_K_SCANS, s_scans));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, VP_K_PETS, s_pets));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, VP_K_TREATS, s_treats));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, VP_K_HISCORE, s_hiscore));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, VP_K_PLAYS, s_plays));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_str(h, VP_K_NAME, s_name));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_commit(h));
     nvs_close(h);
 }
 

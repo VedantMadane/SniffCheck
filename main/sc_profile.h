@@ -19,6 +19,8 @@
 #define SC_SNIFF_MAX_APS       16
 
 #define SC_BLE_ADV_RING_CAP    48
+
+#define SC_BLE_ADV_DATA_MAX    31
 #define SC_PROBE_FRAME_RING_CAP 48
 #define SC_SSID_DETAIL_CAP     32
 #define SC_SSID_BEACON_CAP     16
@@ -27,6 +29,8 @@
 #define SC_ANQP_DETAIL_CAP     24
 
 #define SC_TWIN_MAX_FINDINGS   12
+
+#define SC_PDC_MAX_EDGES       96
 
 #else
 
@@ -44,6 +48,9 @@
 #define SC_SNIFF_MAX_APS       128
 
 #define SC_BLE_ADV_RING_CAP    128
+
+#define SC_BLE_ADV_DATA_MAX    255
+
 #define SC_PROBE_FRAME_RING_CAP 128
 #define SC_SSID_DETAIL_CAP     64
 #define SC_SSID_BEACON_CAP     32
@@ -52,5 +59,7 @@
 #define SC_ANQP_DETAIL_CAP     64
 
 #define SC_TWIN_MAX_FINDINGS   48
+
+#define SC_PDC_MAX_EDGES       512
 
 #endif

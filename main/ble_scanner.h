@@ -114,6 +114,28 @@ typedef struct {
 
     int32_t            _rssi_sum;
     uint16_t           _rssi_count;
+
+    uint32_t           adv_first_ms;
+    uint32_t           adv_last_ms;
+    uint16_t           adv_frames;
+    uint16_t           adv_scan_rsps;
+
+    int8_t             rssi_min;
+    int8_t             rssi_max;
+    uint8_t            rssi_sd;
+
+    uint16_t           itvl_mean_ms;
+    uint16_t           itvl_jitter_ms;
+    uint16_t           itvl_min_ms;
+    uint16_t           itvl_max_ms;
+
+    float              _rssi_mean;
+    float              _rssi_m2;
+    float              _itvl_mean;
+    float              _itvl_m2;
+    uint16_t           _itvl_n;
+    uint32_t           _last_adv_ms;
+    bool               _have_adv;
 } ble_device_t;
 
 typedef struct {
@@ -126,6 +148,8 @@ esp_err_t ble_scanner_init(void);
 esp_err_t ble_scanner_deinit(void);
 
 const char *ble_proximity_label(uint16_t distance_dm);
+
+const char *ble_phy_name(uint8_t phy);
 
 esp_err_t ble_scan_run(ble_results_t *out, uint32_t duration_ms);
 

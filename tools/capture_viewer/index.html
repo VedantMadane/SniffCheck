@@ -23,6 +23,17 @@
   --wifi:#2f7fd6; --ble:#7a52d6; --track:#e5701a; --drone:#d6489a;
 
   --safe:#2fa85a; --ok:#e0a500; --caution:#e5701a; --avoid:#d63838;
+
+   
+  --hdr:#e0701a;
+   
+  --s1:#2f7fd6; --s2:#7a52d6; --s3:#e5701a; --s4:#d6489a;
+  --s5:#2fa85a; --s6:#0f9b9b;
+   
+  --cbw:2.5px; --cbs:solid; --cardr:12px;
+   
+  --panelop:100%; --panelblur:0px;
+  --bgsize:cover; --bgpos:center; --bgrep:no-repeat; --bgdim:0; --bgblur:0px;
 }
 
 body.dark{
@@ -33,6 +44,9 @@ body.dark{
   --onacc:#3f2a14; --code:#1a1206;
   --wifi:#6db3f2; --ble:#b79cf0; --track:#ffab5e; --drone:#f07ac0;
   --safe:#5ec98a; --ok:#ffc94a; --caution:#ff9f5e; --avoid:#ff6b6b;
+  --hdr:#ffcf4a;
+  --s1:#6db3f2; --s2:#b79cf0; --s3:#ffab5e; --s4:#f07ac0;
+  --s5:#5ec98a; --s6:#4fd0d0;
 }
 
 .hotbtn{position:fixed;right:14px;bottom:14px;z-index:9;width:44px;height:44px;
@@ -120,10 +134,29 @@ body{margin:0;color:var(--txt);
  
 strong,b{color:var(--bold,inherit)}
 em,i{color:var(--ital,inherit)}
-body.hasbg::before{content:"";position:fixed;inset:0;z-index:-1;background-image:var(--bgimg);
-  background-size:cover;background-position:center;background-attachment:fixed}
+ 
+body.hasbg::before{content:"";position:fixed;inset:-4%;z-index:-2;background-image:var(--bgimg);
+  background-size:var(--bgsize,cover);background-position:var(--bgpos,center);
+  background-repeat:var(--bgrep,no-repeat);background-attachment:fixed;
+  filter:blur(var(--bgblur,0px))}
+body.hasbg::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:var(--bg);opacity:calc(var(--bgdim,0)/100)}
+ 
+body.hasbg{--panelop:92%;--panelblur:7px}
+body.hasbg section,body.hasbg .smcard,body.hasbg .card,body.hasbg .dcard,
+body.hasbg .smlist,body.hasbg .chart,body.hasbg .tile,body.hasbg header,
+body.hasbg #bar,body.hasbg #hotmenu,body.hasbg #expsheet,body.hasbg #smsheet,
+body.hasbg #drop{
+  background:var(--panel);
+  background:color-mix(in srgb,var(--panel) var(--panelop,92%),transparent);
+  backdrop-filter:blur(var(--panelblur,7px));
+  -webkit-backdrop-filter:blur(var(--panelblur,7px))}
+body.hasbg .stats>div,body.hasbg .smtab,body.hasbg .fchip{
+  background:var(--panelw);
+  background:color-mix(in srgb,var(--panelw) var(--panelop,92%),transparent)}
+body.hasbg .smtab.act,body.hasbg .fchip.on{background:var(--acc)}
 
-h2{font-size:13px;margin:0 0 12px;color:var(--txt);letter-spacing:.7px;
+h2{font-size:13px;margin:0 0 12px;color:var(--hdr,var(--txt));letter-spacing:.7px;
   text-transform:uppercase;font-weight:900;display:flex;align-items:center;gap:8px}
 
 header{display:flex;align-items:center;gap:10px;padding:4px 12px;
@@ -504,6 +537,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   color:#181206;text-align:center;border:3px solid var(--line);
   box-shadow:4px 4px 0 var(--sh)}
 
+ 
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:9px}
 .tile{background:var(--panel);border:2.5px solid var(--line);
   border-left:7px solid var(--c,var(--line));border-radius:11px;padding:9px 11px;
@@ -517,6 +551,84 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   letter-spacing:.4px}
 
 .chansum{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+ 
+.chgrp{display:flex;flex-direction:column;gap:6px;min-width:0}
+*+.chgrp{margin-top:12px}
+h4+.chgrp{margin-top:0}           
+.chgrp>.gl{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--dim)}
+.chgrp>.chansum{align-items:stretch}
+
+ 
+.memc{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;align-items:baseline;
+  font-size:11.5px;font-variant-numeric:tabular-nums}
+.memc .mrk{color:var(--dim);font-weight:800;font-size:9.5px;letter-spacing:.5px;
+  text-transform:uppercase;white-space:nowrap}
+.memc .mrv{min-width:0;overflow-wrap:anywhere}
+.memc .mrv .hid{font-size:10.5px}
+.mstw{display:flex;flex-wrap:wrap;gap:3px 5px;margin-bottom:2px}
+.mst{font-size:10px;font-weight:700;padding:1px 5px;border-radius:5px;
+  border:1px solid var(--line2);color:var(--dim);white-space:nowrap}
+.mst.warn{color:var(--caution);border-color:var(--caution)}
+
+ 
+.secban{display:flex;align-items:center;gap:11px;padding:10px 12px;
+  border:2px solid var(--line);border-radius:10px;background:var(--panelw);
+  border-left-width:7px}
+.secban.t-safe{border-left-color:var(--safe)}
+.secban.t-ok{border-left-color:var(--ok)}
+.secban.t-caution{border-left-color:var(--caution)}
+.secban.t-avoid{border-left-color:var(--avoid)}
+.secban .sv{flex:none;text-align:center;line-height:1.05}
+.secban .sv b{display:block;font-size:24px;font-weight:900;
+  font-variant-numeric:tabular-nums}
+.secban .sv span{font-size:9px;font-weight:800;letter-spacing:.4px;
+  text-transform:uppercase;color:var(--dim)}
+.secban.t-safe .sv b{color:var(--safe)}
+.secban.t-ok .sv b{color:var(--ok)}
+.secban.t-caution .sv b{color:var(--caution)}
+.secban.t-avoid .sv b{color:var(--avoid)}
+.secban .st{min-width:0}
+.secban .st .hl{font-weight:800;font-size:13.5px;line-height:1.3}
+.secban .st .sb{font-size:11px;color:var(--dim);line-height:1.35;margin-top:2px}
+.secrisk{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));
+  gap:7px}
+.secrisk .rk{display:flex;flex-direction:column;gap:1px;text-align:left;
+  padding:7px 9px;border:1.5px solid var(--line2);border-radius:9px;
+  background:var(--panel);color:var(--txt);font:inherit;cursor:pointer;
+  border-left:4px solid var(--c,var(--line2))}
+.secrisk .rk:hover{background:var(--panelw)}
+.secrisk .rk b{font-size:18px;font-weight:900;color:var(--c,var(--txt));
+  font-variant-numeric:tabular-nums;line-height:1}
+.secrisk .rk span{font-size:10px;color:var(--dim);letter-spacing:.3px;
+  text-transform:uppercase;overflow-wrap:anywhere}
+.secrisk .rk.zero{opacity:.55;cursor:default;border-left-color:var(--line2)}
+.secrisk .rk.zero b{color:var(--dim)}
+
+ 
+.rfgrid{display:flex;flex-direction:column;gap:12px}
+.rfrow{display:flex;flex-direction:column;gap:6px;min-width:0;
+  padding:9px 11px;border:1.5px dotted var(--line2);border-radius:10px;
+  background:var(--panelw)}
+.rfrow>.rl{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
+  font-size:10.5px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--dim)}
+.rfrow>.rl .of{font-weight:700;letter-spacing:0;text-transform:none;font-size:11px;
+  margin-left:auto;color:var(--dim);opacity:.85}
+.rfrow>.chstack{height:14px;border-radius:5px}
+.rfchips{display:flex;flex-wrap:wrap;gap:6px}
+.rfrow>.hid{font-size:11px;line-height:1.35}
+ 
+.pchip{display:inline-flex;align-items:center;gap:6px;max-width:100%;
+  background:var(--panel);color:var(--txt);border:1.5px solid var(--line);
+  border-radius:9px;padding:3px 8px;font:inherit;font-size:11.5px;font-weight:700;
+  box-shadow:1.5px 1.5px 0 var(--sh);cursor:pointer}
+.pchip:active{transform:translate(1.5px,1.5px);box-shadow:0 0 0 var(--sh)}
+.pchip>i{width:9px;height:9px;border-radius:2px;flex:none;background:var(--c,var(--acc))}
+.pchip>.pn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pchip>.pv{font-weight:900;font-variant-numeric:tabular-nums;color:var(--c,var(--txt))}
+.pchip>.pp{font-size:10.5px;font-weight:800;color:var(--dim);
+  font-variant-numeric:tabular-nums}
 
 .topvl{font-size:11.5px;color:var(--dim);margin:0 0 8px}
 .topvl b{color:var(--txt);font-weight:700}
@@ -525,8 +637,44 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   text-transform:uppercase;font-size:10.5px}
 .iclg .wrap{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px}
 .iclg .it{display:inline-flex;align-items:center;gap:5px}
-.stats{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px}
-.stats b{color:var(--dim);font-weight:600;margin-right:5px}
+ 
+.smcard{min-width:0;background:var(--panel);
+  border:var(--cbw) var(--cbs) var(--line);border-radius:var(--cardr);
+  padding:12px 14px;box-shadow:3px 3px 0 var(--sh)}
+.smcard>*+*{margin-top:10px}
+ 
+.smcard.tone-safe{border-color:var(--safe)}
+.smcard.tone-ok{border-color:var(--ok)}
+.smcard.tone-caution{border-color:var(--caution)}
+.smcard.tone-avoid{border-color:var(--avoid)}
+.smcard.tone-info{border-color:var(--wifi)}
+.smcard>.crowd,.smcard>.chart,.smcard>.smlist,.smcard>.dpwrap,.smcard>.epwrap,
+.smcard>.stats{background:none;border:0;border-radius:0;padding:0;margin:0;
+  box-shadow:none}
+ 
+.smch,.smcard>*>h4:first-child,.smcard>*>.ttl:first-child,
+.smcard>*>.dphead:first-child,.smcard>*>.ephead:first-child{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-size:11px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--hdr,var(--acc));margin:0 0 10px;padding-bottom:7px;
+  border-bottom:1.5px dashed var(--line2)}
+ 
+.smcard .tt,.smch .tt{margin-left:auto;font-size:10.5px;font-weight:800;
+  letter-spacing:.3px;text-transform:none;color:var(--dim)}
+.smcard>*>.ttl .tt{color:#fff;padding:1px 7px;border-radius:6px}
+ 
+.smcard>*>h4~h4{font-size:10px;color:var(--dim);margin:12px 0 6px;
+  padding-bottom:0;border-bottom:0;letter-spacing:.5px}
+
+ 
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
+  gap:9px;font-size:13px;align-items:start}
+.stats>div{min-width:0;display:flex;flex-direction:column;gap:5px;
+  padding:8px 10px;border:1.5px dotted var(--line2);border-radius:9px;
+  background:var(--panelw)}
+.stats b{display:block;color:var(--dim);font-weight:800;font-size:10px;
+  letter-spacing:.5px;text-transform:uppercase;margin:0}
+.stats .hid{font-size:11px;line-height:1.35}
 
 .envb{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
 .envb .b{display:flex;align-items:center;gap:6px;background:var(--panel);
@@ -542,9 +690,14 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   border-radius:10px;padding:9px 11px}
 .crowd .ttl{font-size:12px;font-weight:800;color:var(--dim);
   text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
-.crowd .est{display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:7px}
-.crowd .est .r{display:flex;align-items:baseline;gap:6px;font-size:12.5px}
-.crowd .est .r b{color:var(--dim);font-weight:600}
+ 
+.crowd .est{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:8px;margin-bottom:9px;align-items:start}
+.crowd .est .r{display:flex;flex-direction:column;gap:3px;min-width:0;
+  font-size:12.5px;padding:7px 9px;border:1.5px dotted var(--line2);
+  border-radius:9px;background:var(--panelw)}
+.crowd .est .r b{color:var(--dim);font-weight:800;font-size:10px;
+  letter-spacing:.5px;text-transform:uppercase}
 .crowd .est .r .v{color:var(--txt);font-weight:800}
 .crowd .evid{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:7px}
 .crowd .evid .e{display:flex;align-items:center;gap:4px;font-size:12px;
@@ -577,8 +730,8 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .crowd .est .r .v.c-info{color:var(--wifi)}
 .crowd .est .r .v.c-rot{color:var(--drone)}
  
-.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
-  gap:10px;margin-top:10px}
+.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  gap:14px;align-items:start}
 .chart{background:var(--panel);border:2.5px solid var(--line);border-radius:11px;
   padding:10px 12px;box-shadow:2px 2px 0 var(--sh)}
 .chart h4{margin:0 0 8px;font-size:11px;font-weight:800;color:var(--dim);
@@ -590,15 +743,18 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 .chleg .k{display:inline-flex;align-items:center;gap:5px;color:var(--dim)}
 .chleg .k i{width:10px;height:10px;border-radius:2px;flex:none}
 .chleg .k b{color:var(--txt);font-weight:700}
-.chrow{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;
-  font-size:11.5px;margin-top:5px}
-.chrow .rl{color:var(--dim);white-space:nowrap;max-width:96px;overflow:hidden;
-  text-overflow:ellipsis}
-.chrow .rb{height:11px;border-radius:3px;background:var(--panelw);
+ 
+.chrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;
+  align-items:baseline;font-size:11.5px;margin-top:7px;padding-right:1px}
+.chrow .rl{grid-column:1;color:var(--dim);min-width:0;overflow-wrap:anywhere}
+ 
+.chrow .rb{grid-column:1/-1;grid-row:2;height:9px;border-radius:3px;
+  background:var(--panelw);
+  background:color-mix(in srgb,var(--line2) 20%,transparent);
   border:1px solid var(--line2);overflow:hidden}
 .chrow .rb i{display:block;height:100%}
-.chrow .rn{color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums;
-  text-align:right;min-width:2ch}
+.chrow .rn{grid-column:2;grid-row:1;color:var(--txt);font-weight:800;
+  font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .chhist{display:flex;align-items:flex-end;gap:4px;height:72px;margin-top:4px}
 .chhist .col{flex:1;display:flex;flex-direction:column;align-items:center;
   justify-content:flex-end;gap:3px;height:100%}
@@ -633,8 +789,7 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
   overflow:hidden;text-overflow:ellipsis}
 .smtab.act{background:var(--acc);color:var(--onacc,#3f2a14);border-color:var(--line)}
 .smtab:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}
-.smcontent{min-width:0}
-.smcontent>.charts:not(:first-child),.smcontent>.stats:not(:first-child){margin-top:14px}
+.smcontent{min-width:0;display:flex;flex-direction:column;gap:14px}
 @media(max-width:620px){
   .smwrap{grid-template-columns:1fr;gap:10px}
   .smtabs{flex-direction:row;overflow-x:auto;position:static;padding-bottom:2px;
@@ -769,8 +924,11 @@ a{color:var(--acc2);text-decoration:none;font-weight:700}
 
 .chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1 1 100%}
 .chlbl{font-size:12px;color:var(--dim);margin-right:2px}
-.fchip{background:var(--panel);color:var(--txt);border:2px solid var(--line);
-  border-radius:14px;padding:3px 10px;font-size:12.5px;font-weight:700;cursor:pointer}
+.fchip{background:var(--panel);color:var(--txt);border:1.5px solid var(--line);
+  border-radius:9px;padding:3px 9px;font-size:11.5px;font-weight:700;cursor:pointer;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  box-shadow:1.5px 1.5px 0 var(--sh)}
+.fchip:active{transform:translate(1.5px,1.5px);box-shadow:0 0 0 var(--sh)}
 .fchip.on{background:var(--acc);color:var(--line);border-color:var(--line);font-weight:900}
 .fchip .chn{opacity:.7;font-size:11px}
 .fchip.on .chn{opacity:.9}
@@ -1040,7 +1198,7 @@ details>summary{cursor:pointer;color:var(--acc);font-weight:700;font-size:13px}
 
 const SC_VARS=["bg","panel","panelw","band","line","line2","txt","dim","acc",
   "acc2","onacc","purple","sh","trk","code","wifi","ble","track","drone",
-  "safe","ok","caution","avoid"];
+  "safe","ok","caution","avoid","hdr","s1","s2","s3","s4","s5","s6"];
 const SC_THEMES={
  "sniffcheck":{label:"SniffCheck Yellow",dark:false,vars:{}},
  "sniffcheck-dark":{label:"SniffCheck Dark",dark:true,vars:{}},
@@ -1148,6 +1306,30 @@ const SC_THEMES={
   caution:"#ff9e64",avoid:"#ff6b8a"}}
 };
 let curTheme="sniffcheck";
+
+
+
+
+const SC_OPT_D={bs:"solid",bw:2.5,rad:12,op:92,pblur:7,
+  fit:"cover",pos:"center",dim:35,iblur:0};
+function scOptions(){
+  let c;try{c=JSON.parse(localStorage.getItem("sc-custom"));}catch(e){}
+  const o=(c&&c.o&&typeof c.o==="object")?c.o:{};
+  return Object.assign({},SC_OPT_D,o);
+}
+function applyOptions(){
+  const o=scOptions(),s=document.body.style;
+  s.setProperty("--cbs",o.bs);
+  s.setProperty("--cbw",(+o.bw||SC_OPT_D.bw)+"px");
+  s.setProperty("--cardr",(+o.rad||0)+"px");
+  s.setProperty("--panelop",(+o.op||SC_OPT_D.op)+"%");
+  s.setProperty("--panelblur",(+o.pblur||0)+"px");
+  s.setProperty("--bgsize",o.fit==="tile"?"auto":o.fit==="contain"?"contain":"cover");
+  s.setProperty("--bgrep",o.fit==="tile"?"repeat":"no-repeat");
+  s.setProperty("--bgpos",o.pos||"center");
+  s.setProperty("--bgdim",String(+o.dim||0));
+  s.setProperty("--bgblur",(+o.iblur||0)+"px");
+}
 function applyTheme(id){
   if(id==="custom"){applyCustomReport();curTheme="custom";return;}
   if(!SC_THEMES[id])id="sniffcheck";
@@ -1157,6 +1339,7 @@ function applyTheme(id){
   s.removeProperty("--bold");s.removeProperty("--ital");s.removeProperty("--bgimg");
   document.body.classList.remove("hasbg");
   document.body.classList.toggle("dark",!!t.dark);
+  applyOptions();
   curTheme=id;
 }
 
@@ -1168,13 +1351,16 @@ function applyCustomReport(){
   const s=document.body.style;
   SC_VARS.forEach(v=>s.removeProperty("--"+v));
   document.body.classList.toggle("dark",!!c.d);
-  const map={bg:"bg",panel:"panel",ink:"txt",line:"line",accent:"acc",pname:"acc2",muted:"dim",
-    onacc:"onacc",sh:"sh",safe:"safe",caution:"caution",avoid:"avoid",
-    wifi:"wifi",ble:"ble",track:"track",drone:"drone"};
+  const map={bg:"bg",panel:"panel",panelw:"panelw",ink:"txt",line:"line",
+    accent:"acc",pname:"acc2",muted:"dim",hdr:"hdr",
+    onacc:"onacc",sh:"sh",safe:"safe",ok:"ok",caution:"caution",avoid:"avoid",
+    wifi:"wifi",ble:"ble",track:"track",drone:"drone",
+    s1:"s1",s2:"s2",s3:"s3",s4:"s4",s5:"s5",s6:"s6"};
   Object.keys(map).forEach(k=>{if(c.v[k])s.setProperty("--"+map[k],c.v[k]);});
   ["bold","ital"].forEach(k=>{if(c.v[k])s.setProperty("--"+k,c.v[k]);else s.removeProperty("--"+k);});
   if(c.img){s.setProperty("--bgimg","url("+c.img+")");document.body.classList.add("hasbg");}
   else{s.removeProperty("--bgimg");document.body.classList.remove("hasbg");}
+  applyOptions();
 }
 const RFONTS={system:"system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",
   rounded:"ui-rounded,'SF Pro Rounded','Segoe UI Rounded',Nunito,system-ui,sans-serif",
@@ -1293,7 +1479,7 @@ addEventListener("storage",e=>{if(e&&/^sc-(theme|custom|font)$/.test(e.key||""))
   </div>
 </main>
 
-<script id="sc-data" type="application/json"></script>
+<script id="sc-data" type="application/json"><!--SC_DATA_ISLAND--></script>
 
 <script>
 "use strict";
@@ -1798,7 +1984,19 @@ function kvGrid(rec){
   return h+"</div>";
 }
 
-const F={q:"",kind:"",cat:[],vendor:"",cls:"",grade:"",threat:"",band:"",channel:""};
+const F={q:"",kind:"",cat:[],vendor:"",cls:"",grade:"",threat:"",band:"",channel:"",
+  addr:"",sec:"",mix:""};
+// BLE address privacy, grouped the way it actually behaves (Phase 126d). RPA and
+// NRPA rotate, so they cannot be followed across time; public and static_random
+// stay put — static_random only until the device reboots, which is why the group
+// is called "stable" and not "permanent". Shared by the RF Spectrum block and the
+// filter, so a drill-in always selects exactly the devices the number counted.
+function bleAddrGroup(r){
+  const s=String(r&&r.addr_subtype||"").toLowerCase();
+  if(s==="rpa"||s==="nrpa")return "rotating";
+  if(s==="public"||s==="static_random")return "stable";
+  return "unknown";
+}
 function fActiveVal(v){return Array.isArray(v)?v.length>0:!!v;}
 function filterActive(){return Object.values(F).some(fActiveVal);}
 function activeCount(){let n=0;for(const k in F)if(fActiveVal(F[k]))n++;return n;}
@@ -1808,6 +2006,10 @@ function match(r,kind){
   if(F.band){if(kind!=="wifi")return false;
     if((r.band_5g?"5":"2.4")!==F.band)return false;}
   if(F.channel){if(kind!=="wifi"||String(r.channel)!==F.channel)return false;}
+  if(F.addr){if(kind!=="ble"||bleAddrGroup(r)!==F.addr)return false;}
+  if(F.sec){if(kind!=="wifi"||!secMatch(r,F.sec))return false;}
+  if(F.mix){if(kind!=="wifi"&&kind!=="ble")return false;
+    if(mixBucket(r,kind)!==F.mix)return false;}
   if(F.cat.length&&!F.cat.includes(fCat(r)))return false;
   if(F.vendor&&fVendor(r)!==F.vendor)return false;
   if(F.cls&&fClass(r)!==F.cls)return false;
@@ -2222,10 +2424,18 @@ function iconLegend(){
       '"/></svg>'+esc(lb)+"</span>").join("")+"</div></details>";
 }
 
+
+
+
+
+function vendCounts(rows){
+  const vc={};let none=0;
+  for(const r of rows){const v=fVendor(r);if(v)vc[v]=(vc[v]||0)+1;else none++;}
+  return {vc:vc,none:none,
+    sorted:Object.entries(vc).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))};
+}
 function topVendLine(rows){
-  const vc={};
-  for(const r of rows){const v=fVendor(r);if(v)vc[v]=(vc[v]||0)+1;}
-  const varr=Object.entries(vc).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const varr=vendCounts(rows).sorted.slice(0,5);
   if(!varr.length)return "";
   return '<div class="topvl">top vendors: '+
     varr.map(([v,n])=>"<b>"+esc(v)+"</b>&hairsp;×"+n).join(" · ")+"</div>";
@@ -2361,21 +2571,6 @@ function chStack(title,segs){
       on.map(s=>s.label+" "+s.n).join(", "))+'">'+bars+"</div>"+
     '<div class="chleg">'+leg+"</div></div>";
 }
-function chBars(title,rows,max){
-  rows=rows.filter(r=>r.n>0).sort((a,b)=>b.n-a.n);
-  if(!rows.length)return "";
-  if(max)rows=rows.slice(0,max);
-  const top=rows[0].n;
-  const body=rows.map(r=>{
-    const inner='<span class="rl" title="'+esc(r.label)+'">'+esc(r.label)+
-      '</span><span class="rb"><i style="width:'+(100*r.n/top).toFixed(1)+
-      '%;background:'+(r.color||"var(--acc)")+'"></i></span><span class="rn">'+r.n+"</span>";
-    return r.act?
-      '<button type="button" class="chrow clk" data-act="'+esc(r.act)+'">'+inner+"</button>":
-      '<div class="chrow">'+inner+"</div>";
-  }).join("");
-  return '<div class="chart"><h4>'+esc(title)+'</h4>'+body+"</div>";
-}
 function chHist(title,bins){
   const tot=bins.reduce((s,b)=>s+b.n,0);
   if(!tot)return "";
@@ -2392,13 +2587,11 @@ function chHist(title,bins){
       bins.map(b=>b.label+" "+b.n).join(", "))+'">'+cols+"</div></div>";
 }
 
-function chartComposition(){
-  return chStack("Result composition",[
-    {label:"Wi-Fi",n:FW.length,color:"var(--wifi)",act:FW.length?"wifi":""},
-    {label:"BLE",n:FB.length,color:"var(--ble)",act:FB.length?"ble":""},
-    {label:"Trackers",n:FT.length,color:"var(--track)",act:FT.length?"track":""},
-    {label:"Drones",n:FD.length,color:"var(--drone)",act:FD.length?"drone":""}]);
-}
+
+
+
+
+
 function chartThreat(){
   const all=[...FW,...FB,...FT,...FD];
   const tc=[0,0,0,0];
@@ -2421,18 +2614,6 @@ function chartSignal(){
   for(const r of all){const b=rssiLevel(r.rssi);if(b.lvl<0)continue;
     sb[4-b.lvl].n++;}
   return chHist("Signal strength (dBm)",sb);
-}
-function chartChannels(){
-  const chc={};
-  for(const r of FW)if(r.channel!=null)chc[r.channel]=(chc[r.channel]||0)+1;
-  return chBars("Wi-Fi channel activity",Object.keys(chc).map(c=>({label:"ch "+c,
-    n:chc[c],color:Number(c)>14?"var(--ble)":"var(--wifi)",act:"ch:"+c})),10);
-}
-function chartCategories(){
-  const cat={};
-  for(const r of [...FW,...FB]){const c=fCat(r);if(c)cat[c]=(cat[c]||0)+1;}
-  return chBars("Device categories",Object.keys(cat).map(c=>({label:c,n:cat[c],
-    color:"var(--acc)",act:"cat:"+c})),8);
 }
 
 function smMiniList(title,rows){
@@ -2591,14 +2772,627 @@ function blkCrossScan(){
 function blkPcap(){
   if(filterActive()||!(M.pcap&&M.pcap.ran!==false&&M.pcap.status))return "";
   const p=M.pcap;
-  return '<div class="stats"><div><b>Packet capture</b>'+esc(p.status)+
-    " · "+(p.packets??0)+" pkts"+
-    (p.dropped?" · "+p.dropped+" dropped":"")+
-    (p.bytes?" · "+Math.round(p.bytes/1024)+" KB":"")+
-    (Array.isArray(p.channels)&&p.channels.length?" · ch "+p.channels.join(","):"")+
-    ' <a class="mono" href="'+esc(p.download||"/api/pcap/latest")+
-    '">download .pcap</a></div></div>';
+  
+  
+  const cell=(k,v)=>"<div><b>"+esc(k)+"</b><span>"+v+"</span></div>";
+  return '<div class="stats">'+
+    cell("status",esc(p.status))+
+    cell("packets",(p.packets??0)+(p.dropped?" <span class=\"hid\">("+p.dropped+
+      " dropped)</span>":""))+
+    (p.bytes?cell("size",Math.round(p.bytes/1024)+" KB"):"")+
+    (Array.isArray(p.channels)&&p.channels.length?
+      cell("channels",esc(p.channels.join(", "))):"")+
+    cell("file",'<a class="mono" href="'+esc(p.download||"/api/pcap/latest")+
+      '">download .pcap</a>')+
+    "</div>";
 }
+
+
+
+
+
+
+
+
+
+
+function sdRow(label,n,act,checked,title){
+  if(!checked)return '<span class="fchip" title="'+esc(title||"")+
+    '" style="opacity:.65">'+esc(label)+' <span class="chn">not recorded</span></span>';
+  return '<button type="button" class="fchip'+(n?"":" hid")+'" data-act="'+act+
+    '" title="'+esc(title||"")+'">'+esc(label)+' <span class="chn">'+n+
+    "</span></button>";
+}
+
+
+function sdTwins(){
+  let susp=0,clone=0,conflict=0,total=0;
+  if(M.twins)for(const {rec} of M.twins.values()){
+    total++;
+    const d=String(rec.decision||"");
+    if(d==="high_confidence_clone")clone++;
+    else if(d==="twin_suspect")susp++;
+    const ev=rec.evidence||{};
+    if(ev.security_mismatch||ev.rsn_mismatch||ev.pmf_mismatch||ev.wps_mismatch)
+      conflict++;
+  }
+  return {susp:susp,clone:clone,conflict:conflict,total:total};
+}
+function sdDeauth(){
+  let n=0;
+  if(M.alerts)for(const a of M.alerts.values())
+    if(String(a.rec&&a.rec.rule_id||"")==="deauth_burst")n++;
+  const fc=M.footer&&M.footer.counters;
+  
+  
+  return {n:n,checked:!!(fc&&fc.alerts_fired!=null)||!!(M.alerts&&M.alerts.size)};
+}
+function blkSecDeep(){
+  const aps=FW.length;
+  const tw=sdTwins(),da=sdDeauth();
+  if(!aps&&!tw.total&&!da.n)return "";
+  let open=0,wps=0,nopmf=0,hidden=0,odd=0,unsampled=0;
+  for(const r of FW){
+    if(secTier(r)==="open")open++;
+    if(secFlag(r,"wps"))wps++;
+    if(secFlag(r,"nopmf"))nopmf++;
+    if(secFlag(r,"hidden"))hidden++;
+    if(secFlag(r,"rsnodd"))odd++;
+    if(!secSampled(r))unsampled++;
+  }
+  const rows=
+    sdRow("open networks",open,"sec:t:open",!!aps,
+      "no encryption at all — anything sent over them is readable")+
+    sdRow("WPS-enabled APs",wps,"sec:wps",!!aps,
+      "lower bound — only beacon-sampled APs report WPS")+
+    sdRow("encrypted, management frames unprotected",nopmf,"sec:nopmf",!!aps,
+      "RSN present but PMF not required — deauthentication still works")+
+    sdRow("hidden / unnamed networks",hidden,"sec:hidden",!!aps,
+      "the name is not broadcast; this is not a security control")+
+    sdRow("contradictory RSN configuration",odd,"sec:rsnodd",!!aps,
+      "an RSN element on a network whose auth mode reads open — may equally be a "+
+      "parse artifact as a real misconfiguration")+
+    sdRow("evil-twin candidates",tw.susp+tw.clone,"alerts",!!tw.total,
+      tw.total?tw.clone+" high-confidence clone(s), "+tw.susp+
+        " suspect(s) — opens Notifications, where the pair evidence lives":
+        "no pair findings in this capture — either none were found or this "+
+        "capture predates pair findings")+
+    sdRow("pairs with conflicting security profiles",tw.conflict,"alerts",!!tw.total,
+      "pair findings whose evidence includes a security/RSN/PMF/WPS mismatch")+
+    sdRow("deauthentication bursts",da.n,"alerts",da.checked,
+      da.checked?"alerts raised by the deauth_burst rule":
+        "no alert records and no fired-alert counter in this capture, so nobody "+
+        "checked — this is not a zero");
+  return '<div class="chart"><h4>Security deep dive</h4>'+
+    '<div class="chgrp"><span class="gl">Findings</span>'+
+      '<div class="chansum">'+rows+"</div></div>"+
+    (aps?'<div class="chgrp"><span class="gl">Coverage</span><div class="chansum">'+
+      sdRow("APs never beacon-sampled",unsampled,"sec:nobeacon",true,
+        "WPS, RSN and PMF are unknown for these — the scan saw them but no beacon "+
+        "was captured, so absence of a flag is not absence of the feature")+
+      "</div></div>":"")+
+    '<div class="small hid">Counts findings that already exist — no detection runs '+
+    'here. Every number opens the devices behind it. A row reading '+
+    '<b>not recorded</b> means the check did not run in this capture, which is not '+
+    'the same as zero.</div></div>';
+}
+
+
+
+
+
+
+function blkVendors(){
+  const all=[...FW,...FB];
+  if(!all.length)return "";
+  const {sorted,none}=vendCounts(all);
+  if(!sorted.length)return "";
+  const named=all.length-none;
+  const top=sorted.slice(0,6),rest=sorted.slice(6);
+  const restN=rest.reduce((s,x)=>s+x[1],0);
+  
+  
+  const row=(label,n,act,title,i)=>
+    '<button type="button" class="chrow clk"'+(act?' data-act="'+act+'"':"")+
+    (title?' title="'+esc(title)+'"':"")+'><span class="rl">'+esc(label)+
+    '</span><span class="rb"><i style="width:'+(100*n/named).toFixed(1)+
+    "%;background:"+(i==null?"var(--dim)":"var(--s"+(i%6+1)+")")+
+    '"></i></span><span class="rn">'+
+    Math.round(100*n/named)+"%</span></button>";
+  return '<div class="chart"><h4>Vendor landscape</h4>'+
+    top.map(([v,n],i)=>row(v,n,"vend:"+encodeURIComponent(v),
+      v+" — "+n+" of "+named+" — tap to filter",i)).join("")+
+    (restN?row("Other ("+rest.length+" vendors)",restN,"",
+      restN+" records across "+rest.length+" further vendors"):"")+
+    '<div class="small hid">Share of the '+named+" record"+(named===1?"":"s")+
+    " with a known vendor"+
+    (none?"; "+none+" record"+(none===1?"":"s")+
+      " had no vendor and are excluded":"")+
+    ". Vendor comes from the OUI or the advertised company id, so a randomised "+
+    "address may show no vendor at all.</div></div>";
+}
+
+
+
+
+
+
+
+
+const MIX_BUCKETS=[
+  ["entap", "Enterprise AP",       ["ENT-AP"]],
+  ["conap", "Consumer AP",         ["CONSUMER"]],
+  ["infra", "Network infrastructure",["INFRA","STDS"]],
+  ["mobile","Mobile & computers",  ["PHONE","MOBILE","TABLET","LAPTOP"]],
+  ["wear",  "Wearables & audio",   ["WEAR","AUDIO"]],
+  ["iot",   "IoT & smart home",    ["IOT","IOT-HUB","LOCK","POS","MAKER","DEV-MOD"]],
+  ["track", "Trackers & beacons",  ["TRACKER","BEACON"]],
+  ["surv",  "Surveillance",        ["CAMERA"]],
+  ["survh", "Possible surveillance (OUI hint)",["CAM-OUI?"]],
+  ["veh",   "Vehicles & drones",   ["VEHICLE","AUTO","DRONE"]],
+  ["med",   "Medical",             ["MEDICAL"]],
+  ["inv",   "Investigation / attack",["INVEST","ATTACK"]],
+];
+const MIX_BY_CLASS={};
+MIX_BUCKETS.forEach(([k,,cls])=>cls.forEach(c=>MIX_BY_CLASS[c]=k));
+function mixBucket(r,kind){
+  const c=fClass(r);
+  if(c&&MIX_BY_CLASS[c])return MIX_BY_CLASS[c];
+  if(!c&&kind==="wifi"){const g=fGrade(r);
+    if(g==="ent")return "entap";
+    if(g==="con")return "conap";}
+  return "unknown";
+}
+function blkDeviceMix(){
+  const all=[...FW.map(r=>[r,"wifi"]),...FB.map(r=>[r,"ble"])];
+  if(!all.length)return "";
+  const mc={};
+  for(const [r,k] of all){const b=mixBucket(r,k);mc[b]=(mc[b]||0)+1;}
+  const tot=all.length;
+  
+  
+  
+  const MIX_COLOR={entap:"var(--s1)",conap:"var(--s1)",infra:"var(--s6)",
+    mobile:"var(--s2)",wear:"var(--s2)",iot:"var(--s5)",track:"var(--track)",
+    surv:"var(--avoid)",survh:"var(--caution)",veh:"var(--drone)",med:"var(--s6)",
+    inv:"var(--avoid)",unknown:"var(--dim)"};
+  const row=(k,label,n)=>n?'<button type="button" class="chrow clk" data-act="mix:'+k+
+    '" title="'+esc(label+" — "+n+" of "+tot+" — tap to filter")+
+    '"><span class="rl">'+esc(label)+'</span><span class="rb"><i style="width:'+
+    (100*n/tot).toFixed(1)+'%;background:'+(MIX_COLOR[k]||"var(--acc2)")+
+    '"></i></span><span class="rn">'+Math.round(100*n/tot)+"%</span></button>":"";
+  const known=MIX_BUCKETS.map(([k,label])=>row(k,label,mc[k]||0)).join("");
+  if(!known)return "";
+  return '<div class="chart"><h4>Device mix</h4>'+known+
+    row("unknown","Unclassified",mc.unknown||0)+
+    '<div class="small hid">Share of all '+tot+" Wi-Fi + BLE record"+
+    (tot===1?"":"s")+", from the device class the firmware assigned. "+
+    "<b>Possible surveillance (OUI hint)</b> is a vendor-OUI hint only — those "+
+    "devices were not observed behaving as cameras, and they are never counted as "+
+    "Surveillance. Access points with no class fall back to the EUI "+
+    "enterprise/consumer grade flag.</div></div>";
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+const SEC_TIERS=[
+  ["open",   "Open",            ["open"]],
+  ["weak",   "WEP / WPA",       ["wep","wpa-psk"]],
+  ["mixed",  "WPA/WPA2 mixed",  ["wpa-wpa2-psk"]],
+  ["wpa2",   "WPA2",            ["wpa2-psk"]],
+  ["w23",    "WPA2/WPA3 mixed", ["wpa2-wpa3-mixed"]],
+  ["wpa3",   "WPA3",            ["wpa3-sae"]],
+  ["ent",    "Enterprise",      ["wpa2-eap"]],
+  ["wapi",   "WAPI",            ["wapi-psk"]],
+];
+function secTier(r){
+  const a=String(r&&r.auth||"").toLowerCase();
+  for(const [k,,vals] of SEC_TIERS)if(vals.includes(a))return k;
+  return "unclassified";
+}
+
+
+
+
+
+
+
+
+
+
+
+function secSampled(r){return !!r.beacon_interval;}
+function secFlag(r,f){
+  if(f==="wps")return !!r.has_wps;
+  if(f==="pmf")return !!r.rsn_pmf_required;
+  if(f==="nopmf")return !!r.has_rsn&&!r.rsn_pmf_required;
+  if(f==="hidden")return !!r.hidden;
+  if(f==="nobeacon")return !secSampled(r);
+  
+  
+  
+  
+  if(f==="rsnodd")return !!r.has_rsn&&secTier(r)==="open";
+  return false;
+}
+function secMatch(r,v){
+  return v.slice(0,2)==="t:"?secTier(r)===v.slice(2):secFlag(r,v);
+}
+
+
+
+
+
+
+
+const SEC_POINTS={open:0,weak:10,mixed:50,wpa2:70,w23:85,wpa3:100,ent:90,wapi:70};
+function secApPoints(r){
+  const t=secTier(r);
+  if(!(t in SEC_POINTS))return null;          
+  return Math.max(0,SEC_POINTS[t]-(r.has_wps?10:0));
+}
+function secScore(rows){
+  let sum=0,n=0;
+  for(const r of rows){const p=secApPoints(r);if(p!==null){sum+=p;n++;}}
+  return n?{score:Math.round(sum/n),n:n}:null;
+}
+function secLine(label,n,act,title){
+  if(!n)return "";
+  return '<button type="button" class="fchip" data-act="'+act+'"'+
+    (title?' title="'+esc(title)+'"':"")+">"+esc(label)+' <span class="chn">'+n+
+    "</span></button>";
+}
+function blkSecPosture(){
+  if(!FW.length)return "";
+  const tc={},fc={wps:0,pmf:0,nopmf:0,hidden:0};
+  for(const r of FW){
+    const t=secTier(r);tc[t]=(tc[t]||0)+1;
+    for(const f in fc)if(secFlag(r,f))fc[f]++;
+  }
+  const tiers=SEC_TIERS.map(([k,label])=>secLine(label,tc[k]||0,"sec:t:"+k)).join("")+
+    secLine("unclassified",tc.unclassified||0,"sec:t:unclassified",
+      "auth mode missing or not recognised — excluded from the score");
+  const flags=secLine("WPS enabled",fc.wps,"sec:wps",
+      "WPS is on — a known offline-attack surface; lower bound, only "+
+      "beacon-sampled APs can report it")+
+    secLine("PMF required",fc.pmf,"sec:pmf",
+      "management frames protected (rsn_pmf_required) — lower bound: only "+
+      "beacon-sampled APs can report this")+
+    secLine("RSN without PMF",fc.nopmf,"sec:nopmf",
+      "encrypted, but management frames are unprotected — deauth still works")+
+    secLine("hidden SSID",fc.hidden,"sec:hidden",
+      "name not broadcast — this is not a security control");
+  const s=secScore(FW);
+  const unscored=FW.length-(s?s.n:0);
+  const open=tc.open||0,unsampled=FW.filter(r=>!secSampled(r)).length;
+
+  
+  
+  
+  let tone="safe",hl="Nothing alarming in the air",sb="";
+  if(open){
+    tone="avoid";
+    hl=open+" open network"+(open===1?"":"s")+" nearby";
+    sb="Anything sent over "+(open===1?"it":"them")+" is readable by anyone in range.";
+  }else if(fc.wps){
+    tone="caution";
+    hl="WPS enabled on "+fc.wps+" network"+(fc.wps===1?"":"s");
+    sb="WPS is a known offline-attack surface. Lower bound — only beacon-sampled APs report it.";
+  }else if(tc.weak){
+    tone="caution";
+    hl=tc.weak+" network"+(tc.weak===1?"":"s")+" on WEP or WPA";
+    sb="These are broken encryption schemes, not weak passwords.";
+  }else if(fc.nopmf){
+    tone="ok";
+    hl="Encrypted, but "+fc.nopmf+" accept"+(fc.nopmf===1?"s":"")+" deauth";
+    sb="RSN present without PMF required, so management frames are unprotected.";
+  }else{
+    sb="No open networks, WPS or broken encryption seen in this capture.";
+  }
+  
+  
+  if(unsampled)
+    sb+=" "+unsampled+" of "+FW.length+" AP"+(FW.length===1?"":"s")+
+        " were never beacon-sampled, so WPS/PMF are unknown for "+
+        (unsampled===1?"it":"them")+".";
+
+  const risk=(n,label,act,color,title)=>
+    n?'<button type="button" class="rk" data-act="'+act+'" style="--c:'+color+
+      '" title="'+esc(title)+'"><b>'+n+"</b><span>"+esc(label)+"</span></button>"
+     :'<span class="rk zero" title="'+esc(title)+'"><b>0</b><span>'+esc(label)+"</span></span>";
+
+  return '<div class="chart"><h4>Security posture'+
+    (s?'<span class="tt">'+s.score+"/100 configuration</span>":"")+"</h4>"+
+    '<div class="secban t-'+tone+'">'+
+      (s?'<div class="sv"><b>'+s.score+"</b><span>of 100</span></div>":"")+
+      '<div class="st"><div class="hl">'+esc(hl)+'</div>'+
+      '<div class="sb">'+esc(sb)+"</div></div></div>"+
+    '<div class="secrisk">'+
+      risk(open,"open","sec:t:open","var(--avoid)",
+        "no encryption at all")+
+      risk(fc.wps,"WPS on","sec:wps","var(--caution)",
+        "WPS enabled — lower bound, only beacon-sampled APs report it")+
+      risk(fc.nopmf,"no PMF","sec:nopmf","var(--caution)",
+        "encrypted but management frames unprotected — deauth still works")+
+      risk(fc.hidden,"hidden","sec:hidden","var(--wifi)",
+        "name not broadcast — this is not a security control")+
+    "</div>"+
+    '<div class="chgrp"><span class="gl">Encryption in use</span>'+
+      '<div class="chansum">'+tiers+"</div></div>"+
+    (flags?'<div class="chgrp"><span class="gl">Configuration flags</span>'+
+      '<div class="chansum">'+flags+"</div></div>":"")+
+    '<div class="small hid">The banner names the worst thing observed, not a '+
+    'verdict on your own network. Score = mean of per-AP points: open 0 · WEP/WPA 10 · '+
+    'WPA/WPA2 mixed 50 · WPA2 70 · WAPI 70 · WPA2/WPA3 85 · Enterprise 90 · '+
+    'WPA3 100, minus 10 if WPS is on. APs whose auth mode is unknown are excluded '+
+    'rather than scored 0. This describes how nearby networks are configured — it '+
+    'is not a safety rating. WPS and PMF counts are lower bounds — those fields '+
+    'are only populated for APs whose beacon was sampled. PMF-capable is not '+
+    'counted at all because the capture records only PMF-required.</div></div>';
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const CP_FLOOR=-95,CP_CEIL=-40;
+function cpWeight(rssi){
+  if(typeof rssi!=="number"||!isFinite(rssi))return null;
+  if(rssi<=CP_FLOOR)return 0;
+  if(rssi>=CP_CEIL)return 1;
+  return (rssi-CP_FLOOR)/(CP_CEIL-CP_FLOOR);
+}
+
+
+function cpLabel(p){return p>=5?"heavy":p>=2.5?"busy":p>=1?"moderate":"quiet";}
+function cpMedian(a){
+  if(!a.length)return null;
+  const s=a.slice().sort((x,y)=>x-y),m=s.length>>1;
+  return s.length%2?s[m]:Math.round((s[m-1]+s[m])/2);
+}
+
+
+
+function cpStations(){
+  const out={};
+  if(filterActive())return out;
+  const r=M.logs&&M.logs.station_log,st=r&&(r.stations||r.detail);
+  if(!Array.isArray(st))return out;
+  for(const s of st)if(s&&s.channel!=null)out[s.channel]=(out[s.channel]||0)+1;
+  return out;
+}
+function cpRow(c,top,sta){
+  const pct=top>0?Math.max(2,100*c.p/top):0;
+  const det=[c.n+" AP"+(c.n===1?"":"s"),
+    c.best!=null?"strongest "+c.best+" dBm":"",
+    c.med!=null?"median "+c.med+" dBm":"",
+    c.noRssi?c.noRssi+" without RSSI (unweighted)":"",
+    sta?sta+" client"+(sta===1?"":"s"):""].filter(Boolean).join(" · ");
+  return '<div class="cpch"><button type="button" class="chrow clk" data-act="ch:'+c.ch+
+    '" title="'+esc("channel "+c.ch+" — pressure "+c.p.toFixed(1)+" — "+det+
+      " — tap to filter")+'">'+
+    '<span class="rl">ch '+c.ch+'</span>'+
+    '<span class="rb"><i style="width:'+pct.toFixed(1)+'%;background:'+
+      (c.ch>14?"var(--ble)":"var(--wifi)")+'"></i></span>'+
+    '<span class="rn">'+cpLabel(c.p)+"</span></button>"+
+    '<div class="small hid">'+esc(det)+"</div></div>";
+}
+function blkChanPress(){
+  const by={};
+  for(const r of FW){
+    if(r.channel==null)continue;
+    const k=Number(r.channel);
+    const c=by[k]||(by[k]={ch:k,n:0,p:0,rs:[],best:null,med:null,noRssi:0});
+    c.n++;
+    const w=cpWeight(r.rssi);
+    if(w===null)c.noRssi++;
+    else{c.p+=w;c.rs.push(r.rssi);
+      if(c.best===null||r.rssi>c.best)c.best=r.rssi;}
+  }
+  const chans=Object.values(by);
+  if(!chans.length)return "";
+  for(const c of chans)c.med=cpMedian(c.rs);
+  const top=Math.max.apply(null,chans.map(c=>c.p))||0;
+  const sta=cpStations();
+  const group=(title,list)=>{
+    if(!list.length)return "";
+    list.sort((a,b)=>a.ch-b.ch);
+    return '<h4>'+title+"</h4>"+list.map(c=>cpRow(c,top,sta[c.ch]||0)).join("");
+  };
+  return '<div class="chart">'+
+    "<h4>Channel pressure</h4>"+
+    '<div class="small hid">Weighted by signal strength, not just AP count: '+
+    'w = 0 at −95 dBm, 1 at −40 dBm, linear between; pressure = sum of w on the '+
+    'channel. quiet &lt;1 · moderate ≥1 · busy ≥2.5 · heavy ≥5. Relative within '+
+    'this capture — not a utilisation percentage.</div>'+
+    group("2.4 GHz",chans.filter(c=>c.ch<=14))+
+    group("5 GHz",chans.filter(c=>c.ch>14))+
+    "</div>";
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function rfShare(n,d){return d>0?Math.round(n*100/d)+"%":"—";}
+
+
+function rfPart(n,label,color,act,title){return {n:n,label:label,color:color,act:act,title:title};}
+function rfSeg(p,d){
+  const t=p.label+" "+p.n+" ("+rfShare(p.n,d)+")"+(p.title?" — "+p.title:"");
+  return '<span class="seg'+(p.act?" clk":"")+'" style="width:'+(100*p.n/d).toFixed(2)+
+    "%;background:"+p.color+'"'+(p.act?' data-act="'+esc(p.act)+'"':"")+
+    ' title="'+esc(t)+'"></span>';
+}
+function rfChip(p,d){
+  const t=p.label+" — "+p.n+" of "+d+" ("+rfShare(p.n,d)+")"+(p.title?" — "+p.title:"")+
+    (p.act?" — tap to filter":"");
+  const inner='<i></i><span class="pn">'+esc(p.label)+'</span><span class="pv">'+p.n+
+    '</span><span class="pp">'+rfShare(p.n,d)+"</span>";
+  const attr=' class="pchip" style="--c:'+p.color+'" title="'+esc(t)+'"';
+  return p.act?'<button type="button"'+attr+' data-act="'+esc(p.act)+'">'+inner+"</button>"
+              :"<span"+attr+">"+inner+"</span>";
+}
+function rfGroup(label,denom,unit,parts,note){
+  const use=parts.filter(p=>p.n>0);
+  if(!use.length)return "";
+  return '<div class="rfrow"><div class="rl">'+esc(label)+
+    '<span class="of">of '+denom+" "+esc(unit)+(denom===1?"":"s")+"</span></div>"+
+    '<div class="chstack">'+use.map(p=>rfSeg(p,denom)).join("")+"</div>"+
+    '<div class="rfchips">'+use.map(p=>rfChip(p,denom)).join("")+"</div>"+
+    (note?'<div class="hid">'+note+"</div>":"")+"</div>";
+}
+function blkSpectrum(){
+  const wifi=FW.length,ble=FB.length,obs=wifi+ble;
+  if(!obs)return "";
+  let ap24=0,ap5=0;for(const r of FW)r.band_5g?ap5++:ap24++;
+  let rot=0,stab=0,unk=0;
+  for(const r of FB){const g=bleAddrGroup(r);
+    if(g==="rotating")rot++;else if(g==="stable")stab++;else unk++;}
+  return '<div class="spectrum"><h4>RF spectrum<span class="tt">'+obs+
+    " observation"+(obs===1?"":"s")+"</span></h4>"+
+    '<div class="rfgrid">'+
+    rfGroup("Radio",obs,"observation",[
+      rfPart(wifi,"Wi-Fi","var(--wifi)","wifi"),
+      rfPart(ble,"BLE","var(--ble)","ble")],
+      "Wi-Fi + BLE records; one device may advertise more than one address")+
+    rfGroup("Wi-Fi bands",wifi,"Wi-Fi record",[
+      rfPart(ap24,"2.4 GHz","var(--s1)","ap24"),
+      rfPart(ap5,"5 GHz","var(--s6)","ap5")],
+      "the C5 radio observes 2.4 and 5 GHz only")+
+    rfGroup("BLE addresses",ble,"BLE record",[
+      rfPart(rot,"rotating","var(--s4)","addr:rotating",
+        "RPA/NRPA — the address changes, so these cannot be followed over time"),
+      rfPart(stab,"stable","var(--s5)","addr:stable",
+        "public or static-random — static-random is stable only until the device reboots"),
+      rfPart(unk,"unclassified","var(--dim)","addr:unknown",
+        "no address type in the record")],"")+
+    "</div></div>";
+}
+
+
+
+
+
+
+
+
+
+let memT=null,memD=null,memErr=false;
+function blkMemory(){
+  if(!deviceOnline())return "";
+  return '<div class="memc" id="memwrap"><div class="mrv">reading…</div></div>';
+}
+function memFmt(n){
+  if(!Number.isFinite(n))return "—";
+  if(n>=1048576)return (n/1048576).toFixed(1)+" MB";
+  if(n>=1024)return Math.round(n/1024)+" KB";
+  return n+" B";
+}
+
+
+
+function memRow(k,v){
+  return '<div class="mrk">'+esc(k)+'</div><div class="mrv">'+v+"</div>";
+}
+
+
+function memPool(name,free,largest,total,low){
+  if(total===0)return memRow(name,'<span class="hid">not present</span>');
+  return memRow(name,memFmt(free)+
+    (Number.isFinite(total)&&total>0?" / "+memFmt(total):"")+
+    ' <span class="hid">max '+memFmt(largest)+
+    (low!=null?" · low "+memFmt(low):"")+"</span>");
+}
+
+
+
+
+
+
+
+
+function memStacks(m){
+  const s=m&&m.stacks;
+  if(!s||typeof s!=="object")return "";
+  const rows=Object.keys(s).map(k=>[k,s[k]]).sort((a,b)=>a[1]-b[1]);
+  if(!rows.length)return "";
+  const absent=Array.isArray(m.stacks_absent)?m.stacks_absent:[];
+  
+  
+  return memRow("stacks",'<div class="mstw">'+
+    rows.map(([k,v])=>'<span class="mst'+(v<512?" warn":"")+'">'+esc(k)+
+      " "+memFmt(v)+"</span>").join("")+"</div>"+
+    (absent.length?'<div class="hid">not running: '+esc(absent.join(" "))+"</div>":"")+
+    '<div class="hid">min free per task; FreeRTOS reports no total</div>');
+}
+function memPaint(){
+  const w=$("memwrap");if(!w)return;
+  if(memErr||!memD){w.innerHTML='<div class="mrv">'+
+    (memErr?"device did not answer":"reading…")+"</div>";return;}
+  const m=memD;
+  w.innerHTML=memPool("internal",m.internal_free,m.internal_largest,m.internal_total,
+      m.heap_min)+
+    memPool("PSRAM",m.psram_free,m.psram_largest,m.psram_total)+
+    memRow("heap",memFmt(m.heap_free)+' <span class="hid">free</span>')+
+    memStacks(m);
+}
+function memFetch(){
+  return fetch("/api/system/memory",{cache:"no-store"})
+    .then(r=>{if(!r.ok)throw 0;return r.json();})
+    .then(j=>{memD=j;memErr=false;memPaint();})
+    .catch(()=>{memErr=true;memPaint();});
+}
+
+
+
+function memWire(){
+  if(memT){clearInterval(memT);memT=null;}
+  if(!$("memwrap"))return;
+  memFetch();
+  memT=setInterval(()=>{
+    if(!$("memwrap")){clearInterval(memT);memT=null;return;}
+    memFetch();},5000);
+}
+
 
 
 
@@ -3398,23 +4192,36 @@ const SUMMARY_BLOCKS=[
   {id:"health",    label:"Cluster health (nodes / traffic)",def:false,render:blkHealth},
   {id:"sentstat",  label:"Guard Dog stats (lifetime)",def:false,isList:true,render:blkSentStat},
   {id:"activity",  label:"Activity log (cluster history)",def:false,isList:true,render:blkActivity},
-  {id:"verdict",   label:"Worst-threat verdict",   def:true,  render:blkVerdict},
-  {id:"tiles",     label:"Count tiles",            def:true,  render:blkTiles},
-  {id:"channels",  label:"Channel chips",          def:true,  render:blkChannels},
-  {id:"env",       label:"Environment indicators", def:true,  render:blkEnv},
+  
+  
+  {id:"verdict",   label:"Worst-threat verdict",   def:true,  render:blkVerdict,
+   bare:true},
+  {id:"tiles",     label:"Count tiles",            def:true,  render:blkTiles,
+   ttl:"At a glance"},
+  {id:"channels",  label:"Channel chips",          def:true,  render:blkChannels,
+   ttl:"Wi-Fi channels"},
+  {id:"env",       label:"Environment indicators", def:true,  render:blkEnv,
+   ttl:"Environment indicators"},
   {id:"crowd",     label:"RF environment estimate",def:true,  render:blkCrowd},
   {id:"crossscan", label:"Scan timeline (multi-scan)",def:true,render:blkCrossScan},
-  {id:"pcap",      label:"Packet-capture status",  def:true,  render:blkPcap},
-  {id:"c_comp",    label:"Chart: result composition",def:false,isChart:true,render:chartComposition},
+  {id:"pcap",      label:"Packet-capture status",  def:true,  render:blkPcap,
+   ttl:"Packet capture"},
   {id:"c_threat",  label:"Chart: threat distribution",def:false,isChart:true,render:chartThreat},
   {id:"c_signal",  label:"Chart: signal strength", def:false, isChart:true,render:chartSignal},
-  {id:"c_chan",    label:"Chart: Wi-Fi channel activity",def:false,isChart:true,render:chartChannels},
-  {id:"c_cat",     label:"Chart: device categories",def:false,isChart:true,render:chartCategories},
   {id:"top_signal",label:"List: strongest signals",def:false, isList:true,render:blkTopSignal},
   {id:"top_threat",label:"List: top threats",      def:false, isList:true,render:blkTopThreat},
   {id:"privsum",   label:"Privacy exposure",       def:false, render:blkPrivacy},
   {id:"clustersum",label:"Clusters (identity grouping)",def:false,render:blkClusters},
   {id:"watch",     label:"Watchlist (your flags)", def:false, isList:true,render:blkWatch},
+  {id:"spectrum",  label:"RF Spectrum (shares)",  def:false, render:blkSpectrum,
+   ttl:"RF spectrum"},
+  {id:"chanpress", label:"Channel pressure (signal-weighted)",def:false,render:blkChanPress},
+  {id:"secpost",   label:"Security posture (Wi-Fi crypto)",def:false,render:blkSecPosture},
+  {id:"vendors",   label:"Vendor landscape",     def:false, render:blkVendors},
+  {id:"devmix",    label:"Device mix",           def:false, render:blkDeviceMix},
+  {id:"secdeep",   label:"Security deep dive",   def:false, render:blkSecDeep},
+  {id:"memory",    label:"Memory (developer, device only)",def:false,render:blkMemory,
+   ttl:"Memory (device)"},
 ];
 const BLK={};SUMMARY_BLOCKS.forEach(b=>BLK[b.id]=b);
 
@@ -3479,6 +4286,30 @@ function offBlocks(cfg){
     (clusterOn()||!CLUSTER_BLOCKS.has(b.id))).map(b=>b.id);
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+const SM_HEADS=":scope>.ttl,:scope>h4,:scope>.dphead,:scope>.ephead";
+function smCard(def,html){
+  if(def.bare)return html;
+  const t=document.createElement("div");t.innerHTML=html;
+  const first=t.firstElementChild;
+  const tone=first?/(?:^|\s)(tone-[a-z]+)/.exec(first.className||""):null;
+  const titled=!!(first&&first.querySelector(SM_HEADS));
+  const cls="smcard"+(tone?" "+tone[1]:"")+(def.isChart?" ischart":"");
+  return '<div class="'+cls+'" data-blk="'+esc(def.id)+'">'+
+    (titled?"":'<div class="smch">'+esc(def.ttl||def.label)+"</div>")+html+"</div>";
+}
+
 function renderTabBlocks(tab){
   let h="",run=[];
   const flush=()=>{if(run.length){const inner=run.join("");
@@ -3487,7 +4318,8 @@ function renderTabBlocks(tab){
     const def=BLK[id];if(!def)continue;
     if(CLUSTER_BLOCKS.has(id)&&!clusterOn())continue;   
     const html=def.render()||"";if(!html)continue;
-    if(def.isChart)run.push(html);else{flush();h+=html;}
+    const card=smCard(def,html);
+    if(def.isChart)run.push(card);else{flush();h+=card;}
   }
   flush();
   if(!h)h='<div class="chempty">This tab is empty. Tap <b>Customize</b> to add blocks.</div>';
@@ -3505,13 +4337,15 @@ function renderBanner(){
   side+="</div>";
   let content=renderTabBlocks(cfg.tabs[cfg.active]);
   if(!filterActive()&&M.bad)
-    content+='<div class="stats"><div><b>skipped lines</b>'+M.bad+"</div></div>";
+    content+='<div class="smcard"><div class="smch">Parse warnings</div>'+
+      '<div class="stats"><div><b>skipped lines</b><span>'+M.bad+"</span></div></div></div>";
   $("smhost").innerHTML=bar+'<div class="smwrap">'+side+
     '<div id="banner" class="smcontent">'+content+"</div></div>";
   $("smgear").onclick=openSummaryCfg;
   $("smhost").querySelectorAll(".smtab").forEach(b=>b.onclick=()=>{
     const c=summaryCfg();c.active=+b.dataset.tab;saveSummaryCfg(c);renderBanner();});
   wireSummaryActs();
+  memWire();   
 }
 
 function goResults(){
@@ -3529,6 +4363,10 @@ function summaryAct(act){
   const i=act.indexOf(":");if(i<0)return;
   const k=act.slice(0,i),v=act.slice(i+1);
   if(k==="ch"){setQuick({kind:"wifi",channel:v});go("s-wifi");return;}
+  if(k==="addr"){setQuick({kind:"ble",addr:v});go("s-ble");return;}
+  if(k==="sec"){setQuick({kind:"wifi",sec:v});go("s-wifi");return;}
+  if(k==="mix"){setQuick({mix:v});goResults();return;}
+  if(k==="vend"){setQuick({vendor:decodeURIComponent(v)});goResults();return;}
   if(k==="t"){setQuick({threat:v});goResults();return;}
   if(k==="cat"){setQuick({cat:[v]});goResults();return;}
   if(k==="kind"){setQuick({kind:v});goResults();return;}
@@ -5217,7 +6055,7 @@ function renderQuickChips(){
 
 function setQuick(o){
   F.q="";F.cat=[];F.kind="";F.vendor="";F.cls="";F.grade="";F.threat="";
-  F.band="";F.channel="";
+  F.band="";F.channel="";F.addr="";F.sec="";F.mix="";
   Object.assign(F,o);
   if(!Array.isArray(F.cat))F.cat=[].concat(F.cat||[]);
   $("q").value=F.q;
@@ -5272,6 +6110,10 @@ function readFilters(){
   F.threat=$("f-threat").value;
   F.band=$("f-band").value;F.channel=$("f-channel").value;
   F.q=$("q").value.trim().toLowerCase();
+  // The address-privacy filter has no control in the bar (it is only ever set by an
+  // RF Spectrum drill-in), so clear it whenever the user touches the bar — otherwise
+  // "Clear all filters" would leave an invisible filter running.
+  F.addr="";F.sec="";F.mix="";
 }
 function updateBar(){
   const n=FW.length+FB.length+FT.length+FD.length;

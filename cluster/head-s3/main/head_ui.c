@@ -3,7 +3,6 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/semphr.h"
 #include "driver/gpio.h"
 #include "esp_timer.h"
 #include "esp_log.h"
@@ -19,55 +18,17 @@ static const char *TAG = "s3-ui";
 #define UI_DBL_GAP_MS     450
 #define UI_POLL_MS        400
 
-#define UI_LINK_STALE_US  (6 * 1000000LL)
+#define UI_REFRESH_US    (2 * 1000000LL)
 
-static SemaphoreHandle_t s_mux;
-static cl_uiframe_t      s_frame;
-static cl_uiframe_t      s_draw;
-static cl_uiframe_t      s_last_drawn;
-static bool              s_have_last;
-static bool              s_screen_dirty;
-static bool              s_dirty;
-static int64_t           s_last_frame_us;
-static volatile bool     s_ever_linked;
-static bool              s_showing_link_lost;
+static head_ui_page_fn  s_compose;
+static int              s_page;
+static volatile bool    s_dirty = true;
 
-static portMUX_TYPE s_ev_mux = portMUX_INITIALIZER_UNLOCKED;
-static uint8_t      s_ev;
-static uint32_t     s_ev_seq;
+static cl_uiframe_t     s_draw;
+static cl_uiframe_t     s_last_drawn;
+static bool             s_have_last;
 
-void head_ui_push_frame(const cl_uiframe_t *f)
-{
-    if (xSemaphoreTake(s_mux, pdMS_TO_TICKS(100)) != pdTRUE) return;
-    memcpy(&s_frame, f, sizeof s_frame);
-    s_dirty         = true;
-    s_last_frame_us = esp_timer_get_time();
-    s_ever_linked   = true;
-    xSemaphoreGive(s_mux);
-}
-
-void head_ui_fill_event(cl_uievent_t *out)
-{
-    memset(out, 0, sizeof *out);
-    portENTER_CRITICAL(&s_ev_mux);
-    out->ev  = s_ev;
-    out->seq = s_ev_seq;
-    portEXIT_CRITICAL(&s_ev_mux);
-    out->has_lcd = 1;
-    cl_uievent_seal(out);
-}
-
-bool head_ui_linked(void)
-{
-    int64_t last;
-    if (!s_ever_linked) return false;
-
-    if (!s_mux || xSemaphoreTake(s_mux, pdMS_TO_TICKS(20)) != pdTRUE) return true;
-    last = s_last_frame_us;
-    xSemaphoreGive(s_mux);
-    if (last == 0) return false;
-    return (esp_timer_get_time() - last) < UI_LINK_STALE_US;
-}
+void head_ui_mark_dirty(void) { s_dirty = true; }
 
 static uint8_t wait_button(uint32_t timeout_ms)
 {
@@ -103,16 +64,6 @@ static uint8_t wait_button(uint32_t timeout_ms)
     return CL_UI_EV_SINGLE;
 }
 
-static void draw_notice(const char *l0, const char *l1)
-{
-    cl_uiframe_t f;
-    cl_ui_frame_reset(&f, CL_UI_SCR_MENU, "S3 NODE", NULL);
-    cl_ui_frame_item(&f, l0);
-    if (l1) cl_ui_frame_item(&f, l1);
-    cl_ui_draw(&f);
-    s_screen_dirty = true;
-}
-
 static void ui_task(void *arg)
 {
     (void)arg;
@@ -125,45 +76,36 @@ static void ui_task(void *arg)
     };
     gpio_config(&cfg);
 
+    int64_t last_paint = 0;
+
     for (;;) {
         uint8_t ev = wait_button(UI_POLL_MS);
-        if (ev != CL_UI_EV_NONE) {
-
-            portENTER_CRITICAL(&s_ev_mux);
-            s_ev = ev;
-            s_ev_seq++;
-            portEXIT_CRITICAL(&s_ev_mux);
-            ESP_LOGD(TAG, "gesture %u", (unsigned)ev);
+        switch (ev) {
+        case CL_UI_EV_SINGLE: s_page = (s_page + 1) % HEAD_UI_PAGES;                  s_dirty = true; break;
+        case CL_UI_EV_DOUBLE: s_page = (s_page + HEAD_UI_PAGES - 1) % HEAD_UI_PAGES;  s_dirty = true; break;
+        case CL_UI_EV_LONG:   s_page = 0;                                             s_dirty = true; break;
+        default: break;
         }
 
-        bool have = false;
-        if (xSemaphoreTake(s_mux, pdMS_TO_TICKS(50)) == pdTRUE) {
-            if (s_dirty) { memcpy(&s_draw, &s_frame, sizeof s_draw); s_dirty = false; have = true; }
-            xSemaphoreGive(s_mux);
-        }
+        int64_t now = esp_timer_get_time();
+        if (!s_dirty && (now - last_paint) < UI_REFRESH_US) continue;
+        s_dirty    = false;
+        last_paint = now;
 
-        if (have) {
-
-            cl_ui_draw_diff(&s_draw, &s_last_drawn, s_have_last && !s_screen_dirty);
-            memcpy(&s_last_drawn, &s_draw, sizeof s_last_drawn);
-            s_have_last     = true;
-            s_screen_dirty  = false;
-            s_showing_link_lost = false;
-            continue;
-        }
-
-        if (s_ever_linked && !head_ui_linked() && !s_showing_link_lost) {
-            draw_notice("brain link lost", "check Qwiic cable");
-            s_showing_link_lost = true;
-        }
+        if (!s_compose) continue;
+        memset(&s_draw, 0, sizeof s_draw);
+        s_compose(s_page, &s_draw);
+        cl_ui_draw_diff(&s_draw, &s_last_drawn, s_have_last);
+        memcpy(&s_last_drawn, &s_draw, sizeof s_last_drawn);
+        s_have_last = true;
     }
 }
 
-void head_ui_init(void)
+void head_ui_init(head_ui_page_fn compose)
 {
-    s_mux = xSemaphoreCreateMutex();
-    draw_notice("waiting for brain", NULL);
+    s_compose = compose;
 
     xTaskCreatePinnedToCore(ui_task, "s3_ui", 4096, NULL, 5, NULL, 0);
-    ESP_LOGI(TAG, "remote head up — button GPIO%d, brain drives the screen", HEAD_BTN_GPIO);
+    ESP_LOGI(TAG, "local UI up — button GPIO%d cycles %d pages",
+             HEAD_BTN_GPIO, HEAD_UI_PAGES);
 }

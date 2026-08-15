@@ -46,6 +46,9 @@
 #include "vetter.h"
 #include "capture_ring.h"
 #include "sd_store.h"
+#include "env_learn.h"
+#include "passive_correlation.h"
+#include "tracker_sound.h"
 #include "capture_writer.h"
 #include "pcap_capture.h"
 #include "download_mode.h"
@@ -149,6 +152,9 @@ typedef enum {
     UI_MODE_DOWNLOAD_ACTIVE,
     UI_MODE_WALK,
 
+    UI_MODE_LEARN_CONFIRM,
+    UI_MODE_LEARN_WAIT,
+
     UI_MODE_MENU,
 } ui_mode_t;
 
@@ -202,6 +208,21 @@ static uint8_t           s_pcap_channel_count = 0;
 static volatile bool s_walk_requested = false;
 static volatile bool s_walk_after_dl = false;
 static volatile bool s_walk_end_requested = false;
+
+#define LEARN_MAX_SCANS      8
+#define LEARN_MOVE_SECONDS   20
+
+static struct {
+    bool     active;
+    bool     reposition;
+    bool     fresh;
+    uint8_t  want;
+    uint8_t  done;
+    uint16_t countdown;
+    char     name[ENV_LABEL_MAX];
+} s_learn;
+
+static volatile bool s_learn_after_dl = false;
 #define WALK_MAX_SEC      (30 * 60)
 
 #define WALK_BLE_WINDOW_MS 3000
@@ -374,6 +395,12 @@ static void archive_session_note(uint16_t wifi_n, uint16_t ble_n,
     s_archive_sum.scans        = scans;
     if (worst_threat > s_archive_sum.worst_threat)
         s_archive_sum.worst_threat = worst_threat;
+
+    env_status_t env;
+    env_learn_status(&env);
+    if (env.label[0])
+        snprintf(s_archive_sum.env_label, sizeof(s_archive_sum.env_label), "%s", env.label);
+
     sd_store_session_summary(&s_archive_sum);
 }
 
@@ -381,6 +408,39 @@ static void archive_session_finish(const char *reason)
 {
     sd_store_session_summary(&s_archive_sum);
     sd_store_session_close(reason);
+}
+
+static uint8_t s_archive_seg;
+
+static bool archive_rotate(const char *kind, const char *end_reason,
+                           char *id_out, size_t id_sz)
+{
+    if (id_out && id_sz) id_out[0] = '\0';
+    if (!sd_store_ok()) return false;
+
+    archive_session_finish(end_reason);
+
+    const char *tag = "c";
+    if (kind && strcmp(kind, "learn_env") == 0) tag = "env";
+    else if (kind && strcmp(kind, "walk") == 0) tag = "walk";
+
+    char id[SD_SESSION_ID_MAX];
+    snprintf(id, sizeof(id), "%s-%s%u", capture_writer_session_id(), tag,
+             (unsigned)(++s_archive_seg));
+
+    if (sd_store_session_open(id, kind, capture_writer_fw_version(),
+                              capture_writer_schema_version()) != ESP_OK) {
+        ESP_LOGW(TAG, "archive: could not open %s segment %s", kind, id);
+        return false;
+    }
+    memset(&s_archive_sum, 0, sizeof(s_archive_sum));
+
+    capture_emit_header();
+    capture_emit_codebook();
+    sd_store_session_mark_preamble_end();
+
+    if (id_out && id_sz) snprintf(id_out, id_sz, "%s", id);
+    return true;
 }
 
 static void led_for_verdict(uint8_t verdict)
@@ -472,12 +532,12 @@ static void settings_save(void)
         return;
     }
 
-    nvs_set_u8(h, "advisor_mode", (uint8_t)s_advisor_mode);
-    nvs_set_u8(h, "screen_bri", s_screen_brightness_idx);
-    nvs_set_u8(h, "led_en", s_led_enabled ? 1 : 0);
-    nvs_set_u8(h, "auto_ap", s_auto_ap_enabled ? 1 : 0);
-    nvs_set_u8(h, "boot_scan", s_boot_scan_enabled ? 1 : 0);
-    nvs_commit(h);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u8(h, "advisor_mode", (uint8_t)s_advisor_mode));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u8(h, "screen_bri", s_screen_brightness_idx));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u8(h, "led_en", s_led_enabled ? 1 : 0));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u8(h, "auto_ap", s_auto_ap_enabled ? 1 : 0));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u8(h, "boot_scan", s_boot_scan_enabled ? 1 : 0));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_commit(h));
     nvs_close(h);
 }
 
@@ -744,8 +804,88 @@ static void draw_env_mode_row(int y)
 
 static void draw_menu_footer(void);
 
-static const char *const s_main_rows[] = { "Results", "Settings", "Rescan" };
+static const char *const s_main_rows[] = { "Results", "Settings", "Rescan", "Learn Env" };
 #define MAIN_ROW_COUNT (sizeof(s_main_rows) / sizeof(s_main_rows[0]))
+
+typedef struct { const char *label; uint8_t scans; bool reposition; } learn_preset_t;
+static const learn_preset_t s_learn_presets[] = {
+    { "Walk around x4", 4, true  },
+    { "Stay put x3",    3, false },
+};
+#define LEARN_PRESET_COUNT (sizeof(s_learn_presets) / sizeof(s_learn_presets[0]))
+#define LEARN_ROW_COUNT    (LEARN_PRESET_COUNT + 1)
+static uint8_t s_learn_sel = 0;
+
+static void render_learn_confirm_locked(void)
+{
+    display_clear(UI_THEME_BG);
+    draw_center_clip(2, "LEARN ENV", UI_THEME_TITLE, UI_THEME_BG, 2);
+
+    env_status_t env;
+    env_learn_status(&env);
+    char head[32];
+    if (env.cur >= 0 && env.label[0])
+        snprintf(head, sizeof(head), "here: %s", env.label);
+    else if (env.cur >= 0)
+        snprintf(head, sizeof(head), "here: place %d", (int)env.cur + 1);
+    else
+        snprintf(head, sizeof(head), "%u places known", (unsigned)env.count);
+    draw_center_clip(20, head, UI_THEME_MUTED, UI_THEME_BG, 1);
+
+    if (s_learn_sel >= LEARN_ROW_COUNT) s_learn_sel = 0;
+    int y = 34;
+    for (uint8_t i = 0; i < LEARN_ROW_COUNT; i++) {
+        bool focus = (i == s_learn_sel);
+        char line[24];
+        snprintf(line, sizeof(line), "%c %s", focus ? '>' : ' ',
+                 i < LEARN_PRESET_COUNT ? s_learn_presets[i].label : "Back");
+        display_draw_string(10, y, line,
+                            focus ? COLOR_OK : UI_THEME_MUTED, UI_THEME_BG, 1);
+        y += 9;
+    }
+}
+
+static void render_learn_wait_locked(void)
+{
+    char line[32];
+
+    display_clear(UI_THEME_BG);
+    draw_center_clip(2, "LEARN ENV", UI_THEME_TITLE, UI_THEME_BG, 2);
+
+    snprintf(line, sizeof(line), "Scan %u of %u done",
+             (unsigned)s_learn.done, (unsigned)s_learn.want);
+    draw_center_clip(24, line, COLOR_WHITE, UI_THEME_BG, 1);
+
+    draw_center_clip(36, s_learn.reposition ? "Move a few steps" : "Hold still",
+                     COLOR_OK, UI_THEME_BG, 1);
+
+    snprintf(line, sizeof(line), "Next scan in %us", (unsigned)s_learn.countdown);
+    draw_center_clip(48, line, UI_THEME_MUTED, UI_THEME_BG, 1);
+
+    draw_center_clip(58, "hold = stop", UI_THEME_MUTED, UI_THEME_BG, 1);
+}
+
+static void render_learn_done_locked(void)
+{
+    env_status_t env;
+    env_learn_status(&env);
+
+    char line[32];
+    display_clear(UI_THEME_BG);
+    draw_center_clip(2, "LEARN ENV", UI_THEME_TITLE, UI_THEME_BG, 2);
+
+    draw_center_clip(24, env.label[0] ? env.label : "Unnamed place",
+                     COLOR_OK, UI_THEME_BG, 1);
+
+    snprintf(line, sizeof(line), "%u scans  %u%% conf",
+             (unsigned)s_learn.done, (unsigned)env.quality);
+    draw_center_clip(36, line, COLOR_WHITE, UI_THEME_BG, 1);
+
+    draw_center_clip(46, s_learn.reposition ? "moved between scans"
+                                            : "one spot only",
+                     UI_THEME_MUTED, UI_THEME_BG, 1);
+    draw_center_clip(58, "saved to card", UI_THEME_MUTED, UI_THEME_BG, 1);
+}
 
 static void render_main_locked(void)
 {
@@ -2299,12 +2439,30 @@ static void render_ble_dig_locked(void)
              f->addr[0], f->addr[1], f->addr[2], f->addr[3], f->addr[4], f->addr[5]);
     display_draw_string(4, 20, line, COLOR_WHITE, UI_THEME_BG, 1);
 
-    const char *phy = (f->prim_phy == 3) ? "Coded" : (f->prim_phy == 2) ? "2M" : "1M";
-    snprintf(line, sizeof(line), "rssi %d  phy %s", (int)f->rssi, phy);
+    const char *pphy = ble_phy_name(f->prim_phy);
+    if (f->sec_phy && f->sec_phy != f->prim_phy)
+        snprintf(line, sizeof(line), "rssi %d  %s>%s",
+                 (int)f->rssi, pphy, ble_phy_name(f->sec_phy));
+    else
+        snprintf(line, sizeof(line), "rssi %d  phy %s", (int)f->rssi, pphy);
     display_draw_string(4, 29, line, COLOR_OK, UI_THEME_BG, 1);
 
-    if (f->tx_power == 127) snprintf(line, sizeof(line), "tx n/a  props 0x%02X", f->props);
-    else                    snprintf(line, sizeof(line), "tx %d  props 0x%02X", (int)f->tx_power, f->props);
+    char fl[6];
+    int fp = 0;
+    if (f->flags & BLE_ADV_F_LEGACY)      fl[fp++] = 'L';
+    if (f->flags & BLE_ADV_F_CONNECTABLE) fl[fp++] = 'C';
+    if (f->flags & BLE_ADV_F_SCANNABLE)   fl[fp++] = 'S';
+    if (f->flags & BLE_ADV_F_DIRECTED)    fl[fp++] = 'D';
+    if (f->flags & BLE_ADV_F_SCAN_RSP)    fl[fp++] = 'R';
+    fl[fp] = '\0';
+
+    char txs[8];
+    if (f->tx_power == 127) snprintf(txs, sizeof(txs), "n/a");
+    else                    snprintf(txs, sizeof(txs), "%d", (int)f->tx_power);
+
+    if (f->sid == 0xFF) snprintf(line, sizeof(line), "tx %s  %s", txs, fl);
+    else                snprintf(line, sizeof(line), "tx %s  sid %u  %s",
+                                 txs, (unsigned)f->sid, fl);
     display_draw_string(4, 38, line, UI_THEME_MUTED, UI_THEME_BG, 1);
 
     char hex[40];
@@ -2312,7 +2470,12 @@ static void render_ble_dig_locked(void)
     uint8_t show = f->data_len < 8 ? f->data_len : 8;
     for (uint8_t i = 0; i < show && hp < (int)sizeof(hex) - 3; i++)
         hp += snprintf(hex + hp, sizeof(hex) - hp, "%02X", f->data[i]);
-    snprintf(line, sizeof(line), "len %u: %.16s", (unsigned)f->data_len, hex);
+
+    if (f->flags & BLE_ADV_F_CLIPPED)
+        snprintf(line, sizeof(line), "len %u/%u: %.10s",
+                 (unsigned)f->data_len, (unsigned)f->data_full_len, hex);
+    else
+        snprintf(line, sizeof(line), "len %u: %.16s", (unsigned)f->data_len, hex);
     display_draw_string(4, 47, line, COLOR_HEADER, UI_THEME_BG, 1);
 
     if (f->data_len > 8) {
@@ -2322,8 +2485,15 @@ static void render_ble_dig_locked(void)
         display_draw_string(4, 56, hex, COLOR_HEADER, UI_THEME_BG, 1);
     }
 
-    snprintf(line, sizeof(line), "t+%lums  sc%u",
-             (unsigned long)f->ts_ms, (unsigned)f->scan_idx);
+    const char *dstat = (f->data_status == 1) ? " incomplete"
+                      : (f->data_status == 2) ? " truncated" : "";
+    if (f->periodic_itvl)
+        snprintf(line, sizeof(line), "t+%lums sc%u per%u",
+                 (unsigned long)f->ts_ms, (unsigned)f->scan_idx,
+                 (unsigned)f->periodic_itvl);
+    else
+        snprintf(line, sizeof(line), "t+%lums  sc%u%s",
+                 (unsigned long)f->ts_ms, (unsigned)f->scan_idx, dstat);
     display_draw_string(4, 63, line, UI_THEME_MUTED, UI_THEME_BG, 1);
 
     draw_action_footer_two(72, "[1]", "next", "[2]", "prev");
@@ -2558,6 +2728,8 @@ static void render_ui_locked(void)
     case UI_MODE_BLE_DIG:       render_ble_dig_locked();       break;
     case UI_MODE_DOWNLOAD_CONFIRM: render_download_confirm_locked(); break;
     case UI_MODE_DOWNLOAD_ACTIVE:  render_download_active_locked();  break;
+    case UI_MODE_LEARN_CONFIRM: render_learn_confirm_locked(); break;
+    case UI_MODE_LEARN_WAIT:    render_learn_wait_locked();    break;
     case UI_MODE_SCANNING: break;
     case UI_MODE_WALK: break;
     default:                    render_main_locked();          break;
@@ -2987,6 +3159,102 @@ static void pup_collect_stats(const ap_score_t *scores, uint16_t count,
 
 static uint8_t least_congested_2g_channel(void);
 
+static void learn_begin(int scans, bool reposition, bool fresh, const char *name)
+{
+    if (scans < 1) scans = 1;
+    if (scans > LEARN_MAX_SCANS) scans = LEARN_MAX_SCANS;
+
+    memset(&s_learn, 0, sizeof(s_learn));
+    s_learn.active     = true;
+    s_learn.reposition = reposition;
+    s_learn.fresh      = fresh;
+    s_learn.want       = (uint8_t)scans;
+    if (name && name[0]) snprintf(s_learn.name, sizeof(s_learn.name), "%s", name);
+
+    env_learn_start(scans, reposition, fresh, s_learn.name);
+
+    char id[SD_SESSION_ID_MAX];
+    if (archive_rotate("learn_env", "learn_start", id, sizeof(id)) && s_learn.name[0]) {
+        char final_id[SD_SESSION_ID_MAX];
+        sd_store_rename_session(id, s_learn.name, s_learn.name,
+                                final_id, sizeof(final_id));
+    }
+
+    ESP_LOGI(TAG, "LEARN: start %u scans (%s%s) \"%s\"", (unsigned)s_learn.want,
+             reposition ? "repositioning" : "stationary",
+             fresh ? ", new environment" : ", current environment", s_learn.name);
+}
+
+static void learn_finish(const char *reason, bool cancelled)
+{
+    if (!s_learn.active) return;
+    if (cancelled) env_learn_cancel();
+
+    env_status_t env;
+    env_learn_status(&env);
+    if (s_learn.name[0]) env_learn_label(-1, s_learn.name);
+
+    archive_rotate("scan", reason, NULL, 0);
+
+    ESP_LOGI(TAG, "LEARN: %s after %u/%u scans — env \"%s\" q=%u",
+             cancelled ? "cancelled" : "complete",
+             (unsigned)s_learn.done, (unsigned)s_learn.want,
+             env.label, (unsigned)env.quality);
+
+    s_learn.active = false;
+    s_learn.countdown = 0;
+}
+
+static void learn_after_scan(void)
+{
+    env_run_t run;
+    env_learn_run_status(&run);
+    s_learn.done = run.done;
+
+    if (!run.active) {
+        learn_finish("learn_done", false);
+
+        xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+        ui_activity_switch(NULL, NULL);
+        render_learn_done_locked();
+        xSemaphoreGive(s_state_mutex);
+        led_apply(0, 200, 83, 8);
+        vTaskDelay(pdMS_TO_TICKS(3500));
+
+        if (s_web_ap_relaunch) {
+            s_web_ap_relaunch = false;
+            xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+            ui_activity_switch(NULL, NULL);
+            download_mode_set_channel(least_congested_2g_channel());
+            download_mode_request_enable();
+            s_dl_last_drawn_state = 0xFF;
+            s_ui_mode = UI_MODE_DOWNLOAD_ACTIVE;
+            xSemaphoreGive(s_state_mutex);
+            led_apply(0, 0, 255, 8);
+            ESP_LOGI(TAG, "LEARN: done -> AP back up");
+            return;
+        }
+
+        xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+        ui_activity_switch(&env_summary_activity, NULL);
+        xSemaphoreGive(s_state_mutex);
+        return;
+    }
+
+    s_learn.countdown = s_learn.reposition ? LEARN_MOVE_SECONDS : 3;
+
+    xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+    ui_activity_switch(NULL, NULL);
+    s_ui_mode = UI_MODE_LEARN_WAIT;
+    render_learn_wait_locked();
+    xSemaphoreGive(s_state_mutex);
+    led_apply(0, 0, 255, 8);
+
+    ESP_LOGI(TAG, "LEARN: %u/%u done, next scan in %us",
+             (unsigned)s_learn.done, (unsigned)s_learn.want,
+             (unsigned)s_learn.countdown);
+}
+
 static void do_scan(void)
 {
     static scan_results_t  results;
@@ -3236,6 +3504,35 @@ static void do_scan(void)
     pup_scan_stats_t tstats;
     pup_collect_stats(scores_tmp, score_count, &ble_tmp, &tstats);
 
+    tracker_sound_ingest(&ble_tmp);
+
+    {
+        env_learn_scan_begin();
+        for (uint16_t i = 0; i < score_count; i++) {
+            if (scores_tmp[i].suppressed) continue;
+            env_learn_scan_ap(scores_tmp[i].bssid, scores_tmp[i].ssid);
+        }
+        env_learn_scan_end();
+    }
+
+    {
+        pc_window_begin();
+        for (uint16_t i = 0; i < score_count; i++) {
+            if (scores_tmp[i].suppressed) continue;
+            pc_observe_wifi_ap(scores_tmp[i].bssid, scores_tmp[i].rssi);
+        }
+        for (uint16_t i = 0; i < ble_tmp.count; i++)
+            pc_observe_ble(ble_tmp.devices[i].addr,
+                           (uint8_t)ble_tmp.devices[i].addr_subtype,
+                           ble_tmp.devices[i].rssi);
+        uint16_t sta_n = sta_tracker_entry_count();
+        for (uint16_t i = 0; i < sta_n; i++) {
+            const sta_entry_t *st = sta_tracker_at(i);
+            if (st) pc_observe_wifi_sta(st->mac, st->randomized, st->rssi_last);
+        }
+        pc_window_end();
+    }
+
     {
         uint8_t worst = 0;
         for (uint16_t i = 0; i < score_count; i++)
@@ -3309,6 +3606,11 @@ static void do_scan(void)
     s_wifi_index  = (s_advisor_mode == ADVISOR_MODE_LITE) ? lite_best_index() : 1;
     s_ble_index   = 1;
     xSemaphoreGive(s_state_mutex);
+
+    if (s_learn.active) {
+        learn_after_scan();
+        return;
+    }
 
     bool auto_ap = ((s_advisor_mode == ADVISOR_MODE_ADV) && s_auto_ap_enabled) ||
                    s_web_ap_relaunch;
@@ -3644,7 +3946,7 @@ static void log_full_scan_dump(const ap_score_t *scores, uint16_t score_count,
         if (!cl) continue;
         ESP_LOGI(DUMP_TAG, "DUMP cluster[%u]: members=%u conf=%u%%",
                  c, (unsigned)cl->total_members, (unsigned)cl->confidence);
-        for (uint8_t e = 0; e < pdc_edge_count(); e++) {
+        for (uint16_t e = 0; e < pdc_edge_count(); e++) {
             const pdc_edge_t *ed = pdc_edge_get(e);
             if (!ed || pdc_cluster_of(ed->kind_a, ed->idx_a) != (int8_t)c)
                 continue;
@@ -3743,6 +4045,8 @@ static void walk_on_enter(void *ctx)
     virtual_pup_walk_start();
     s_walk_end_requested = false;
 
+    archive_rotate("walk", "walk_start", NULL, 0);
+
     xSemaphoreTake(s_state_mutex, portMAX_DELAY);
     s_ui_mode = UI_MODE_WALK;
     display_walk_screen(virtual_pup_name(), 0, 0, 0, false);
@@ -3763,6 +4067,8 @@ static void walk_loop(void *ctx)
     switch (w->phase) {
     case WALK_PH_WIFI_START: {
         bool include_5g = (walk_slice % WIFI_WARDRIVE_5G_EVERY) == 0;
+
+        pc_window_begin();
         memset(&walk_wifi, 0, sizeof(walk_wifi));
         w->phase = (wifi_scan_async_start_wardrive(include_5g) == ESP_OK)
                      ? WALK_PH_WIFI_WAIT : WALK_PH_BLE_START;
@@ -3779,6 +4085,7 @@ static void walk_loop(void *ctx)
                 const ap_score_t *ap = &walk_scores[i];
                 bool safe = ap->auth != WIFI_AUTH_OPEN && ap->auth != WIFI_AUTH_WEP;
                 virtual_pup_walk_note_wifi_ap(ap, safe);
+                pc_observe_wifi_ap(ap->bssid, ap->rssi);
             }
             virtual_pup_walk_end_wifi_sweep();
         }
@@ -3795,8 +4102,12 @@ static void walk_loop(void *ctx)
         if (ble_scan_busy()) break;
 
         if (ble_scan_finish(&walk_ble) == ESP_OK) {
-            for (uint16_t i = 0; i < walk_ble.count; i++)
+            for (uint16_t i = 0; i < walk_ble.count; i++) {
                 virtual_pup_walk_note_ble_device(&walk_ble.devices[i]);
+                pc_observe_ble(walk_ble.devices[i].addr,
+                               (uint8_t)walk_ble.devices[i].addr_subtype,
+                               walk_ble.devices[i].rssi);
+            }
             virtual_pup_walk_end_ble_window();
         }
         w->phase = WALK_PH_FOLD;
@@ -3804,6 +4115,7 @@ static void walk_loop(void *ctx)
 
     case WALK_PH_FOLD:
     default:
+        pc_window_end();
         walk_slice++;
         w->phase = WALK_PH_WIFI_START;
         break;
@@ -3860,7 +4172,13 @@ static void walk_on_exit(void *ctx)
             }
         }
         capture_emit_pup_walk(&done);
+
+        archive_session_note(virtual_pup_walk_wifi_count(),
+                             virtual_pup_walk_ble_count(),
+                             0, 0, 1);
     }
+
+    archive_rotate("scan", "walk_end", NULL, 0);
 
     virtual_pup_walk_release();
 
@@ -4003,6 +4321,84 @@ void app_request_walk_after_download(void)
     download_mode_request_disable(CAP_END_SCAN_START);
 }
 
+void app_request_learn_env_after_download(int scans, bool reposition,
+                                          bool fresh, const char *name)
+{
+
+    learn_begin(scans, reposition, fresh, name);
+    s_learn_after_dl = true;
+    download_mode_request_disable(CAP_END_SCAN_START);
+}
+
+int app_learn_env_seconds(int scans, bool reposition)
+{
+    if (scans < 1) scans = 1;
+    if (scans > LEARN_MAX_SCANS) scans = LEARN_MAX_SCANS;
+    int per = app_scan_eta_seconds();
+    int gap = reposition ? LEARN_MOVE_SECONDS : 3;
+    return scans * per + (scans - 1) * gap + 10;
+}
+
+void app_learn_env_status_json(char *out, size_t cap)
+{
+    if (!out || cap == 0) return;
+
+    env_status_t st;
+    env_run_t    run;
+    env_learn_status(&st);
+    env_learn_run_status(&run);
+
+    env_entry_t envs[ENV_MAX];
+    int n = env_learn_list(envs, ENV_MAX);
+
+    int p = snprintf(out, cap,
+        "{\"cur\":%d,\"count\":%u,\"similarity\":%u,\"known\":%s,\"is_new\":%s,"
+        "\"quality\":%u,\"label\":\"%s\","
+        "\"run\":{\"active\":%s,\"want\":%u,\"done\":%u,\"reposition\":%s,"
+        "\"waiting\":%s,\"next_in\":%u},\"envs\":[",
+        (int)st.cur, (unsigned)st.count, (unsigned)st.similarity,
+        st.known ? "true" : "false", st.is_new ? "true" : "false",
+        (unsigned)st.quality, st.label,
+        run.active ? "true" : "false", (unsigned)run.want, (unsigned)run.done,
+        run.reposition ? "true" : "false",
+        (s_learn.active && s_learn.countdown) ? "true" : "false",
+        (unsigned)s_learn.countdown);
+
+    if (p < 0 || (size_t)p + 3 > cap) {
+        snprintf(out, cap, "{\"cur\":-1,\"count\":0,\"envs\":[]}");
+        return;
+    }
+    size_t used = (size_t)p;
+
+    for (int i = 0; i < n; i++) {
+        char row[160];
+        int rn = snprintf(row, sizeof(row),
+            "%s{\"idx\":%u,\"label\":\"%s\",\"scans\":%u,\"landmarks\":%u,"
+            "\"quality\":%u,\"known\":%s,\"current\":%s}",
+            i ? "," : "", (unsigned)envs[i].idx, envs[i].label,
+            (unsigned)envs[i].scans, (unsigned)envs[i].landmarks,
+            (unsigned)envs[i].quality,
+            envs[i].known ? "true" : "false",
+            envs[i].current ? "true" : "false");
+        if (rn <= 0 || used + (size_t)rn + 3 > cap) break;
+        memcpy(out + used, row, (size_t)rn);
+        used += (size_t)rn;
+    }
+    snprintf(out + used, cap - used, "]}");
+}
+
+bool app_learn_env_running(void)
+{
+    return s_learn.active;
+}
+
+void app_learn_env_cancel(void)
+{
+    if (!s_learn.active) return;
+    learn_finish("learn_cancel", true);
+    ESP_LOGW(TAG, "LEARN: cancelled from the dashboard");
+}
+
 static void request_capture_after_download(uint8_t kind, uint8_t channel, uint16_t seconds)
 {
     if (channel < 1 || channel > 177) channel = 6;
@@ -4095,6 +4491,15 @@ static void dl_tick_cb(void *arg)
                 display_walk_screen(virtual_pup_name(), 0, 0, 0, false);
                 s_force_rescan = true;
                 ESP_LOGI(TAG, "WebAP walk-start: AP down, walk armed");
+            } else if (s_learn_after_dl) {
+
+                s_learn_after_dl = false;
+                s_web_ap_relaunch = true;
+                s_ui_mode = UI_MODE_SCANNING;
+                display_scan_stage_static("WiFi");
+                led_apply(128, 0, 128, 8);
+                s_force_rescan = true;
+                ESP_LOGI(TAG, "WebAP learn-start: AP down, learn run armed");
             } else if (s_capture_after_dl) {
 
                 s_capture_after_dl = false;
@@ -4122,6 +4527,16 @@ static void dl_tick_cb(void *arg)
         } else {
             draw_download_countdown_locked();
             dl_assert_led_locked();
+        }
+    }
+
+    if (s_learn.active && s_learn.countdown && !download_mode_is_active()) {
+        if (--s_learn.countdown == 0) {
+            ESP_LOGI(TAG, "LEARN: pause over, scan %u of %u",
+                     (unsigned)(s_learn.done + 1), (unsigned)s_learn.want);
+            s_force_rescan = true;
+        } else if (s_ui_mode == UI_MODE_LEARN_WAIT) {
+            render_learn_wait_locked();
         }
     }
     xSemaphoreGive(s_state_mutex);
@@ -4361,6 +4776,12 @@ static void button_task(void *arg)
                 } else if (s_main_sel == 1) {
                     menu_open_root(&settings_menu);
                     ESP_LOGI(TAG, "MAIN: sel -> SETTINGS (menu)");
+                } else if (s_main_sel == 3) {
+                    ui_activity_switch(NULL, NULL);
+                    s_learn_sel = 0;
+                    s_ui_mode = UI_MODE_LEARN_CONFIRM;
+                    render_ui_locked();
+                    ESP_LOGI(TAG, "MAIN: sel -> LEARN_CONFIRM");
                 } else {
                     s_force_rescan = true;
                     s_ui_mode = UI_MODE_SCANNING;
@@ -4375,6 +4796,49 @@ static void button_task(void *arg)
                 } else {
                     ESP_LOGI(TAG, "MAIN: hold -> (root, no scan)");
                 }
+            }
+
+        } else if (s_ui_mode == UI_MODE_LEARN_CONFIRM) {
+
+            if (s_learn_sel >= LEARN_ROW_COUNT) s_learn_sel = 0;
+            if (ev == BTN_EVENT_SINGLE) {
+                s_learn_sel = (uint8_t)((s_learn_sel + 1) % LEARN_ROW_COUNT);
+                render_ui_locked();
+                ESP_LOGI(TAG, "LEARN_CONFIRM: one -> row %u/%u",
+                         s_learn_sel, (unsigned)LEARN_ROW_COUNT);
+            } else if (ev == BTN_EVENT_DOUBLE) {
+                if (s_learn_sel < LEARN_PRESET_COUNT) {
+                    const learn_preset_t *pr = &s_learn_presets[s_learn_sel];
+
+                    learn_begin(pr->scans, pr->reposition, false, NULL);
+                    s_ui_mode = UI_MODE_SCANNING;
+                    display_scan_stage_static("WiFi");
+                    led_apply(128, 0, 128, 8);
+                    s_force_rescan = true;
+                    ESP_LOGI(TAG, "LEARN_CONFIRM: sel -> start (%s)", pr->label);
+                } else {
+                    s_ui_mode = UI_MODE_MAIN;
+                    render_ui_locked();
+                    ESP_LOGI(TAG, "LEARN_CONFIRM: sel -> MAIN");
+                }
+            } else if (ev == BTN_EVENT_LONG) {
+                s_ui_mode = UI_MODE_MAIN;
+                render_ui_locked();
+                ESP_LOGI(TAG, "LEARN_CONFIRM: hold -> MAIN");
+            }
+
+        } else if (s_ui_mode == UI_MODE_LEARN_WAIT) {
+
+            if (ev == BTN_EVENT_SINGLE) {
+
+                s_learn.countdown = 1;
+                render_ui_locked();
+                ESP_LOGI(TAG, "LEARN_WAIT: one -> scan now");
+            } else if (ev == BTN_EVENT_LONG || ev == BTN_EVENT_DOUBLE) {
+                learn_finish("learn_cancel", true);
+                s_ui_mode = UI_MODE_MAIN;
+                render_ui_locked();
+                ESP_LOGW(TAG, "LEARN_WAIT: stopped by button");
             }
 
         } else if (s_ui_mode == UI_MODE_MENU) {
@@ -4921,6 +5385,131 @@ static void on_usb_cmd(const char *cmd, const char *args)
                             0, 0, 0, s_capture_scan_idx);
         archive_session_finish("shutdown");
         ESP_LOGI(TAG, "footer emitted");
+    } else if (strcmp(cmd, "bark") == 0 || strcmp(cmd, "howl") == 0) {
+
+        bool is_howl = (strcmp(cmd, "howl") == 0);
+        const char *p = args ? args : "";
+        while (*p == ' ') p++;
+
+        if (strncmp(p, "arm", 3) == 0) {
+            const char *v = p + 3;
+            while (*v == ' ') v++;
+            bool on = !(strncmp(v, "off", 3) == 0 || *v == '0');
+            tracker_sound_set_armed(on);
+        } else if (strncmp(p, "stop", 4) == 0) {
+            tracker_sound_howl_stop();
+        } else if (is_howl && !*p) {
+            int n = tracker_sound_howl_start();
+            ESP_LOGI(TAG, "howl: %d tracker(s) queued", n);
+        } else if (!is_howl && !*p) {
+            static tsnd_target_t list[TSND_MAX_TARGETS];
+            int n = tracker_sound_targets(list, TSND_MAX_TARGETS);
+            ESP_LOGI(TAG, "ringable trackers: %d  (armed=%u)", n,
+                     tracker_sound_armed() ? 1u : 0u);
+            for (int i = 0; i < n; i++)
+                ESP_LOGI(TAG, "  %02X:%02X:%02X:%02X:%02X:%02X  %s  rssi=%d  \"%s\"",
+                         list[i].mac[0], list[i].mac[1], list[i].mac[2],
+                         list[i].mac[3], list[i].mac[4], list[i].mac[5],
+                         list[i].kind, (int)list[i].rssi, list[i].name);
+            ESP_LOGI(TAG, "usage: bark arm [off] | bark <MAC> | howl | howl stop");
+        } else {
+            uint8_t mac[6];
+            unsigned m[6];
+            if (sscanf(p, "%2x:%2x:%2x:%2x:%2x:%2x",
+                       &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]) == 6) {
+                for (int i = 0; i < 6; i++) mac[i] = (uint8_t)m[i];
+                ESP_LOGI(TAG, "bark: %s", tracker_sound_bark(mac) ? "queued" : "refused");
+            } else {
+                ESP_LOGW(TAG, "bark: not a MAC — usage: bark <AA:BB:CC:DD:EE:FF>");
+            }
+        }
+
+    } else if (strcmp(cmd, "env") == 0) {
+
+        if (args && strncmp(args, "learn", 5) == 0) {
+            const char *p = args + 5;
+            while (*p == ' ') p++;
+            int scans = (*p >= '0' && *p <= '9') ? atoi(p) : 4;
+            bool still = (strstr(args, "still") != NULL);
+            learn_begin(scans, !still, false, NULL);
+            s_force_rescan = true;
+            ESP_LOGI(TAG, "env: learn armed (%d scans, %s)", scans,
+                     still ? "stationary" : "repositioning");
+        } else if (args && strncmp(args, "cancel", 6) == 0) {
+            learn_finish("learn_cancel", true);
+        } else if (args && strncmp(args, "name", 4) == 0) {
+            const char *p = args + 4;
+            while (*p == ' ') p++;
+            if (*p) { env_learn_label(-1, p); ESP_LOGI(TAG, "env: named \"%s\"", p); }
+            else      ESP_LOGW(TAG, "env name <label>");
+        } else if (args && strncmp(args, "forget", 6) == 0) {
+            const char *p = args + 6;
+            while (*p == ' ') p++;
+            env_learn_forget(atoi(p));
+        } else if (args && strncmp(args, "reset", 5) == 0) {
+            env_learn_reset();
+        } else {
+            env_status_t st;
+            env_run_t    run;
+            env_learn_status(&st);
+            env_learn_run_status(&run);
+            ESP_LOGI(TAG, "env: cur=%d of %u sim=%u%% q=%u %s%s label=\"%s\"",
+                     (int)st.cur, (unsigned)st.count, (unsigned)st.similarity,
+                     (unsigned)st.quality, st.known ? "known" : "unsure",
+                     st.is_new ? " NEW" : "", st.label);
+            if (run.active)
+                ESP_LOGI(TAG, "env: learning %u/%u (%s), next in %us",
+                         (unsigned)run.done, (unsigned)run.want,
+                         run.reposition ? "moving" : "still",
+                         (unsigned)s_learn.countdown);
+            env_entry_t list[ENV_MAX];
+            int n = env_learn_list(list, ENV_MAX);
+            for (int i = 0; i < n; i++)
+                ESP_LOGI(TAG, "env[%d] \"%s\" scans=%u fixtures=%u q=%u%%%s%s",
+                         i, list[i].label[0] ? list[i].label : "(unnamed)",
+                         (unsigned)list[i].scans, (unsigned)list[i].landmarks,
+                         (unsigned)list[i].quality,
+                         list[i].known ? " known" : "",
+                         list[i].current ? " <- here" : "");
+        }
+
+    } else if (strcmp(cmd, "corr") == 0) {
+
+        if (args && strncmp(args, "reset", 5) == 0) {
+            pc_reset();
+            ESP_LOGI(TAG, "corr: graph cleared");
+        } else {
+            pc_stats_t st;
+            pc_get_stats(&st);
+            ESP_LOGI(TAG, "corr: windows=%u nodes=%u edges=%u dropped=%u infra=%u surfaced=%u",
+                     (unsigned)st.windows, (unsigned)st.nodes, (unsigned)st.edges,
+                     (unsigned)st.edges_dropped, (unsigned)st.infrastructure,
+                     (unsigned)st.surfaced);
+            if (st.windows < 3)
+                ESP_LOGI(TAG, "corr: %u window(s) so far — a pair needs 3. Take a walk "
+                              "(hold, double, hold) or run more scans.", (unsigned)st.windows);
+
+            static pc_pair_t pairs[12];
+            int n = pc_top_pairs(pairs, 12);
+            for (int i = 0; i < n; i++) {
+                pc_pair_t *p = &pairs[i];
+                ESP_LOGI(TAG, "corr[%d] %s + %s  %u%%", i, p->a_label, p->b_label,
+                         (unsigned)p->confidence);
+                ESP_LOGI(TAG, "        together %u/%u and %u/%u windows (apart %u)",
+                         (unsigned)p->together, (unsigned)p->a_windows,
+                         (unsigned)p->together, (unsigned)p->b_windows, (unsigned)p->apart);
+                ESP_LOGI(TAG, "        P(B|A)=%u%% P(A|B)=%u%% arrivals=%u departures=%u "
+                              "rssi_trend=%s env=%s",
+                         (unsigned)p->p_b_given_a, (unsigned)p->p_a_given_b,
+                         (unsigned)p->arrivals, (unsigned)p->departures,
+                         p->rssi_trend_similar ? "similar" : "-",
+                         p->same_environment ? "same" : "-");
+            }
+            if (n == 0 && st.windows >= 3)
+                ESP_LOGI(TAG, "corr: nothing past the evidence floor — not sure beats a "
+                              "confident wrong answer");
+        }
+
     } else if (strcmp(cmd, "selftest") == 0) {
         self_test_run(args);
     } else if (strcmp(cmd, "csi") == 0) {
@@ -5026,6 +5615,24 @@ static void on_usb_cmd(const char *cmd, const char *args)
             size_t n = sd_store_read_meta(id, meta, sizeof(meta));
             if (n) ESP_LOGI(TAG, "meta %s: %s", id, meta);
             else   ESP_LOGW(TAG, "meta %s: none", id);
+        } else if (args && strncmp(args, "rename", 6) == 0) {
+
+            const char *p = args + 6;
+            while (*p == ' ') p++;
+            char id[SD_SESSION_ID_MAX] = {0};
+            size_t k = 0;
+            while (*p && *p != ' ' && k + 1 < sizeof(id)) id[k++] = *p++;
+            id[k] = '\0';
+            while (*p == ' ') p++;
+            if (!id[0]) {
+                ESP_LOGW(TAG, "usage: sd rename <id> <new name>");
+            } else {
+                char final_id[SD_SESSION_ID_MAX];
+                esp_err_t rc = sd_store_rename_session(id, p, NULL,
+                                                       final_id, sizeof(final_id));
+                if (rc == ESP_OK) ESP_LOGI(TAG, "sd rename: %s -> %s", id, final_id);
+                else ESP_LOGW(TAG, "sd rename failed: %s (0x%x)", id, (unsigned)rc);
+            }
         } else if (args && strcmp(args, "list") == 0) {
 
             static sd_session_row_t rows[48];
@@ -5120,6 +5727,9 @@ void app_main(void)
     ESP_ERROR_CHECK(wifi_scanner_init());
     download_mode_init();
     ESP_ERROR_CHECK(ble_scanner_init());
+
+    tracker_sound_init();
+    tracker_sound_start_task();
     probe_req_log_init();
     seq_analyzer_init();
     ie_signature_init();
@@ -5137,8 +5747,8 @@ void app_main(void)
         if (nvs_open(CFG_NS, NVS_READWRITE, &h) == ESP_OK) {
             nvs_get_u32(h, "boot_count", &boot_count);
             boot_count++;
-            nvs_set_u32(h, "boot_count", boot_count);
-            nvs_commit(h);
+            ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, "boot_count", boot_count));
+            ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_commit(h));
             nvs_close(h);
         }
     }
@@ -5146,6 +5756,8 @@ void app_main(void)
     virtual_pup_init(boot_count);
     virtual_pup_walk_init();
     pup_trophy_init();
+    env_learn_init(boot_count);
+    pc_init();
 
     esp_err_t cap_err = capture_ring_init(4 * 1024 * 1024, 2 * 1024 * 1024);
     if (cap_err == ESP_OK) {
@@ -5162,6 +5774,8 @@ void app_main(void)
 
         capture_emit_header();
         capture_emit_codebook();
+
+        sd_store_session_mark_preamble_end();
     } else {
         ESP_LOGE(TAG, "capture_ring unavailable — JSONL export disabled");
     }

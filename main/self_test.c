@@ -423,8 +423,8 @@ static bool ct_same_vehicle(uint8_t wifi_i, uint8_t ble_j)
 
 static const pdc_edge_t *ct_ble_edge(uint8_t i, uint8_t j)
 {
-    uint8_t ne = pdc_edge_count();
-    for (uint8_t e = 0; e < ne; e++) {
+    uint16_t ne = pdc_edge_count();
+    for (uint16_t e = 0; e < ne; e++) {
         const pdc_edge_t *ed = pdc_edge_get(e);
         if (!ed) continue;
         if (ed->kind_a != PDC_NODE_BLE || ed->kind_b != PDC_NODE_BLE) continue;

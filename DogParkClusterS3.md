@@ -10,7 +10,9 @@ attacks anything nearby.
   the brain.
 - An **S3 node** (LilyGO T-Dongle-S3) is a service node hanging off the same bus. It
   owns the microSD card (the uncapped durable archive of every record) and runs the
-  flagged-signature **sentinel**, and it shows status on its small LCD.
+  flagged-signature **sentinel**. Its small LCD is its own: the button cycles between
+  a status page, an SD page and a Guard Dog page, and it keeps showing them whether or
+  not a brain is on the bus.
 - One or more **arms** (ESP32-C5) scan headless and hand their scansets to the brain.
 
 The brain is the only board your phone talks to; the S3 node and the arms never touch
@@ -40,8 +42,13 @@ Wi-Fi access point, so no external router is required for the cluster itself.
                                       +--> [ S3 node ] --> microSD archive + sentinel + LCD
 ```
 
-- **Bus:** flat Qwiic I2C, SDA/SCL shared by every board. The brain is the bus master;
-  the arms and the S3 node are slaves at fixed addresses (the S3 node at `0x13`).
+- **Bus:** flat Qwiic I2C, SDA/SCL shared by every board. The brain is the bus master
+  and the other boards are slaves. The S3 node sits at a fixed `0x13`; each arm claims
+  a free slot from the arm pool at boot and keeps it, so arms are interchangeable and
+  you can run one, two, or more without building anything differently.
+- **Spectrum split:** the brain divides the channel union between the arms that are
+  actually present and re-divides it whenever one joins or drops. A single arm sweeps
+  everything; two arms take half each; three take a third each.
 - **Data flow:** each window the arms report their scansets to the brain; the brain
   merges and de-duplicates them, scores the result, updates the on-device learning
   model, and pushes the merged verdict down to the S3 node, which tees every record to
@@ -58,7 +65,7 @@ Use the [web flasher](./index.html) and pick the matching firmware for each boar
 
 - **Dog Park cluster — brain (ESP32-C5)**
 - **Dog Park cluster — S3 node (ESP32-S3)**
-- **Dog Park cluster — arm (ESP32-C5)** — one per arm
+- **Dog Park cluster — arm (ESP32-C5)** — the same image on every arm board
 
 Plug in one board at a time, choose its firmware, and click Install. The flasher checks
 that the firmware matches the chip (C5 vs S3) before writing, so a wrong pick is

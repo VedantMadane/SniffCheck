@@ -1446,3 +1446,9 @@ uuids:
    name: Ford Motor Company
  - uuid: 0xFC30
    name: Arashi Vision Inc.
+ - uuid: 0xFC2C
+   name: Verkada Inc.
+ - uuid: 0xFC2B
+   name: "Elder Technologies, Inc"
+ - uuid: 0xFC2A
+   name: Troo Corporation

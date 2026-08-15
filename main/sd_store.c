@@ -36,7 +36,7 @@ static const char *TAG = "sc_sd";
 
 #define SD_META_REFRESH_US (30LL * 1000 * 1000)
 
-#define SD_META_MAX        512
+#define SD_META_MAX        640
 
 static sdmmc_card_t     *s_card;
 static FILE             *s_fp;
@@ -51,9 +51,17 @@ static char     s_sess_id[SD_SESSION_ID_MAX];
 static char     s_sess_kind[16];
 static char     s_sess_fw[24];
 static char     s_sess_schema[16];
+
+static char     s_sess_series[SD_SERIES_MAX];
+static char     s_sess_orig[SD_SESSION_ID_MAX];
 static int64_t  s_sess_open_us;
 static int64_t  s_last_meta_us;
 static sd_session_summary_t s_sess_sum;
+
+static bool     s_sess_pending;
+
+static uint32_t s_sess_pre_records;
+static bool     s_sess_content;
 
 static void (*s_bus_lock_cb)(void);
 static void (*s_bus_unlock_cb)(void);
@@ -179,6 +187,9 @@ esp_err_t sd_store_init(spi_host_device_t host)
                  "(reformat the whole card as one FAT32 volume to use it all)",
                  (double)s_st.volume_bytes / 1e9, (double)s_st.card_bytes / 1e9);
     }
+
+    sd_store_prune_empty(NULL);
+
     post_write();
     return ESP_OK;
 }
@@ -211,7 +222,7 @@ bool sd_store_id_valid(const char *id)
 
 bool sd_store_session_is_open(void)
 {
-    return s_fp != NULL;
+    return s_fp != NULL || s_sess_pending;
 }
 
 static void sync_locked(void)
@@ -235,17 +246,20 @@ static void write_meta_locked(bool complete, const char *reason)
 
     fprintf(m,
         "{\"type\":\"session_meta\",\"id\":\"%s\",\"kind\":\"%s\","
+        "\"series\":\"%s\",\"orig\":\"%s\","
         "\"file\":\"sessions/%s.jsonl\",\"fw\":\"%s\",\"schema\":\"%s\","
         "\"complete\":%s,\"end_reason\":\"%s\","
         "\"open_us\":%lld,\"close_us\":%lld,"
-        "\"records\":%u,\"bytes\":%llu,"
+        "\"content\":%s,\"records\":%u,\"bytes\":%llu,"
         "\"wifi_aps\":%u,\"ble_devices\":%u,\"trackers\":%u,"
         "\"probe_reqs\":%u,\"alerts\":%u,\"scans\":%u,"
         "\"worst_threat\":%u,\"env\":\"%s\"}\n",
-        s_sess_id, s_sess_kind, s_sess_id, s_sess_fw, s_sess_schema,
+        s_sess_id, s_sess_kind, s_sess_series, s_sess_orig,
+        s_sess_id, s_sess_fw, s_sess_schema,
         complete ? "true" : "false", safe_reason,
         (long long)s_sess_open_us,
         (long long)(complete ? esp_timer_get_time() : 0),
+        s_sess_content ? "true" : "false",
         (unsigned)s_st.records, (unsigned long long)s_st.written_bytes,
         (unsigned)s_sess_sum.wifi_aps, (unsigned)s_sess_sum.ble_devices,
         (unsigned)s_sess_sum.trackers, (unsigned)s_sess_sum.probe_reqs,
@@ -256,32 +270,19 @@ static void write_meta_locked(bool complete, const char *reason)
     s_last_meta_us = esp_timer_get_time();
 }
 
-esp_err_t sd_store_session_open(const char *id, const char *kind,
-                                const char *fw, const char *schema)
+static bool session_materialize_locked(void)
 {
-    if (!s_st.mounted || !sd_store_id_valid(id)) return ESP_ERR_INVALID_STATE;
-    if (!lock()) return ESP_ERR_TIMEOUT;
+    if (s_fp) return true;
+    if (!s_sess_pending || !s_sess_id[0]) return false;
 
-    if (s_fp) { fclose(s_fp); s_fp = NULL; }
-
-    snprintf(s_st.path, sizeof(s_st.path), SD_SESSIONS "/%s.jsonl", id);
+    snprintf(s_st.path, sizeof(s_st.path), SD_SESSIONS "/%s.jsonl", s_sess_id);
     s_fp = fopen(s_st.path, "a");
     if (!s_fp) {
         ESP_LOGE(TAG, "cannot open %s", s_st.path);
         s_st.path[0] = '\0';
-        unlock();
-        post_write();
-        return ESP_FAIL;
+        return false;
     }
-
-    copy_json_safe(s_sess_id,     sizeof(s_sess_id),     id);
-    copy_json_safe(s_sess_kind,   sizeof(s_sess_kind),   kind   ? kind   : "scan");
-    copy_json_safe(s_sess_fw,     sizeof(s_sess_fw),     fw     ? fw     : "");
-    copy_json_safe(s_sess_schema, sizeof(s_sess_schema), schema ? schema : "");
-    memset(&s_sess_sum, 0, sizeof(s_sess_sum));
-    s_sess_open_us = esp_timer_get_time();
-    s_st.records = 0;
-    s_st.written_bytes = 0;
+    s_sess_pending = false;
 
     FILE *ix = fopen(SD_INDEX, "a");
     if (ix) {
@@ -294,10 +295,48 @@ esp_err_t sd_store_session_open(const char *id, const char *kind,
     write_meta_locked(false, "");
 
     s_unflushed = 0;
+    ESP_LOGI(TAG, "archive session open: %s (%s)", s_st.path, s_sess_kind);
+    return true;
+}
+
+esp_err_t sd_store_session_open(const char *id, const char *kind,
+                                const char *fw, const char *schema)
+{
+    if (!s_st.mounted || !sd_store_id_valid(id)) return ESP_ERR_INVALID_STATE;
+    if (!lock()) return ESP_ERR_TIMEOUT;
+
+    if (s_fp) { fclose(s_fp); s_fp = NULL; }
+
+    s_st.path[0] = '\0';
+
+    copy_json_safe(s_sess_id,     sizeof(s_sess_id),     id);
+    copy_json_safe(s_sess_kind,   sizeof(s_sess_kind),   kind   ? kind   : "scan");
+    copy_json_safe(s_sess_fw,     sizeof(s_sess_fw),     fw     ? fw     : "");
+    copy_json_safe(s_sess_schema, sizeof(s_sess_schema), schema ? schema : "");
+    s_sess_series[0] = '\0';
+
+    snprintf(s_sess_orig, sizeof(s_sess_orig), "%s", s_sess_id);
+    memset(&s_sess_sum, 0, sizeof(s_sess_sum));
+    s_sess_open_us = esp_timer_get_time();
+    s_st.records = 0;
+    s_st.written_bytes = 0;
+    s_unflushed = 0;
+    s_sess_pending = true;
+    s_sess_pre_records = 0;
+    s_sess_content = false;
+
     unlock();
     post_write();
-    ESP_LOGI(TAG, "archive session open: %s (%s)", s_st.path, s_sess_kind);
+    ESP_LOGD(TAG, "archive session declared: %s (%s) — file on first record",
+             s_sess_id, s_sess_kind);
     return ESP_OK;
+}
+
+void sd_store_session_mark_preamble_end(void)
+{
+    if (!lock()) return;
+    if (!s_sess_content) s_sess_pre_records = s_st.records;
+    unlock();
 }
 
 void sd_store_session_summary(const sd_session_summary_t *s)
@@ -312,7 +351,17 @@ void sd_store_session_summary(const sd_session_summary_t *s)
 void sd_store_session_close(const char *reason)
 {
     if (!lock()) return;
-    if (s_fp) {
+    if (s_fp && !s_sess_content) {
+
+        fclose(s_fp);
+        s_fp = NULL;
+        char path[128];
+        snprintf(path, sizeof(path), SD_SESSIONS "/%s.jsonl", s_sess_id);
+        unlink(path);
+        snprintf(path, sizeof(path), SD_SESSIONS "/%s.meta", s_sess_id);
+        unlink(path);
+        ESP_LOGD(TAG, "archive session dropped, nothing captured: %s", s_sess_id);
+    } else if (s_fp) {
         sync_locked();
         fclose(s_fp);
         s_fp = NULL;
@@ -330,7 +379,14 @@ void sd_store_session_close(const char *reason)
         ESP_LOGI(TAG, "archive session closed (%s): %u records, %llu B",
                  reason ? reason : "done", (unsigned)s_st.records,
                  (unsigned long long)s_st.written_bytes);
+    } else if (s_sess_pending) {
+
+        ESP_LOGD(TAG, "archive session dropped unwritten (%s): %s",
+                 reason ? reason : "done", s_sess_id);
     }
+    s_sess_pending = false;
+    s_sess_content = false;
+    s_sess_pre_records = 0;
     s_st.path[0] = '\0';
     s_sess_id[0] = '\0';
     unlock();
@@ -340,8 +396,11 @@ void sd_store_session_close(const char *reason)
 void sd_store_append(const char *line, size_t len)
 {
     if (!line || len == 0) return;
-    if (!s_st.mounted || s_st.full || !s_fp) return;
+    if (!s_st.mounted || s_st.full) return;
+    if (!s_fp && !s_sess_pending) return;
     if (!lock()) return;
+
+    if (!s_fp && !session_materialize_locked()) { unlock(); return; }
     if (!s_fp) { unlock(); return; }
 
     size_t w = fwrite(line, 1, len, s_fp);
@@ -367,6 +426,13 @@ void sd_store_append(const char *line, size_t len)
     s_st.records++;
 
     bool flushed = false;
+
+    if (!s_sess_content && s_st.records > s_sess_pre_records) {
+        s_sess_content = true;
+        sync_locked();
+        write_meta_locked(false, "");
+        flushed = true;
+    }
     if (++s_unflushed >= SD_FLUSH_RECORDS) {
         fflush(s_fp);
         s_unflushed = 0;
@@ -522,6 +588,301 @@ esp_err_t sd_store_delete_session(const char *id)
     bus_unlock();
     post_write();
     ESP_LOGI(TAG, "archive session deleted: %s", id);
+    return ESP_OK;
+}
+
+bool sd_store_sanitize_name(const char *name, char *out, size_t outsz)
+{
+    if (!out || outsz == 0) return false;
+    out[0] = '\0';
+    if (!name) return false;
+
+    size_t o = 0;
+    size_t cap = outsz < SD_SESSION_ID_MAX ? outsz : SD_SESSION_ID_MAX;
+    bool last_dash = false;
+    for (size_t i = 0; name[i] && o + 1 < cap; i++) {
+        unsigned char c = (unsigned char)name[i];
+        if (isalnum(c) || c == '.' || c == '_') {
+
+            if (c == '.' && o == 0) continue;
+            out[o++] = (char)c;
+            last_dash = false;
+        } else {
+
+            if (o == 0 || last_dash) continue;
+            out[o++] = '-';
+            last_dash = true;
+        }
+    }
+    while (o > 0 && out[o - 1] == '-') o--;
+    out[o] = '\0';
+    return o > 0 && sd_store_id_valid(out);
+}
+
+static bool json_set_str(char *line, size_t cap, const char *key, const char *val)
+{
+    char pat[24];
+    int pl = snprintf(pat, sizeof(pat), "\"%s\":\"", key);
+    if (pl <= 0 || (size_t)pl >= sizeof(pat)) return false;
+
+    char *at = strstr(line, pat);
+    if (!at) return false;
+    char *vs = at + pl;
+    char *ve = strchr(vs, '"');
+    if (!ve) return false;
+
+    size_t vlen = strlen(val);
+    size_t oldlen = (size_t)(ve - vs);
+    size_t total = strlen(line);
+    if (total - oldlen + vlen + 1 > cap) return false;
+
+    memmove(vs + vlen, ve, strlen(ve) + 1);
+    memcpy(vs, val, vlen);
+    return true;
+}
+
+static bool json_add_str(char *line, size_t cap, const char *key, const char *val)
+{
+    char *end = strrchr(line, '}');
+    if (!end) return false;
+    char add[96];
+    int n = snprintf(add, sizeof(add), ",\"%s\":\"%s\"", key, val);
+    if (n <= 0 || (size_t)n >= sizeof(add)) return false;
+    if (strlen(line) + (size_t)n + 1 > cap) return false;
+    memmove(end + n, end, strlen(end) + 1);
+    memcpy(end, add, (size_t)n);
+    return true;
+}
+
+static void json_put_str(char *line, size_t cap, const char *key, const char *val)
+{
+    if (!json_set_str(line, cap, key, val)) json_add_str(line, cap, key, val);
+}
+
+static void meta_rename_locked(const char *old_id, const char *new_id,
+                               const char *series)
+{
+    char path[128];
+    snprintf(path, sizeof(path), SD_SESSIONS "/%s.meta", new_id);
+
+    static char line[SD_META_MAX];
+    FILE *m = fopen(path, "r");
+    if (!m) return;
+    size_t r = fread(line, 1, sizeof(line) - 1, m);
+    fclose(m);
+    line[r] = '\0';
+    while (r && (line[r - 1] == '\n' || line[r - 1] == '\r')) line[--r] = '\0';
+    if (!r || line[0] != '{') return;
+
+    char file_val[SD_SESSION_ID_MAX + 16];
+    snprintf(file_val, sizeof(file_val), "sessions/%s.jsonl", new_id);
+
+    if (!strstr(line, "\"orig\":\"")) json_put_str(line, sizeof(line), "orig", old_id);
+
+    json_put_str(line, sizeof(line), "id", new_id);
+    json_put_str(line, sizeof(line), "file", file_val);
+    if (series) json_put_str(line, sizeof(line), "series", series);
+
+    m = fopen(path, "w");
+    if (!m) { s_st.write_errors++; return; }
+    fprintf(m, "%s\n", line);
+    fclose(m);
+}
+
+static bool unique_id_locked(const char *base, char *out, size_t outsz)
+{
+    char path[128];
+    struct stat sb;
+
+    snprintf(out, outsz, "%s", base);
+    snprintf(path, sizeof(path), SD_SESSIONS "/%s.jsonl", out);
+    if (stat(path, &sb) != 0) return sd_store_id_valid(out);
+
+    for (int n = 2; n <= 99; n++) {
+
+        char stem[SD_SESSION_ID_MAX];
+        size_t room = SD_SESSION_ID_MAX - 1 - (n < 10 ? 2 : 3);
+        snprintf(stem, room + 1, "%s", base);
+        while (room > 0 && stem[room - 1] == '-') stem[--room] = '\0';
+        if (!room) return false;
+        snprintf(out, outsz, "%s-%d", stem, n);
+        snprintf(path, sizeof(path), SD_SESSIONS "/%s.jsonl", out);
+        if (stat(path, &sb) != 0) return sd_store_id_valid(out);
+    }
+    return false;
+}
+
+esp_err_t sd_store_rename_session(const char *id, const char *want_name,
+                                  const char *series,
+                                  char *final_id, size_t final_sz)
+{
+    if (final_id && final_sz) final_id[0] = '\0';
+    if (!s_st.mounted) return ESP_ERR_INVALID_STATE;
+    if (!sd_store_id_valid(id)) return ESP_ERR_INVALID_ARG;
+
+    char base[SD_SESSION_ID_MAX];
+    bool renaming = (want_name && want_name[0]);
+    if (renaming) {
+        if (!sd_store_sanitize_name(want_name, base, sizeof(base)))
+            return ESP_ERR_INVALID_ARG;
+    } else {
+        snprintf(base, sizeof(base), "%s", id);
+    }
+
+    char safe_series[SD_SERIES_MAX];
+    if (series) copy_json_safe(safe_series, sizeof(safe_series), series);
+    else        safe_series[0] = '\0';
+
+    if (!lock()) return ESP_ERR_TIMEOUT;
+    bus_lock();
+
+    bool live = (s_sess_id[0] && strcmp(id, s_sess_id) == 0);
+    char new_id[SD_SESSION_ID_MAX];
+    esp_err_t err = ESP_OK;
+
+    if (strcmp(base, id) == 0) {
+        snprintf(new_id, sizeof(new_id), "%s", id);
+    } else if (!unique_id_locked(base, new_id, sizeof(new_id))) {
+        err = ESP_ERR_INVALID_ARG;
+    }
+
+    bool live_pending = (live && s_sess_pending);
+
+    if (err == ESP_OK && strcmp(new_id, id) != 0 && !live_pending) {
+        char from[128], to[128];
+        struct stat sb;
+
+        if (live && s_fp) { sync_locked(); fclose(s_fp); s_fp = NULL; }
+
+        snprintf(from, sizeof(from), SD_SESSIONS "/%s.jsonl", id);
+        snprintf(to,   sizeof(to),   SD_SESSIONS "/%s.jsonl", new_id);
+        if (stat(from, &sb) != 0)      err = ESP_ERR_NOT_FOUND;
+        else if (rename(from, to) != 0) err = ESP_FAIL;
+
+        if (err == ESP_OK) {
+            snprintf(from, sizeof(from), SD_SESSIONS "/%s.meta", id);
+            snprintf(to,   sizeof(to),   SD_SESSIONS "/%s.meta", new_id);
+            if (stat(from, &sb) == 0) rename(from, to);
+        }
+
+        if (live) {
+
+            const char *keep = (err == ESP_OK) ? new_id : id;
+            snprintf(s_st.path, sizeof(s_st.path), SD_SESSIONS "/%s.jsonl", keep);
+            s_fp = fopen(s_st.path, "a");
+            if (!s_fp) {
+                ESP_LOGE(TAG, "rename: cannot reopen %s — archive stopped", s_st.path);
+                s_st.path[0] = '\0';
+                s_sess_id[0] = '\0';
+                err = ESP_FAIL;
+            }
+        }
+    }
+
+    if (err == ESP_OK) {
+        if (live && s_sess_id[0]) {
+            if (!s_sess_orig[0]) snprintf(s_sess_orig, sizeof(s_sess_orig), "%s", s_sess_id);
+            copy_json_safe(s_sess_id, sizeof(s_sess_id), new_id);
+            if (series) snprintf(s_sess_series, sizeof(s_sess_series), "%s", safe_series);
+
+            if (!s_sess_pending) write_meta_locked(false, "");
+        } else {
+            meta_rename_locked(id, new_id, series ? safe_series : NULL);
+        }
+        if (final_id && final_sz) snprintf(final_id, final_sz, "%s", new_id);
+    }
+
+    bus_unlock();
+    unlock();
+    post_write();
+
+    if (err == ESP_OK)
+        ESP_LOGI(TAG, "archive session renamed: %s -> %s%s%s", id, new_id,
+                 safe_series[0] ? " series=" : "", safe_series);
+    else
+        ESP_LOGW(TAG, "archive rename failed: %s (0x%x)", id, (unsigned)err);
+    return err;
+}
+
+#define PRUNE_PEEK_MAX 16384
+
+static char s_prune_path[128];
+static char s_prune_line[256];
+static char s_prune_ids[8][SD_SESSION_ID_MAX];
+
+static bool file_has_content(const char *id)
+{
+    snprintf(s_prune_path, sizeof(s_prune_path), SD_SESSIONS "/%s.jsonl", id);
+    FILE *f = fopen(s_prune_path, "r");
+    if (!f) return true;
+
+    bool content = false, at_start = true;
+    char *line = s_prune_line;
+    while (fgets(line, sizeof(s_prune_line), f)) {
+        bool ends = (strchr(line, '\n') != NULL);
+        if (at_start) {
+            const char *t = strstr(line, "\"type\":\"");
+            if (!t) { content = true; break; }
+            t += 8;
+            if (strncmp(t, "header\"", 7) != 0 &&
+                strncmp(t, "codebook\"", 9) != 0) { content = true; break; }
+        }
+        at_start = ends;
+    }
+    fclose(f);
+    return content;
+}
+
+esp_err_t sd_store_prune_empty(uint32_t *deleted_out)
+{
+    if (deleted_out) *deleted_out = 0;
+    if (!s_st.mounted) return ESP_ERR_INVALID_STATE;
+
+    if (!lock()) return ESP_ERR_TIMEOUT;
+
+    uint32_t killed = 0;
+
+    const size_t batch = sizeof(s_prune_ids) / sizeof(s_prune_ids[0]);
+    for (;;) {
+        size_t found = 0;
+
+        bus_lock();
+        DIR *d = opendir(SD_SESSIONS);
+        if (!d) { bus_unlock(); break; }
+        struct dirent *de;
+        while (found < batch && (de = readdir(d)) != NULL) {
+            struct stat sb;
+            if (!name_to_id(de->d_name, s_prune_ids[found],
+                            sizeof(s_prune_ids[found]))) continue;
+
+            if (s_sess_id[0] && strcmp(s_prune_ids[found], s_sess_id) == 0) continue;
+
+            snprintf(s_prune_path, sizeof(s_prune_path),
+                     SD_SESSIONS "/%s.jsonl", s_prune_ids[found]);
+            if (stat(s_prune_path, &sb) != 0) continue;
+            if (sb.st_size == 0 ||
+                (sb.st_size <= PRUNE_PEEK_MAX && !file_has_content(s_prune_ids[found])))
+                found++;
+        }
+        closedir(d);
+        bus_unlock();
+        if (!found) break;
+
+        bool failed = false;
+        for (size_t i = 0; i < found; i++) {
+            if (sd_store_delete_session(s_prune_ids[i]) != ESP_OK) { failed = true; break; }
+            killed++;
+        }
+        vTaskDelay(1);
+        if (failed) break;
+    }
+
+    unlock();
+
+    if (deleted_out) *deleted_out = killed;
+    if (killed)
+        ESP_LOGI(TAG, "archive: pruned %u empty session%s",
+                 (unsigned)killed, killed == 1 ? "" : "s");
     return ESP_OK;
 }
 

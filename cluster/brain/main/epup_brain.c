@@ -48,7 +48,7 @@ typedef struct __attribute__((packed)) {
 #define LM_CONFIRM_SCANS   2
 #define LM_PRUNE_AFTER     6
 #define LM_PRUNE_PCT       15
-#define PLACE_SCHEMA_VER   2
+#define PLACE_SCHEMA_VER   3
 
 #define LM_F_PINNED        0x01u
 #define LM_F_CONFIRMED     0x02u
@@ -361,14 +361,51 @@ static void place_absorb(place_t *pl, const win_unit_t *win, int win_n)
     }
 }
 
+static int place_best_match(const win_unit_t *win, int win_n, int *sim_out)
+{
+    int best = -1, best_sim = -1, best_distinct = 0;
+    for (int i = 0; i < P.count; i++) {
+        place_t *p = &P.places[i];
+        int inter = 0, distinct = 0, wsum_win = 0;
+        for (int w = 0; w < win_n; w++) {
+            int wt = unit_weight(win[w].unit);
+            wsum_win += wt;
+            landmark_t *lm = lm_find(p, win[w].unit);
+            if (lm) {
+                inter += wt;
+
+                if (unit_df(win[w].unit) <= 1) distinct++;
+            }
+        }
+        int wsum_place_only = 0;
+        for (int k = 0; k < p->lm_count; k++) {
+            bool in_win = false;
+            for (int w = 0; w < win_n; w++)
+                if (win[w].unit == p->lm[k].unit) { in_win = true; break; }
+            if (!in_win) wsum_place_only += unit_weight(p->lm[k].unit);
+        }
+        int uni = wsum_win + wsum_place_only;
+        int sim = uni > 0 ? inter * 100 / uni : 0;
+        if (sim > best_sim) { best_sim = sim; best = i; best_distinct = distinct; }
+    }
+
+    if (sim_out) *sim_out = best_sim < 0 ? 0 : best_sim;
+    bool matched = (best >= 0 && best_sim >= PLACE_MATCH_PCT && best_distinct >= PLACE_MIN_DISTINCT);
+    return matched ? best : -1;
+}
+
 static void place_enroll(const win_unit_t *win, int win_n)
 {
     if (win_n < PLACE_MIN_UNITS) { P.sim = 0; P.is_new = false; return; }
 
     if (L.target < 0) {
         int idx;
+
+        int found = (!L.fresh && P.cur < 0) ? place_best_match(win, win_n, NULL) : -1;
         if (!L.fresh && P.cur >= 0 && P.cur < P.count) {
             idx = P.cur; P.is_new = false;
+        } else if (found >= 0) {
+            idx = found; P.is_new = false;
         } else {
             if (P.count < PLACE_MAX) idx = P.count++;
             else { idx = 0; uint32_t o = P.places[0].last_seq;
@@ -412,34 +449,11 @@ static void place_fold(const win_unit_t *win, int win_n)
     if (L.active) { place_enroll(win, win_n); return; }
     if (win_n < PLACE_MIN_UNITS) { P.sim = 0; P.is_new = false; return; }
 
-    int best = -1, best_sim = -1, best_distinct = 0;
-    for (int i = 0; i < P.count; i++) {
-        place_t *p = &P.places[i];
-        int inter = 0, distinct = 0, wsum_win = 0;
-        for (int w = 0; w < win_n; w++) {
-            int wt = unit_weight(win[w].unit);
-            wsum_win += wt;
-            landmark_t *lm = lm_find(p, win[w].unit);
-            if (lm) {
-                inter += wt;
-                if ((lm->flags & LM_F_CONFIRMED) && unit_df(win[w].unit) <= 1) distinct++;
-            }
-        }
-        int wsum_place_only = 0;
-        for (int k = 0; k < p->lm_count; k++) {
-            bool in_win = false;
-            for (int w = 0; w < win_n; w++)
-                if (win[w].unit == p->lm[k].unit) { in_win = true; break; }
-            if (!in_win) wsum_place_only += unit_weight(p->lm[k].unit);
-        }
-        int uni = wsum_win + wsum_place_only;
-        int sim = uni > 0 ? inter * 100 / uni : 0;
-        if (sim > best_sim) { best_sim = sim; best = i; best_distinct = distinct; }
-    }
+    int best_sim = 0;
+    int best = place_best_match(win, win_n, &best_sim);
 
-    bool matched = (best >= 0 && best_sim >= PLACE_MATCH_PCT && best_distinct >= PLACE_MIN_DISTINCT);
     int idx;
-    if (matched) {
+    if (best >= 0) {
         idx = best; P.is_new = false;
     } else {
         if (P.count < PLACE_MAX) {
@@ -473,15 +487,13 @@ static void place_fold(const win_unit_t *win, int win_n)
 
 static int win_add(win_unit_t *win, int n, const char *line, int ll)
 {
-    char bssid[24], ssid[40], ieh[24];
+    char bssid[24], ssid[40];
     if (!find_str(line, ll, "\"bssid\":\"", bssid, sizeof bssid)) return n;
     uint8_t mac[6];
     if (!infra_parse_mac(bssid, (int)strlen(bssid), mac)) return n;
     int sl = find_str(line, ll, "\"ssid\":\"", ssid, sizeof ssid);
-    uint32_t ie = 0;
-    if (find_str(line, ll, "\"ie_pattern_hash\":", ieh, sizeof ieh))
-        ie = (uint32_t)strtoul(ieh, NULL, 10);
-    uint64_t u = infra_unit_key(mac, ie);
+
+    uint64_t u = infra_place_key(mac);
     for (int k = 0; k < n; k++)
         if (win[k].unit == u) { if (win[k].cnt < 0xFFFF) win[k].cnt++; return n; }
     if (n >= WIN_MAX) return n;

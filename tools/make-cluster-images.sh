@@ -9,9 +9,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/docs/webflasher/firmware"
+OUT="${SC_OUT:-$ROOT/docs/webflasher/firmware}"
 EUI="$ROOT/data/eui.bin"
 EUI_OFFSET=0x310000
+
+# SC_PUB=1 uses the builds made from release-staging/ (the comment-stripped tree
+# that is actually published), so the shipped binaries match the shipped source.
+# Stripping shifts __LINE__, so the two trees do not produce identical images.
 
 command -v esptool.py >/dev/null \
   || { echo "error: esptool.py not on PATH — run '. \$HOME/esp/esp-idf/export.sh'" >&2; exit 1; }
@@ -19,12 +23,25 @@ command -v esptool.py >/dev/null \
 mkdir -p "$OUT"
 
 # name | build cache | out basename | app bin | with eui | chip id
+if [ "${SC_PUB:-0}" = 1 ]; then
+TARGETS=(
+  "standalone|pub-standalone|sniffcheck-merged|sniffcheck_c5.bin|yes|23"
+  "brain|pub-brain|sniffcheck-cluster-brain-merged|sniffcheck_cluster_brain.bin|no|23"
+  "arm|pub-arm|sniffcheck-cluster-arm-merged|sniffcheck_cluster_arm.bin|yes|23"
+  "s3node|pub-s3|sniffcheck-cluster-s3node-merged|sniffcheck_cluster_head.bin|no|9"
+)
+else
 TARGETS=(
   "standalone|sniffcheck-build|sniffcheck-merged|sniffcheck_c5.bin|yes|23"
   "brain|sc-brain-build|sniffcheck-cluster-brain-merged|sniffcheck_cluster_brain.bin|no|23"
   "arm|sc-cluster-arm-build|sniffcheck-cluster-arm-merged|sniffcheck_cluster_arm.bin|yes|23"
   "s3node|sc-s3-build|sniffcheck-cluster-s3node-merged|sniffcheck_cluster_head.bin|no|9"
 )
+fi
+
+# One arm image serves every arm in the pack. An arm claims its I2C slot at boot
+# and the brain hands it its share of the spectrum, so there is nothing per-board
+# to bake in and nothing to keep in step between two arm builds.
 
 merge_one() {
   local name="$1" cache="$2" base="$3" app="$4" with_eui="$5" chipid="$6"
@@ -59,6 +76,25 @@ PY
     --flash_freq "$FREQ" -o "$merged" "${PARTS[@]}" "${extra[@]}" >/dev/null
 
   cp "$build/$app" "$OUT/${base%-merged}-app.bin"
+
+  # Guard against a half-reverted tree shipping an arm that still has a fixed
+  # index compiled in: those builds carry the old per-index band labels, and a
+  # runtime-assigned arm never does.
+  case "$name" in
+    arm)
+      local stale
+      # One pass, no `grep -q` in the pipeline: quitting early would SIGPIPE
+      # `strings` and pipefail would read that as "label absent".
+      # `|| true`: finding nothing is the passing case here, and a non-zero grep
+      # inside a command substitution would take `set -e` with it.
+      stale="$(strings "$build/$app" | grep -F -e '2.4+5 A/BLE' -e '2.4+5 B/BLE' | sort -u || true)"
+      if [ -n "$stale" ]; then
+        echo "FAIL arm: image carries a fixed band label ($stale) — stale ARM_INDEX build?" >&2
+        return 1
+      fi
+      echo "   ok arm: runtime slot (no compiled-in index)"
+      ;;
+  esac
 
   python3 - "$merged" "$chipid" "$CHIP" <<'PY'
 import sys

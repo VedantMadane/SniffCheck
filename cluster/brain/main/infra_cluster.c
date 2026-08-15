@@ -38,6 +38,19 @@ static uint64_t fold(uint64_t h, uint64_t v)
     return h;
 }
 
+uint64_t infra_place_key(const uint8_t mac[6])
+{
+
+    uint8_t b0 = (uint8_t)(mac[0] & ~0x02u);
+    uint64_t h = 1469598103934665603ULL;
+    h = fold(h, b0);
+    h = fold(h, mac[1]);
+    h = fold(h, mac[2]);
+    h = fold(h, mac[3]);
+    h = fold(h, mac[4]);
+    return mix(h);
+}
+
 uint64_t infra_unit_key(const uint8_t mac[6], uint32_t ie_pattern_hash)
 {
 

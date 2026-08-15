@@ -30,6 +30,9 @@ const FIRMWARES = [
     chip: /c5/i, chipName: "ESP32-C5", imageChipId: 23,
     bootloaderOffset: 0x2000, appOffset: 0x10000, offset: 0x0,
   },
+  // One image for every arm: a board claims its I2C slot at boot and the brain
+  // hands it its share of the spectrum, so arms are interchangeable and a pack
+  // can hold one, two, or more.
   {
     id: "cluster-arm", brand: "lilygo", device: "c5", family: "cluster",
     role: "Arm",

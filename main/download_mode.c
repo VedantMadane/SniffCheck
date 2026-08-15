@@ -76,7 +76,7 @@ static void persist_timeout(void)
 {
     nvs_handle_t h;
     if (nvs_open(CFG_NS, NVS_READWRITE, &h) == ESP_OK) {
-        nvs_set_u8(h, "dl_timeout", s_timeout_min);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u8(h, "dl_timeout", s_timeout_min));
         nvs_commit(h);
         nvs_close(h);
     }

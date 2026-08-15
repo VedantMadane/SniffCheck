@@ -29,7 +29,8 @@ typedef enum {
     CL_CMD_START_LOCATE  = 0x13,
     CL_CMD_STOP_LOCATE   = 0x14,
     CL_CMD_GET_LOCATE    = 0x15,
-    CL_CMD_GET_UIEVENT   = 0x16,
+
+    CL_CMD_READDR        = 0x17,
 } cl_cmd_t;
 
 typedef enum { CL_SCAN_REGULAR = 0, CL_SCAN_ADV = 1 } cl_scan_mode_t;
@@ -49,6 +50,8 @@ typedef struct __attribute__((packed)) {
     uint16_t ble_seen;
     uint32_t scan_seq;
     uint32_t scanset_len;
+
+    uint8_t  node_id[3];
     uint16_t crc;
 } cl_status_t;
 
@@ -185,8 +188,6 @@ typedef struct __attribute__((packed)) {
 
 #define CL_PUT_SENTCFG    0x34
 
-#define CL_PUT_UIFRAME    0x36
-
 #define CL_UI_ITEMS   5
 #define CL_UI_TITLE  18
 #define CL_UI_ITEM   18
@@ -223,15 +224,6 @@ typedef enum {
     CL_UI_EV_LONG   = 3,
 } cl_ui_event_t;
 
-typedef struct __attribute__((packed)) {
-    uint8_t  magic;
-    uint8_t  cmd;
-    uint8_t  ev;
-    uint8_t  has_lcd;
-    uint32_t seq;
-    uint16_t crc;
-} cl_uievent_t;
-
 uint16_t cl_crc16(const uint8_t *data, size_t len);
 
 void cl_status_seal(cl_status_t *s);
@@ -261,9 +253,6 @@ void cl_locate_state_seal(cl_locate_state_t *s);
 int  cl_locate_state_valid(const cl_locate_state_t *s);
 void cl_getreq_build_cmd(cl_getreq_t *g, uint8_t cmd, uint32_t offset);
 int  cl_getreq_valid_cmd(const cl_getreq_t *g, uint8_t cmd);
-
-void cl_uievent_seal(cl_uievent_t *e);
-int  cl_uievent_valid(const cl_uievent_t *e);
 
 void cl_chunk_seal(cl_chunk_t *c);
 int  cl_chunk_valid(const cl_chunk_t *c);

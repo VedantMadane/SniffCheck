@@ -37,17 +37,18 @@
 #include "virtual_pup_walk.h"
 #include "pup_trophy.h"
 
-#define FW_CKPT "brain-1.2"
+#define FW_CKPT "brain-1.3"
 
 #define BRAIN_I2C_HZ  1000000
 
 static const char *TAG = "cluster-brain";
 
-#define N_ARMS 2
-static const struct { uint8_t addr; uint8_t index; const char *band; } ARMS[N_ARMS] = {
-    { CL_ARM1_ADDR, 1, "2.4+5 A/BLE" },
-    { CL_ARM2_ADDR, 2, "2.4+5 B/BLE" },
-};
+#define N_ARMS CL_ARM_POOL_N
+static const uint8_t ARM_POOL[N_ARMS] = CL_ARM_POOL;
+
+#define ARM_PRESENT_US    3000000LL
+
+#define MERGE_WAIT_US    45000000LL
 
 #define BRAIN_PLAN_DWELL_LITE   80
 #define BRAIN_PLAN_DWELL_ADV    160
@@ -59,6 +60,10 @@ typedef struct {
     int64_t     last_ok_us;
     uint32_t    last_ingest_seq;
     bool        planned;
+    bool        present;
+    uint8_t     node_id[3];
+    uint8_t     slot;
+    uint8_t     of;
 } arm_link_t;
 
 static arm_link_t s_link[N_ARMS];
@@ -77,7 +82,7 @@ typedef struct {
     uint32_t  len, recs;
     bool      have;
 } arm_slot_t;
-static arm_slot_t s_arm[2];
+static arm_slot_t s_arm[N_ARMS];
 
 static uint8_t  *s_merge_buf;
 static uint32_t  s_merge_len, s_merge_uniq, s_merge_dup, s_merge_count;
@@ -381,68 +386,6 @@ static void push_clock_to_s3(uint32_t epoch)
 {
     cl_getreq_t g; cl_getreq_build_cmd(&g, CL_CMD_SET_CLOCK, epoch);
     i2c_master_transmit(s_s3_dev, (const uint8_t *)&g, sizeof(g), 100);
-}
-
-static SemaphoreHandle_t s_ui_mux;
-static cl_uiframe_t      s_ui_pending;
-static volatile bool     s_ui_pending_req;
-static QueueHandle_t     s_ui_evq;
-static uint32_t          s_ui_ev_seq;
-static bool              s_ui_ev_synced;
-
-static bool              s_ui_have_frame;
-static uint32_t          s_ui_pushes, s_ui_fail;
-
-static void ui_frame_queue(const cl_uiframe_t *f)
-{
-    if (!s_ui_mux) return;
-    if (xSemaphoreTake(s_ui_mux, pdMS_TO_TICKS(50)) != pdTRUE) return;
-    memcpy(&s_ui_pending, f, sizeof s_ui_pending);
-    s_ui_have_frame  = true;
-    s_ui_pending_req = true;
-    xSemaphoreGive(s_ui_mux);
-}
-
-static void ui_frame_refresh(void)
-{
-    if (s_ui_have_frame) s_ui_pending_req = true;
-}
-
-static void push_uiframe_to_s3(void)
-{
-    static cl_chunk_t ch;
-    if (!s_ui_pending_req) return;
-    if (xSemaphoreTake(s_ui_mux, pdMS_TO_TICKS(20)) != pdTRUE) return;
-    memset(&ch, 0, sizeof ch);
-    ch.type      = CL_PUT_UIFRAME;
-    ch.total_len = sizeof(cl_uiframe_t);
-    ch.len       = (uint16_t)sizeof(cl_uiframe_t);
-    memcpy(ch.payload, &s_ui_pending, sizeof(cl_uiframe_t));
-    s_ui_pending_req = false;
-    xSemaphoreGive(s_ui_mux);
-
-    cl_chunk_seal(&ch);
-    if (i2c_master_transmit(s_s3_dev, (const uint8_t *)&ch, sizeof(ch), 100) == ESP_OK)
-        s_ui_pushes++;
-    else
-        s_ui_fail++;
-    esp_rom_delay_us(CL_CHUNK_SETTLE_US);
-}
-
-static void poll_s3_uievent(void)
-{
-    cl_getreq_t g; cl_getreq_build_cmd(&g, CL_CMD_GET_UIEVENT, 0);
-    if (i2c_master_transmit(s_s3_dev, (const uint8_t *)&g, sizeof(g), 100) != ESP_OK) return;
-    esp_rom_delay_us(CL_CHUNK_SETTLE_US);
-    cl_uievent_t e;
-    if (i2c_master_receive(s_s3_dev, (uint8_t *)&e, sizeof(e), 100) != ESP_OK) return;
-    if (!cl_uievent_valid(&e)) return;
-
-    if (!s_ui_ev_synced) { s_ui_ev_seq = e.seq; s_ui_ev_synced = true; return; }
-    if (e.seq == s_ui_ev_seq || e.ev == CL_UI_EV_NONE) return;
-    s_ui_ev_seq = e.seq;
-    uint8_t ev = e.ev;
-    xQueueSend(s_ui_evq, &ev, 0);
 }
 
 static void push_tracker_to_s3(const tsnd_target_t *t, uint8_t action)
@@ -794,13 +737,21 @@ void master_cluster_status_json(char *buf, size_t buflen)
     int64_t now = esp_timer_get_time();
     capture_ring_stats_t rs; capture_ring_get_stats(&rs);
     int off = snprintf(buf, buflen, "{\"arms\":[");
+    int emitted = 0;
     for (int i = 0; i < N_ARMS && off > 0 && off < (int)buflen; i++) {
-        bool fresh = s_link[i].ok && (now - s_link[i].last_ok_us) < 1500000LL;
-        long age_ms = s_link[i].ok ? (long)((now - s_link[i].last_ok_us) / 1000) : -1;
+
+        if (!s_link[i].ok) continue;
+        bool fresh = s_link[i].present;
+        long age_ms = (long)((now - s_link[i].last_ok_us) / 1000);
+        char band[24];
+        if (s_link[i].of > 1) snprintf(band, sizeof band, "2.4+5 %u/%u BLE",
+                                       (unsigned)(s_link[i].slot + 1), (unsigned)s_link[i].of);
+        else                  snprintf(band, sizeof band, "2.4+5 full/BLE");
         off += snprintf(buf + off, buflen - off,
-            "%s{\"i\":%u,\"band\":\"%s\",\"online\":%s,\"state\":%u,\"wifi\":%u,\"ble\":%u,\"seq\":%lu,"
+            "%s{\"i\":%u,\"addr\":%u,\"band\":\"%s\",\"online\":%s,\"state\":%u,\"wifi\":%u,\"ble\":%u,\"seq\":%lu,"
             "\"age_ms\":%ld,\"ok\":%lu,\"polls\":%lu,\"planned\":%s}",
-            i ? "," : "", ARMS[i].index, ARMS[i].band, fresh ? "true" : "false",
+            emitted++ ? "," : "", (unsigned)(s_link[i].slot + 1), ARM_POOL[i], band,
+            fresh ? "true" : "false",
             s_link[i].last.state, s_link[i].last.wifi_seen, s_link[i].last.ble_seen,
             (unsigned long)s_link[i].last_ingest_seq,
             age_ms, (unsigned long)s_link[i].ok, (unsigned long)s_link[i].polls,
@@ -899,7 +850,7 @@ static void i2c_master_setup(void)
     for (int i = 0; i < N_ARMS; i++) {
         i2c_device_config_t dc = {
             .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address  = ARMS[i].addr,
+            .device_address  = ARM_POOL[i],
             .scl_speed_hz    = BRAIN_I2C_HZ,
         };
         ESP_ERROR_CHECK(i2c_master_bus_add_device(s_bus, &dc, &s_dev[i]));
@@ -910,9 +861,9 @@ static void i2c_master_setup(void)
         .scl_speed_hz    = BRAIN_I2C_HZ,
     };
     ESP_ERROR_CHECK(i2c_master_bus_add_device(s_bus, &s3c, &s_s3_dev));
-    ESP_LOGI(TAG, "I2C master up: SDA=%d SCL=%d @%luHz arms 0x%02x/0x%02x S3 0x%02x",
+    ESP_LOGI(TAG, "I2C master up: SDA=%d SCL=%d @%luHz watching %d arm slots 0x%02x-0x%02x, S3 0x%02x",
              CL_I2C_SDA_GPIO, CL_I2C_SCL_GPIO, (unsigned long)BRAIN_I2C_HZ,
-             CL_ARM1_ADDR, CL_ARM2_ADDR, CL_S3_ADDR);
+             N_ARMS, ARM_POOL[0], ARM_POOL[N_ARMS - 1], CL_S3_ADDR);
 }
 
 static void push_merge_to_s3(void)
@@ -949,14 +900,22 @@ static void arm_broadcast(cl_cmd_t cmd, uint8_t arg)
 {
     cl_cmd_frame_t f; cl_cmd_build(&f, cmd, arg);
     for (int i = 0; i < N_ARMS; i++)
-        i2c_master_transmit(s_dev[i], (const uint8_t *)&f, sizeof(f), 100);
+        if (s_link[i].present)
+            i2c_master_transmit(s_dev[i], (const uint8_t *)&f, sizeof(f), 100);
 }
 
-static bool send_plan(int i)
+static int arm_roster(int *idx)
+{
+    int n = 0;
+    for (int i = 0; i < N_ARMS; i++) if (s_link[i].present) idx[n++] = i;
+    return n;
+}
+
+static bool send_plan(int i, uint8_t slot, uint8_t of)
 {
     cl_plan_t p = {
-        .n_arms       = N_ARMS,
-        .arm_slot     = (uint8_t)i,
+        .n_arms       = of ? of : 1,
+        .arm_slot     = slot,
         .dwell_ms     = BRAIN_PLAN_DWELL_LITE,
         .dwell_adv_ms = BRAIN_PLAN_DWELL_ADV,
         .ble_every_n  = BRAIN_PLAN_BLE_EVERY_N,
@@ -964,10 +923,50 @@ static bool send_plan(int i)
     };
     cl_plan_seal(&p);
     bool ok = i2c_master_transmit(s_dev[i], (const uint8_t *)&p, sizeof(p), 100) == ESP_OK;
-    ESP_LOGI(TAG, "SET_PLAN -> arm%d: slot %d/%d dwell %d/%d ble_n=%d %s",
-             ARMS[i].index, i, N_ARMS, BRAIN_PLAN_DWELL_LITE, BRAIN_PLAN_DWELL_ADV,
+    if (ok) { s_link[i].slot = slot; s_link[i].of = p.n_arms; s_link[i].planned = true; }
+    ESP_LOGI(TAG, "SET_PLAN -> 0x%02X: slot %u/%u dwell %d/%d ble_n=%d %s",
+             ARM_POOL[i], (unsigned)slot, (unsigned)p.n_arms,
+             BRAIN_PLAN_DWELL_LITE, BRAIN_PLAN_DWELL_ADV,
              BRAIN_PLAN_BLE_EVERY_N, ok ? "ok" : "FAIL");
     return ok;
+}
+
+static void replan_all(const char *why)
+{
+    int idx[N_ARMS];
+    int n = arm_roster(idx);
+    if (n == 0) return;
+    ESP_LOGI(TAG, "roster %s: %d arm%s -> re-planning", why, n, n == 1 ? "" : "s");
+    for (int r = 0; r < n; r++) send_plan(idx[r], (uint8_t)r, (uint8_t)n);
+}
+
+static void arm_check_duplicate(int i, const cl_status_t *st)
+{
+    arm_link_t *L = &s_link[i];
+    if (memcmp(L->node_id, st->node_id, 3) == 0) return;
+    if (L->ok > 1) {
+        ESP_LOGW(TAG, "0x%02X answered as %02X%02X%02X then %02X%02X%02X — "
+                      "two arms on one address, sending READDR",
+                 ARM_POOL[i], L->node_id[0], L->node_id[1], L->node_id[2],
+                 st->node_id[0], st->node_id[1], st->node_id[2]);
+        cl_cmd_frame_t f; cl_cmd_build(&f, CL_CMD_READDR, 0);
+        i2c_master_transmit(s_dev[i], (const uint8_t *)&f, sizeof(f), 100);
+    }
+    memcpy(L->node_id, st->node_id, 3);
+}
+
+static bool arm_buf(int i)
+{
+    if (s_arm[i].buf) return true;
+    s_arm[i].buf = heap_caps_malloc(BRAIN_ARM_CAP, MALLOC_CAP_SPIRAM);
+    if (!s_arm[i].buf) s_arm[i].buf = heap_caps_malloc(BRAIN_ARM_CAP, MALLOC_CAP_8BIT);
+    if (!s_arm[i].buf) {
+        ESP_LOGE(TAG, "no memory for arm 0x%02X buffer (%uKB)", ARM_POOL[i],
+                 BRAIN_ARM_CAP / 1024);
+        return false;
+    }
+    ESP_LOGI(TAG, "arm 0x%02X: %uKB buffer claimed", ARM_POOL[i], BRAIN_ARM_CAP / 1024);
+    return true;
 }
 
 static bool ingest_arm(int i, uint32_t seq)
@@ -976,6 +975,8 @@ static bool ingest_arm(int i, uint32_t seq)
     arm_slot_t *a = &s_arm[i];
     uint32_t off = 0, total = 0;
     int64_t t0 = esp_timer_get_time();
+
+    if (!arm_buf(i)) return false;
 
     do {
         cl_getreq_t g; cl_getreq_build(&g, off);
@@ -1002,8 +1003,8 @@ static bool ingest_arm(int i, uint32_t seq)
     uint32_t wall_ts = s_epoch_base
         ? (uint32_t)(s_epoch_base + esp_timer_get_time() / 1000000) : 0;
     ring_feed_scanset(a->buf, off, wall_ts);
-    ESP_LOGI(TAG, "ingest arm%d seq=%lu: %lu bytes, %lu recs, %lldms",
-             ARMS[i].index, (unsigned long)seq, (unsigned long)off,
+    ESP_LOGI(TAG, "ingest 0x%02X seq=%lu: %lu bytes, %lu recs, %lldms",
+             ARM_POOL[i], (unsigned long)seq, (unsigned long)off,
              (unsigned long)recs, (long long)(esp_timer_get_time() - t0) / 1000);
     return true;
 }
@@ -1055,16 +1056,21 @@ static void merge_window(void)
         ? (uint32_t)(s_epoch_base + esp_timer_get_time() / 1000000) : 0;
     dev_table_ingest(s_merge_buf, s_merge_len, s_merge_count, wall_ts);
     harvest_from_merge(s_merge_buf, s_merge_len);
-    ESP_LOGI(TAG, "MERGE #%lu: %lu uniq, %lu dup, %lu bytes (arm1=%lu arm2=%lu recs) devtab=%d/%d evict=%lu",
+    char per_arm[72]; int pa = 0;
+    for (int i = 0; i < N_ARMS && pa >= 0 && pa < (int)sizeof per_arm; i++)
+        if (s_arm[i].have)
+            pa += snprintf(per_arm + pa, sizeof per_arm - pa, "%s0x%02X=%lu",
+                           pa ? " " : "", ARM_POOL[i], (unsigned long)s_arm[i].recs);
+    if (pa <= 0) per_arm[0] = '\0';
+    ESP_LOGI(TAG, "MERGE #%lu: %lu uniq, %lu dup, %lu bytes (%s recs) devtab=%d/%d evict=%lu",
              (unsigned long)s_merge_count, (unsigned long)s_merge_uniq,
-             (unsigned long)s_merge_dup, (unsigned long)s_merge_len,
-             (unsigned long)s_arm[0].recs, (unsigned long)s_arm[1].recs,
+             (unsigned long)s_merge_dup, (unsigned long)s_merge_len, per_arm,
              s_dev_n, DEV_MAX, (unsigned long)s_dev_evict);
     epup_brain_observe((const char *)s_merge_buf, s_merge_len);
 
     push_merge_to_s3();
 
-    s_arm[0].have = s_arm[1].have = false;
+    for (int i = 0; i < N_ARMS; i++) s_arm[i].have = false;
 }
 
 static void poll_arm(int i)
@@ -1073,16 +1079,37 @@ static void poll_arm(int i)
     cl_status_t st;
     int64_t now = esp_timer_get_time();
 
-    if (L->planned && L->ok && (now - L->last_ok_us) > 3000000LL) L->planned = false;
+    if (L->planned && L->ok && (now - L->last_ok_us) > ARM_PRESENT_US) L->planned = false;
     L->polls++;
     if (i2c_master_receive(s_dev[i], (uint8_t *)&st, sizeof(st), 100) == ESP_OK
         && cl_status_valid(&st)) {
+        arm_check_duplicate(i, &st);
         L->last = st; L->ok++; L->last_ok_us = esp_timer_get_time();
-        if (!L->planned && send_plan(i)) L->planned = true;
         if (st.scanset_ready && st.scanset_len > 0 && st.scan_seq != L->last_ingest_seq) {
             if (ingest_arm(i, st.scan_seq)) L->last_ingest_seq = st.scan_seq;
         }
     }
+}
+
+static bool refresh_roster(void)
+{
+    int64_t now = esp_timer_get_time();
+    bool changed = false;
+    for (int i = 0; i < N_ARMS; i++) {
+        bool on = s_link[i].ok && (now - s_link[i].last_ok_us) < ARM_PRESENT_US;
+        if (on != s_link[i].present) {
+            ESP_LOGI(TAG, "arm 0x%02X %s", ARM_POOL[i], on ? "joined" : "dropped");
+            s_link[i].present = on;
+            if (!on) { s_link[i].planned = false; s_arm[i].have = false; }
+            changed = true;
+        }
+    }
+    if (!changed) {
+        for (int i = 0; i < N_ARMS; i++)
+            if (s_link[i].present && !s_link[i].planned) { changed = true; break; }
+    }
+    if (changed) replan_all("changed");
+    return changed;
 }
 
 static inline bool bus_line_stuck(void)
@@ -1105,8 +1132,8 @@ static void bus_health_check(void)
 static void bus_task(void *arg)
 {
     (void)arg;
-    bool arm_was_online[N_ARMS] = { false };
-    bool scan_inflight = false;
+    bool    scan_inflight   = false;
+    int64_t scan_started_us = 0;
 
     for (;;) {
         bus_health_check();
@@ -1177,14 +1204,6 @@ static void bus_task(void *arg)
             if (bnow - last_blob_us >= 1000000LL) { last_blob_us = bnow; refresh_s3_blobs(); }
         }
 
-        push_uiframe_to_s3();
-        {
-            static int64_t last_uiev_us, last_uirep_us;
-            int64_t bnow = esp_timer_get_time();
-            if (bnow - last_uiev_us >= 300000LL) { last_uiev_us = bnow; poll_s3_uievent(); }
-            if (bnow - last_uirep_us >= 3000000LL) { last_uirep_us = bnow; ui_frame_refresh(); }
-        }
-
         if (s_reset_req) {
             s_reset_req = false;
             ESP_LOGW(TAG, "HARD RESET (WebAP): wiping model + place memory, restarting");
@@ -1200,30 +1219,39 @@ static void bus_task(void *arg)
 
         int64_t now = esp_timer_get_time();
 
-        int online = 0;
-        for (int i = 0; i < N_ARMS; i++) {
-            bool on = s_link[i].ok && (now - s_link[i].last_ok_us) < 1500000LL;
-            if (on) online++;
-            if (on != arm_was_online[i]) {
-                ESP_LOGI(TAG, "arm %u %s", ARMS[i].index, on ? "online" : "went offline");
-                arm_was_online[i] = on;
-            }
-        }
+        refresh_roster();
+        int idx[N_ARMS];
+        int online = arm_roster(idx);
 
-        if (s_arm[0].have && s_arm[1].have) {
+        int have = 0, pending = 0;
+        for (int r = 0; r < online; r++) {
+            if (s_arm[idx[r]].have) have++;
+            else                    pending++;
+        }
+        bool merge_ready = scan_inflight && have > 0 && pending == 0;
+        bool merge_timeout = scan_inflight && have > 0 &&
+                             (now - scan_started_us) > MERGE_WAIT_US;
+        if (merge_ready || merge_timeout) {
+            if (merge_timeout)
+                ESP_LOGW(TAG, "merge window timed out with %d/%d arms — closing anyway",
+                         have, online);
             merge_window();
             scan_inflight = false;
             if (!s_walking) s_rescan_once = false;
         }
 
+        bool any_have = false;
+        for (int i = 0; i < N_ARMS; i++) if (s_arm[i].have) { any_have = true; break; }
+
         bool want_scan = !s_boot_scanned || s_walking || s_rescan_once;
-        if (want_scan && online == N_ARMS && !scan_inflight && !s_loc_active &&
-            !(s_arm[0].have || s_arm[1].have)) {
+        if (want_scan && online >= 1 && !scan_inflight && !s_loc_active && !any_have) {
             const char *why = !s_boot_scanned ? "boot" : s_walking ? "walk" : "rescan";
-            ESP_LOGI(TAG, "LINK %d/%d -> broadcast SCAN (adv) [%s]", online, N_ARMS, why);
+            ESP_LOGI(TAG, "%d arm%s online -> broadcast SCAN (adv) [%s]",
+                     online, online == 1 ? "" : "s", why);
             arm_broadcast(CL_CMD_SCAN, CL_SCAN_ADV);
-            scan_inflight = true;
-            s_boot_scanned = true;
+            scan_inflight   = true;
+            scan_started_us = now;
+            s_boot_scanned  = true;
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -1233,15 +1261,14 @@ static void bus_task(void *arg)
 static int arms_online(void)
 {
     int online = 0;
-    int64_t now = esp_timer_get_time();
-    for (int i = 0; i < N_ARMS; i++)
-        if (s_link[i].ok && (now - s_link[i].last_ok_us) < 1500000LL) online++;
+    for (int i = 0; i < N_ARMS; i++) if (s_link[i].present) online++;
     return online;
 }
 
 static void status_line(char *out, size_t cap)
 {
-    snprintf(out, cap, "LINK%d/%d m#%lu SD%lu", arms_online(), N_ARMS,
+    int n = arms_online();
+    snprintf(out, cap, "ARMS%d m#%lu SD%lu", n,
              (unsigned long)s_merge_count, (unsigned long)s_s3.recs);
 }
 
@@ -1273,17 +1300,22 @@ static void log_task(void *arg)
         if (now - last_log >= 2000000LL) {
             last_log = now;
             int online = 0;
-            for (int i = 0; i < N_ARMS; i++)
-                if (s_link[i].ok && (now - s_link[i].last_ok_us) < 1500000LL) online++;
+            char roster[64]; int ro = 0;
+            for (int i = 0; i < N_ARMS; i++) {
+                if (!s_link[i].present) continue;
+                online++;
+                if (ro >= 0 && ro < (int)sizeof roster)
+                    ro += snprintf(roster + ro, sizeof roster - ro, "%s0x%02X:%u/%u",
+                                   ro ? " " : "", ARM_POOL[i],
+                                   (unsigned)(s_link[i].slot + 1), (unsigned)s_link[i].of);
+            }
+            if (ro <= 0) snprintf(roster, sizeof roster, "none");
             epup_summary_t ep; epup_brain_get(&ep);
-            ESP_LOGI(TAG, "BRAIN-MASTER [%s] up=%llds LINK %d/%d (a1=%s a2=%s) merge#%lu(%luuq %ludp) S3push=%lu/%lu UI=%lu/%lu busrst=%lu ePup:%s L%lu %lu%% scans=%lu uniq~%lu",
-                     FW_CKPT, (long long)(now / 1000000), online, N_ARMS,
-                     s_link[0].ok && (now-s_link[0].last_ok_us)<1500000LL ? "OK":"--",
-                     s_link[1].ok && (now-s_link[1].last_ok_us)<1500000LL ? "OK":"--",
+            ESP_LOGI(TAG, "BRAIN-MASTER [%s] up=%llds ARMS %d [%s] merge#%lu(%luuq %ludp) S3push=%lu/%lu busrst=%lu ePup:%s L%lu %lu%% scans=%lu uniq~%lu",
+                     FW_CKPT, (long long)(now / 1000000), online, roster,
                      (unsigned long)s_merge_count, (unsigned long)s_merge_uniq,
                      (unsigned long)s_merge_dup,
                      (unsigned long)s_s3_pushes, (unsigned long)s_s3_fail,
-                     (unsigned long)s_ui_pushes, (unsigned long)s_ui_fail,
                      (unsigned long)s_bus_resets,
                      epup_title_label((epup_title_t)ep.title), (unsigned long)ep.level,
                      (unsigned long)ep.confidence, (unsigned long)ep.total_scans,
@@ -1441,8 +1473,8 @@ static void menu_compose(cl_uiframe_t *f)
         cl_ui_frame_item(f, "Start Walk");
         cl_ui_frame_item(f, "Stop Walk");
         f->sel = (int8_t)s_msel;
-        snprintf(extra, sizeof extra, "%s arms %d/%d m#%lu",
-                 s_walking ? "WALKING" : "stopped", arms_online(), N_ARMS,
+        snprintf(extra, sizeof extra, "%s arms %d m#%lu",
+                 s_walking ? "WALKING" : "stopped", arms_online(),
                  (unsigned long)s_merge_count);
         cl_ui_frame_extra(f, extra, s_walking ? 1 : 0);
         return;
@@ -1502,8 +1534,6 @@ static void menu_render(void)
     if (!cl_ui_draw_diff(&f, &last, have_last)) return;
     memcpy(&last, &f, sizeof last);
     have_last = true;
-
-    ui_frame_queue(&f);
 }
 
 static void menu_back(void)
@@ -1608,17 +1638,6 @@ static void menu_task(void *arg)
     for (;;) {
         bev_t ev = brain_wait_button(400);
 
-        if (ev == BEV_NONE && s_ui_evq) {
-            uint8_t rev;
-            if (xQueueReceive(s_ui_evq, &rev, 0) == pdTRUE) {
-                ev = (rev == CL_UI_EV_SINGLE) ? BEV_SINGLE
-                   : (rev == CL_UI_EV_DOUBLE) ? BEV_DOUBLE
-                   : (rev == CL_UI_EV_LONG)   ? BEV_LONG : BEV_NONE;
-                if (ev != BEV_NONE) alog("S3 button: %s",
-                    ev == BEV_SINGLE ? "next" : ev == BEV_DOUBLE ? "select" : "back");
-            }
-        }
-
         if (ev == BEV_NONE) {
             if (s_mscr == MSCR_RESCAN) {
                 if (s_merge_count != s_rescan_base_merge || ++s_rescan_ticks > 60) {
@@ -1671,18 +1690,15 @@ void app_main(void)
     vTaskDelay(pdMS_TO_TICKS(1200));
 
     uint32_t caps = MALLOC_CAP_SPIRAM;
-    s_arm[0].buf = heap_caps_malloc(BRAIN_ARM_CAP, caps);
-    s_arm[1].buf = heap_caps_malloc(BRAIN_ARM_CAP, caps);
     s_merge_buf  = heap_caps_malloc(BRAIN_MERGE_CAP, caps);
-    if (!s_arm[0].buf || !s_arm[1].buf || !s_merge_buf) {
+    if (!s_merge_buf) {
         caps = MALLOC_CAP_8BIT;
-        if (!s_arm[0].buf) s_arm[0].buf = heap_caps_malloc(BRAIN_ARM_CAP, caps);
-        if (!s_arm[1].buf) s_arm[1].buf = heap_caps_malloc(BRAIN_ARM_CAP, caps);
-        if (!s_merge_buf)  s_merge_buf  = heap_caps_malloc(BRAIN_MERGE_CAP, caps);
+        s_merge_buf = heap_caps_malloc(BRAIN_MERGE_CAP, caps);
     }
-    ESP_LOGI(TAG, "buffers: 2x%uKB arm + %uKB merge (%s)",
-             BRAIN_ARM_CAP / 1024, BRAIN_MERGE_CAP / 1024,
-             caps == MALLOC_CAP_SPIRAM ? "PSRAM" : "internal RAM");
+    ESP_LOGI(TAG, "buffers: %uKB merge (%s), %uKB per arm on demand",
+             BRAIN_MERGE_CAP / 1024,
+             caps == MALLOC_CAP_SPIRAM ? "PSRAM" : "internal RAM",
+             BRAIN_ARM_CAP / 1024);
 
     s_dev_mux = xSemaphoreCreateMutex();
     s_devtab = heap_caps_malloc((size_t)DEV_MAX * sizeof(dev_ent_t), MALLOC_CAP_SPIRAM);
@@ -1693,8 +1709,6 @@ void app_main(void)
              (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024), s_sess_id);
 
     s_s3_mux  = xSemaphoreCreateMutex();
-    s_ui_mux  = xSemaphoreCreateMutex();
-    s_ui_evq  = xQueueCreate(4, sizeof(uint8_t));
     uint32_t jcaps = (caps == MALLOC_CAP_SPIRAM) ? MALLOC_CAP_SPIRAM : MALLOC_CAP_8BIT;
     s_sent_json = heap_caps_malloc(6144, jcaps);
     s_hits_json = heap_caps_malloc(6144, jcaps);
@@ -1733,6 +1747,6 @@ void app_main(void)
     xTaskCreate(log_task,  "brain_log",  3072, NULL, 4, NULL);
     xTaskCreate(web_task,  "brain_web",  4096, NULL, 5, NULL);
     xTaskCreate(menu_task, "brain_menu", 4096, NULL, 5, NULL);
-    ESP_LOGI(TAG, "app_main done — I2C MASTER + WebAP host (arms 0x%02x/0x%02x, S3 0x%02x)",
-             CL_ARM1_ADDR, CL_ARM2_ADDR, CL_S3_ADDR);
+    ESP_LOGI(TAG, "app_main done — I2C MASTER + WebAP host (arm pool 0x%02x-0x%02x, S3 0x%02x)",
+             ARM_POOL[0], ARM_POOL[N_ARMS - 1], CL_S3_ADDR);
 }

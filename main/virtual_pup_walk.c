@@ -116,19 +116,19 @@ static void save_last(void)
 {
     nvs_handle_t h;
     if (nvs_open(PW_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    nvs_set_u32(h, PW_K_ID,    s_last.walk_id);
-    nvs_set_u32(h, PW_K_DUR,   s_last.duration_sec);
-    nvs_set_u16(h, PW_K_WIFI,  s_last.wifi_unique_bssid);
-    nvs_set_u16(h, PW_K_SSID,  s_last.wifi_unique_ssid);
-    nvs_set_u16(h, PW_K_BLE,   s_last.ble_unique_devices);
-    nvs_set_u16(h, PW_K_SWEEP, s_last.wifi_sweeps);
-    nvs_set_u16(h, PW_K_WIN,   s_last.ble_windows);
-    nvs_set_u16(h, PW_K_THR,   s_last.threat_events);
-    nvs_set_u16(h, PW_K_SAFE,  s_last.safe_networks);
-    nvs_set_u16(h, PW_K_INT,   s_last.interesting_sniffs);
-    nvs_set_u16(h, PW_K_XP,    s_last.xp_awarded);
-    nvs_set_str(h, PW_K_MOOD,  s_last.mood);
-    nvs_commit(h);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, PW_K_ID,    s_last.walk_id));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u32(h, PW_K_DUR,   s_last.duration_sec));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u16(h, PW_K_WIFI,  s_last.wifi_unique_bssid));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u16(h, PW_K_SSID,  s_last.wifi_unique_ssid));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u16(h, PW_K_BLE,   s_last.ble_unique_devices));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u16(h, PW_K_SWEEP, s_last.wifi_sweeps));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u16(h, PW_K_WIN,   s_last.ble_windows));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u16(h, PW_K_THR,   s_last.threat_events));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u16(h, PW_K_SAFE,  s_last.safe_networks));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u16(h, PW_K_INT,   s_last.interesting_sniffs));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_u16(h, PW_K_XP,    s_last.xp_awarded));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_str(h, PW_K_MOOD,  s_last.mood));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_commit(h));
     nvs_close(h);
 }
 

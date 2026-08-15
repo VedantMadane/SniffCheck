@@ -141,20 +141,6 @@ int cl_locate_state_valid(const cl_locate_state_t *s)
     return s->crc == cl_crc16((const uint8_t *)s, offsetof(cl_locate_state_t, crc));
 }
 
-void cl_uievent_seal(cl_uievent_t *e)
-{
-    e->magic = CL_MAGIC;
-    e->cmd   = (uint8_t)CL_CMD_GET_UIEVENT;
-    e->crc   = cl_crc16((const uint8_t *)e, offsetof(cl_uievent_t, crc));
-}
-
-int cl_uievent_valid(const cl_uievent_t *e)
-{
-    if (e->magic != CL_MAGIC || e->cmd != (uint8_t)CL_CMD_GET_UIEVENT) return 0;
-    if (e->ev > (uint8_t)CL_UI_EV_LONG) return 0;
-    return e->crc == cl_crc16((const uint8_t *)e, offsetof(cl_uievent_t, crc));
-}
-
 void cl_chunk_seal(cl_chunk_t *c)
 {
     c->magic = CL_MAGIC;

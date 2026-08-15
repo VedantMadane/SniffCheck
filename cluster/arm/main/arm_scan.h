@@ -4,7 +4,7 @@
 
 #include "cluster_proto.h"
 
-void arm_scan_init(uint8_t arm_index);
+void arm_scan_init(void);
 
 void arm_scan_set_plan(const cl_plan_t *p);
 

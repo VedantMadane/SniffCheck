@@ -27,6 +27,8 @@ bool sd_store_ok(void);
 
 #define SD_SESSION_ID_MAX  40
 
+#define SD_SERIES_MAX      24
+
 typedef struct {
     uint32_t wifi_aps;
     uint32_t ble_devices;
@@ -76,6 +78,16 @@ size_t sd_store_reader_next(void *h, char *buf, size_t buflen);
 void   sd_store_reader_close(void *h);
 
 esp_err_t sd_store_delete_session(const char *id);
+
+void sd_store_session_mark_preamble_end(void);
+
+esp_err_t sd_store_prune_empty(uint32_t *deleted_out);
+
+bool sd_store_sanitize_name(const char *name, char *out, size_t outsz);
+
+esp_err_t sd_store_rename_session(const char *id, const char *want_name,
+                                  const char *series,
+                                  char *final_id, size_t final_sz);
 
 #define SD_ARCHIVE_REL_PATH  "/sniffcheck/sessions"
 

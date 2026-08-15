@@ -31,8 +31,9 @@
 #include "action_sched.h"
 #include "driver_dult.h"
 #include "head_ui.h"
+#include "cluster_ui.h"
 
-#define FW_CKPT "s3node-1.2"
+#define FW_CKPT "s3node-1.3"
 
 #ifndef TRACKER_SOUND_BENCH
 #define TRACKER_SOUND_BENCH 0
@@ -434,8 +435,7 @@ static bool IRAM_ATTR on_receive_cb(i2c_slave_dev_handle_t dev,
 
     if (evt->length >= sizeof(cl_chunk_t)) {
         const cl_chunk_t *c = (const cl_chunk_t *)evt->buffer;
-        if (!cl_chunk_valid(c) || (c->type != CL_PUT_S3MERGE && c->type != CL_PUT_SENTCFG &&
-                                   c->type != CL_PUT_UIFRAME))
+        if (!cl_chunk_valid(c) || (c->type != CL_PUT_S3MERGE && c->type != CL_PUT_SENTCFG))
             return false;
         BaseType_t woken = pdFALSE;
         xQueueSendFromISR(s_rxq, c, &woken);
@@ -454,8 +454,7 @@ static bool IRAM_ATTR on_receive_cb(i2c_slave_dev_handle_t dev,
     if (evt->length >= sizeof(cl_getreq_t)) {
         const cl_getreq_t *g = (const cl_getreq_t *)evt->buffer;
         if (cl_getreq_valid_cmd(g, CL_CMD_GET_SENT) || cl_getreq_valid_cmd(g, CL_CMD_GET_HITS) ||
-            cl_getreq_valid_cmd(g, CL_CMD_GET_TRACKER) || cl_getreq_valid_cmd(g, CL_CMD_STATUS_SEL) ||
-            cl_getreq_valid_cmd(g, CL_CMD_GET_UIEVENT)) {
+            cl_getreq_valid_cmd(g, CL_CMD_GET_TRACKER) || cl_getreq_valid_cmd(g, CL_CMD_STATUS_SEL)) {
             s_sel_cmd = g->cmd; s_sel_off = g->offset;
         } else if (cl_getreq_valid_cmd(g, CL_CMD_SET_CLOCK)) {
             uint32_t epoch = g->offset;
@@ -524,14 +523,6 @@ static void serve_blob(uint8_t cmd, uint32_t off)
     uint32_t written = 0;
     i2c_slave_write(s_slave, (const uint8_t *)&ch, sizeof(ch), &written, 100);
 }
-static void serve_uievent(void)
-{
-    cl_uievent_t e;
-    head_ui_fill_event(&e);
-    uint32_t written = 0;
-    i2c_slave_write(s_slave, (const uint8_t *)&e, sizeof(e), &written, 100);
-}
-
 static void s3_tx_task(void *arg)
 {
     (void)arg;
@@ -542,12 +533,9 @@ static void s3_tx_task(void *arg)
         uint32_t off = s_sel_off;
         if (cmd == CL_CMD_GET_SENT || cmd == CL_CMD_GET_HITS || cmd == CL_CMD_GET_TRACKER)
                                                               serve_blob(cmd, off);
-        else if (cmd == CL_CMD_GET_UIEVENT)                   serve_uievent();
         else                                                  serve_status();
     }
 }
-
-static void render_screen(const char *state_txt);
 
 static char     s_cfgbuf[512];
 static uint32_t s_cfglen;
@@ -558,12 +546,6 @@ static void ingest_task(void *arg)
     uint32_t cur_seq = 0, exp_off = 0;
     for (;;) {
         if (xQueueReceive(s_rxq, &ch, portMAX_DELAY) != pdTRUE) continue;
-
-        if (ch.type == CL_PUT_UIFRAME) {
-            if (ch.len >= sizeof(cl_uiframe_t))
-                head_ui_push_frame((const cl_uiframe_t *)ch.payload);
-            continue;
-        }
 
         if (ch.type == CL_PUT_SENTCFG) {
             if (ch.offset == 0) s_cfglen = 0;
@@ -604,13 +586,7 @@ static void ingest_task(void *arg)
                      (unsigned long)s_window, (unsigned long)s_win_recs,
                      sd.mounted ? "ok" : "--", (unsigned)sd.records,
                      (unsigned long)s_sent_total, s_sent_last[0] ? s_sent_last : "-");
-
-            if (!head_ui_linked()) {
-                char l[24];
-                snprintf(l, sizeof(l), "w%lu %urec", (unsigned long)s_window,
-                         (unsigned)sd.records);
-                render_screen(l);
-            }
+            head_ui_mark_dirty();
         }
     }
 }
@@ -664,20 +640,46 @@ static void lcd_bus_init(void)
     ESP_ERROR_CHECK(display_init(HEAD_LCD_SPI_HOST));
 }
 
-static void render_screen(const char *state_txt)
+static void compose_page(int page, cl_uiframe_t *f)
 {
-    char l[24];
-    display_clear(COLOR_NEARBLACK);
-    const char *title = "S3 NODE";
-    display_draw_string(2, 4, title, COLOR_HEADER, COLOR_NEARBLACK, 2);
-    snprintf(l, sizeof(l), "slave 0x%02X  SD+Sentinel", CL_S3_ADDR);
-    display_draw_string(2, 24, l, COLOR_GREEN, COLOR_NEARBLACK, 1);
-    display_draw_string(2, 40, state_txt, COLOR_AMBER, COLOR_NEARBLACK, 1);
-    snprintf(l, sizeof(l), "flagged: %lu", (unsigned long)s_sent_total);
-    display_draw_string(2, 54, l, COLOR_WHITE, COLOR_NEARBLACK, 1);
-    snprintf(l, sizeof(l), "%s", FW_CKPT);
-    display_draw_string(DISPLAY_W - (int)strlen(l) * 6 - 2, 70, l, COLOR_WHITE,
-                        COLOR_NEARBLACK, 1);
+    head_sd_stats_t sd; head_sd_get_stats(&sd);
+    char l[CL_UI_ITEM];
+
+    switch (page) {
+    case 1:
+        cl_ui_frame_reset(f, CL_UI_SCR_MENU, "S3 SD", "click: next");
+        snprintf(l, sizeof l, "card %s", sd.mounted ? "mounted" : "absent");
+        cl_ui_frame_item(f, l);
+        snprintf(l, sizeof l, "%u rec", (unsigned)sd.records);
+        cl_ui_frame_item(f, l);
+        snprintf(l, sizeof l, "%.1f GB", (double)sd.card_bytes / 1e9);
+        cl_ui_frame_item(f, l);
+        snprintf(l, sizeof l, "w%lu", (unsigned long)s_window);
+        cl_ui_frame_extra(f, l, sd.mounted ? 1 : 0);
+        break;
+
+    case 2:
+        cl_ui_frame_reset(f, CL_UI_SCR_MENU, "S3 GUARD", "click: next");
+        snprintf(l, sizeof l, "flagged %lu", (unsigned long)s_sent_total);
+        cl_ui_frame_item(f, l);
+        cl_ui_frame_item(f, s_sent_last[0] ? s_sent_last : "no hits yet");
+        snprintf(l, sizeof l, "reads %lu", (unsigned long)s_reads);
+        cl_ui_frame_item(f, l);
+        cl_ui_frame_extra(f, FW_CKPT, 1);
+        break;
+
+    default:
+        cl_ui_frame_reset(f, CL_UI_SCR_MENU, "S3 NODE", "click: next");
+        snprintf(l, sizeof l, "slave 0x%02X", CL_S3_ADDR);
+        cl_ui_frame_item(f, l);
+        cl_ui_frame_item(f, "SD + Guard Dog");
+        snprintf(l, sizeof l, "SD %s  %u rec", sd.mounted ? "ok" : "--",
+                 (unsigned)sd.records);
+        cl_ui_frame_item(f, l);
+        snprintf(l, sizeof l, "w%lu  %s", (unsigned long)s_window, FW_CKPT);
+        cl_ui_frame_extra(f, l, sd.mounted ? 1 : 0);
+        break;
+    }
 }
 
 static void status_task(void *arg)
@@ -888,7 +890,7 @@ void app_main(void)
     sentinel_persist_load();
     sentinel_registry_init();
     i2c_slave_setup();
-    head_ui_init();
+    head_ui_init(compose_page);
 
     wifi_scan_init();
     ble_scan_init();

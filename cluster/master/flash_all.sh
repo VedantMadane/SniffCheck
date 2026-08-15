@@ -1,18 +1,35 @@
 #!/usr/bin/env bash
 set -u
 IDF_HOME="${IDF_HOME:-$HOME/esp/esp-idf}"
-PROJ_DIR="$(cd "$(dirname "$0")" && pwd)"
+# This script lives in cluster/master/ for historical reasons; the projects it
+# builds are siblings of that directory, so resolve against cluster/, not itself.
+CLUSTER_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_DIR="$(cd "$CLUSTER_DIR/.." && pwd)"
 CACHE="$HOME/.cache"; LOG_DIR="$CACHE/cluster-logs"; STAMP="$(date +%Y%m%d-%H%M%S)"
-PORT_MASTER="${PORT_MASTER:-/dev/ttyACM0}"
-PORT_BRAIN="${PORT_BRAIN:-/dev/ttyACM3}"
+# A pack is a brain, one or more arms, and the S3 node. cluster/master/ is the
+# pre-Phase-115 head and is no longer flashed to anything: the brain is the I2C
+# master and WebAP host now, and it compiles the parts of master/main it still
+# needs (cluster_web.c, master_shim.c) straight into its own build.
+PORT_BRAIN="${PORT_BRAIN:-/dev/ttyACM0}"
 PORT_ARM1="${PORT_ARM1:-/dev/ttyACM1}"
 PORT_ARM2="${PORT_ARM2:-/dev/ttyACM2}"
+PORT_S3="${PORT_S3:-/dev/ttyACM3}"
 
-proj()  { case "$1" in master) echo master;; brain) echo brain;; arm1|arm2) echo arm;; esac; }
-bdir()  { echo "$CACHE/cluster-$1-build"; }
-port()  { case "$1" in master) echo "$PORT_MASTER";; brain) echo "$PORT_BRAIN";; arm1) echo "$PORT_ARM1";; arm2) echo "$PORT_ARM2";; esac; }
-dargs() { case "$1" in arm1) echo "-DARM_INDEX=1";; arm2) echo "-DARM_INDEX=2";; *) echo "";; esac; }
-ROLES=(master brain arm1 arm2)
+# Build caches match the ones tools/make-cluster-images.sh merges from, so a
+# board flashed here and an image published there come from the same build.
+# arm1 and arm2 are the same firmware on two ports: arms are interchangeable and
+# sort out their own I2C slots at boot, so there is one arm build for the pack.
+proj()  { case "$1" in brain) echo brain;; arm1|arm2) echo arm;; s3) echo head-s3;; esac; }
+bdir()  { case "$1" in brain) echo "$CACHE/sc-brain-build";;
+                       arm1|arm2) echo "$CACHE/sc-cluster-arm-build";;
+                       s3)    echo "$CACHE/sc-s3-build";; esac; }
+port()  { case "$1" in brain) echo "$PORT_BRAIN";; arm1) echo "$PORT_ARM1";; arm2) echo "$PORT_ARM2";; s3) echo "$PORT_S3";; esac; }
+chip()  { case "$1" in s3) echo esp32s3;; *) echo esp32c5;; esac; }
+
+# Which boards to touch. Drop arm2 (ARMS="brain arm1 s3") for a one-arm pack —
+# the brain plans whatever answers, so a single arm just sweeps the whole
+# spectrum. Add more arms by giving them ports and listing them here.
+ROLES=(${ARMS:-brain arm1 arm2 s3})
 
 MODE="${1:-all}"
 if ! command -v idf.py >/dev/null 2>&1; then
@@ -27,7 +44,7 @@ if [ "$MODE" = "clean" ]; then
     for r in "${ROLES[@]}"; do rm -rf "$(bdir "$r")" && echo "removed $(bdir "$r")"; done; exit 0
 fi
 if [ "$MODE" = "monitor" ]; then
-    R="${2:-master}"; exec idf.py -B "$(bdir "$R")" -p "$(port "$R")" monitor
+    R="${2:-brain}"; exec idf.py -B "$(bdir "$R")" -p "$(port "$R")" monitor
 fi
 
 run() {
@@ -39,13 +56,14 @@ run() {
 }
 
 for r in "${ROLES[@]}"; do
-    P="$(cd "$PROJ_DIR/$(proj "$r")" && pwd)"; BD="$(bdir "$r")"; D="$(dargs "$r")"
-    echo "[$r]  proj $(proj "$r")  build $BD  port $(port "$r")"
+    P="$CLUSTER_DIR/$(proj "$r")"
+    echo "[$r]  proj $(proj "$r")  build $(bdir "$r")  port $(port "$r")"
     cd "$P" || { echo "FAIL: no project at $P"; exit 1; }
+    BD="$(bdir "$r")"
     if [ ! -f "$BD/sdkconfig" ]; then
-        run "set-target esp32c5" "$r-settarget" idf.py -B "$BD" --preview $D set-target esp32c5
+        run "set-target $(chip "$r")" "$r-settarget" idf.py -B "$BD" --preview set-target "$(chip "$r")"
     fi
-    run "build" "$r-build" idf.py -B "$BD" $D build
+    run "build" "$r-build" idf.py -B "$BD" build
     [ "$MODE" = "build" ] && continue
     run "flash ($(port "$r"))" "$r-flash" idf.py -B "$BD" -p "$(port "$r")" flash
     # Arms do the wifi/BLE scanning + vendor/device_class resolution, so they need the
@@ -55,8 +73,8 @@ for r in "${ROLES[@]}"; do
     case "$r" in arm1|arm2)
         run "euidb ($(port "$r"))" "$r-euidb" \
             python -m esptool --chip esp32c5 --port "$(port "$r")" --baud 460800 \
-            write_flash --flash_size 16MB 0x310000 "$PROJ_DIR/../data/eui.bin"
+            write_flash --flash_size 16MB 0x310000 "$REPO_DIR/data/eui.bin"
         ;;
     esac
 done
-echo "$([ "$MODE" = build ] && echo built || echo flashed) all three. monitor: ./flash_all.sh monitor master|arm1|arm2"
+echo "$([ "$MODE" = build ] && echo built || echo flashed) ${ROLES[*]}. monitor: ./flash_all.sh monitor <role>"

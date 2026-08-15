@@ -371,16 +371,16 @@ static void pup_trophy_save(bool earned_dirty)
         ESP_LOGW(TAG, "save open failed: %s", esp_err_to_name(err));
         return;
     }
-    nvs_set_blob(h, PT_K_COUNTS, s_counts, sizeof(s_counts));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_blob(h, PT_K_COUNTS, s_counts, sizeof(s_counts)));
     if (earned_dirty) {
-        nvs_set_blob(h, PT_K_EARNED, s_earned, sizeof(s_earned));
-        nvs_set_blob(h, PT_K_BOOTS, s_boots, sizeof(s_boots));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_blob(h, PT_K_EARNED, s_earned, sizeof(s_earned)));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_blob(h, PT_K_BOOTS, s_boots, sizeof(s_boots)));
     }
     if (s_bloom_dirty) {
-        nvs_set_blob(h, PT_K_BLOOM, s_bloom, sizeof(s_bloom));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_set_blob(h, PT_K_BLOOM, s_bloom, sizeof(s_bloom)));
         s_bloom_dirty = false;
     }
-    nvs_commit(h);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_commit(h));
     nvs_close(h);
 }
 

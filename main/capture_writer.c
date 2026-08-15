@@ -5,6 +5,7 @@
 
 #include "capture_ring.h"
 #include "physical_device_cluster.h"
+#include "ble_adv_ring.h"
 #include "eui_db.h"
 #include "ble_advise.h"
 #include "apple_continuity.h"
@@ -18,19 +19,21 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include <ctype.h>
 
 static const char *TAG = "sc_capwrt";
 
 #ifndef SNIFFCHECK_FW_VERSION
-#define SNIFFCHECK_FW_VERSION  "87.0.112"
+#define SNIFFCHECK_FW_VERSION  "87.0.114"
 #endif
 #ifndef SNIFFCHECK_FW_COMMIT
 #define SNIFFCHECK_FW_COMMIT   "dev"
 #endif
 
 #ifndef SNIFFCHECK_SCHEMA_VER
-#define SNIFFCHECK_SCHEMA_VER  "1.31.0"
+
+#define SNIFFCHECK_SCHEMA_VER  "1.32.0"
 #endif
 
 #define LINE_BUF  3072
@@ -39,12 +42,16 @@ static uint32_t            s_boot_count;
 static int64_t             s_session_start_us;
 static char                s_session_id[24];
 static char               *s_line;
+
+static bool                s_emits_disabled;
 static SemaphoreHandle_t   s_writer_mtx;
 static volatile uint16_t   s_last_scan;
 
 const char *capture_writer_session_id(void)     { return s_session_id; }
 const char *capture_writer_fw_version(void)     { return SNIFFCHECK_FW_VERSION; }
 const char *capture_writer_schema_version(void) { return SNIFFCHECK_SCHEMA_VER; }
+
+bool capture_writer_emits_disabled(void) { return s_emits_disabled; }
 uint16_t    capture_writer_last_scan(void)      { return s_last_scan; }
 
 static inline int64_t now_us(void) { return esp_timer_get_time(); }
@@ -162,7 +169,7 @@ static const char *end_reason_str(capture_end_reason_t r)
     }
 }
 
-static const char *tracker_kind_for(const ble_device_t *d)
+const char *capture_tracker_kind(const ble_device_t *d)
 {
     if (!d) return NULL;
 
@@ -179,13 +186,22 @@ void capture_writer_init(uint32_t boot_count)
     s_boot_count = boot_count;
     s_session_start_us = now_us();
     if (!s_line) {
+
         s_line = heap_caps_malloc(LINE_BUF, MALLOC_CAP_SPIRAM);
+        if (!s_line) {
+            s_line = heap_caps_malloc(LINE_BUF, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+            if (s_line)
+                ESP_LOGW(TAG, "no PSRAM — capture line buffer in internal RAM (%d B)",
+                         LINE_BUF);
+        }
     }
     if (!s_writer_mtx) {
         s_writer_mtx = xSemaphoreCreateMutex();
     }
-    if (!s_line || !s_writer_mtx) {
-        ESP_LOGE(TAG, "writer init alloc failed (line=%p mtx=%p) — emits disabled",
+    s_emits_disabled = (!s_line || !s_writer_mtx);
+    if (s_emits_disabled) {
+        ESP_LOGE(TAG, "writer init alloc failed (line=%p mtx=%p) — CAPTURE DISABLED: "
+                      "scans will run and record nothing",
                  s_line, s_writer_mtx);
     }
 
@@ -204,6 +220,32 @@ static char *line_lock(void)
 static void line_unlock(void)
 {
     if (s_writer_mtx) xSemaphoreGive(s_writer_mtx);
+}
+
+static bool line_add(char *line, int *n, const char *fmt, ...)
+    __attribute__((format(printf, 3, 4)));
+
+static bool line_add(char *line, int *n, const char *fmt, ...)
+{
+    if (*n < 0 || *n >= LINE_BUF - 2) return false;
+
+    va_list ap;
+    va_start(ap, fmt);
+    int wr = vsnprintf(line + *n, (size_t)(LINE_BUF - *n), fmt, ap);
+    va_end(ap);
+
+    if (wr < 0 || *n + wr >= LINE_BUF - 2) {
+
+        static bool warned;
+        if (!warned) {
+            warned = true;
+            ESP_LOGW(TAG, "capture line hit LINE_BUF (%d) — record dropped; "
+                          "a field grew or an enum table did", LINE_BUF);
+        }
+        return false;
+    }
+    *n += wr;
+    return true;
 }
 
 void capture_emit_header(void)
@@ -237,70 +279,97 @@ void capture_emit_codebook(void)
         "{\"type\":\"codebook\",\"ts_us\":%lld,\"schema_version\":\"%s\",\"enums\":{",
         (long long)now_us(), SNIFFCHECK_SCHEMA_VER);
 
-    n += snprintf(line + n, LINE_BUF - n, "\"device_class\":{");
+    if (!line_add(line, &n, "\"device_class\":{"))
+        { line_unlock(); return; }
     for (uint8_t c = 0; c <= EUI_CLASS_SURVEILLANCE_OUI; c++) {
         const char *lbl = eui_class_label(c);
         if (!lbl[0]) lbl = "unknown";
-        n += snprintf(line + n, LINE_BUF - n, "%s\"%u\":\"%s\"",
-                      c ? "," : "", c, lbl);
+        if (!line_add(line, &n, "%s\"%u\":\"%s\"",
+                      c ? "," : "", c, lbl))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n, "},");
+    if (!line_add(line, &n, "},"))
+        { line_unlock(); return; }
 
-    n += snprintf(line + n, LINE_BUF - n, "\"verdict\":{");
+    if (!line_add(line, &n, "\"verdict\":{"))
+        { line_unlock(); return; }
     for (uint8_t v = VERDICT_GREEN; v <= VERDICT_RED; v++) {
-        n += snprintf(line + n, LINE_BUF - n, "%s\"%u\":\"%s\"",
-                      v ? "," : "", v, analyzer_verdict_label(v));
+        if (!line_add(line, &n, "%s\"%u\":\"%s\"",
+                      v ? "," : "", v, analyzer_verdict_label(v)))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n, "},");
+    if (!line_add(line, &n, "},"))
+        { line_unlock(); return; }
 
-    n += snprintf(line + n, LINE_BUF - n, "\"tier\":{");
+    if (!line_add(line, &n, "\"tier\":{"))
+        { line_unlock(); return; }
     for (uint8_t t = SCORE_TIER_ENTERPRISE; t <= SCORE_TIER_AVOID; t++) {
-        n += snprintf(line + n, LINE_BUF - n, "%s\"%u\":\"%s\"",
-                      t ? "," : "", t, analyzer_tier_label(t));
+        if (!line_add(line, &n, "%s\"%u\":\"%s\"",
+                      t ? "," : "", t, analyzer_tier_label(t)))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n, "},");
+    if (!line_add(line, &n, "},"))
+        { line_unlock(); return; }
 
-    n += snprintf(line + n, LINE_BUF - n, "\"class_source\":{");
+    if (!line_add(line, &n, "\"class_source\":{"))
+        { line_unlock(); return; }
     for (uint8_t s = BLE_CLASS_SRC_NONE; s <= BLE_CLASS_SRC_UUID16; s++) {
-        n += snprintf(line + n, LINE_BUF - n, "%s\"%u\":\"%s\"",
-                      s ? "," : "", s, class_source_str(s));
+        if (!line_add(line, &n, "%s\"%u\":\"%s\"",
+                      s ? "," : "", s, class_source_str(s)))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n, "},");
+    if (!line_add(line, &n, "},"))
+        { line_unlock(); return; }
 
-    n += snprintf(line + n, LINE_BUF - n, "\"addr_subtype\":{");
+    if (!line_add(line, &n, "\"addr_subtype\":{"))
+        { line_unlock(); return; }
     for (uint8_t a = BLE_ADDR_SUB_PUBLIC; a <= BLE_ADDR_SUB_NRPA; a++) {
-        n += snprintf(line + n, LINE_BUF - n, "%s\"%u\":\"%s\"",
-                      a ? "," : "", a, addr_subtype_str(a));
+        if (!line_add(line, &n, "%s\"%u\":\"%s\"",
+                      a ? "," : "", a, addr_subtype_str(a)))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n, "},");
+    if (!line_add(line, &n, "},"))
+        { line_unlock(); return; }
 
-    n += snprintf(line + n, LINE_BUF - n, "\"ssid_category\":{");
+    if (!line_add(line, &n, "\"ssid_category\":{"))
+        { line_unlock(); return; }
     for (uint8_t c = 0; c < SSID_CAT_COUNT; c++) {
-        n += snprintf(line + n, LINE_BUF - n, "%s\"%u\":\"%s\"",
-                      c ? "," : "", c, ssid_cat_str((ssid_category_t)c));
+        if (!line_add(line, &n, "%s\"%u\":\"%s\"",
+                      c ? "," : "", c, ssid_cat_str((ssid_category_t)c)))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n, "},");
+    if (!line_add(line, &n, "},"))
+        { line_unlock(); return; }
 
-    n += snprintf(line + n, LINE_BUF - n, "\"threat_level\":{");
+    if (!line_add(line, &n, "\"threat_level\":{"))
+        { line_unlock(); return; }
     for (uint8_t t = THREAT_NONE; t <= THREAT_HIGH; t++) {
-        n += snprintf(line + n, LINE_BUF - n, "%s\"%u\":\"%s\"",
-                      t ? "," : "", t, analyzer_threat_label(t));
+        if (!line_add(line, &n, "%s\"%u\":\"%s\"",
+                      t ? "," : "", t, analyzer_threat_label(t)))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n, "},");
+    if (!line_add(line, &n, "},"))
+        { line_unlock(); return; }
 
-    n += snprintf(line + n, LINE_BUF - n, "\"cluster_evidence\":{");
+    if (!line_add(line, &n, "\"cluster_evidence\":{"))
+        { line_unlock(); return; }
     for (uint8_t e = 0; e < PDC_EV_COUNT; e++) {
-        n += snprintf(line + n, LINE_BUF - n, "%s\"%u\":\"%s\"",
-                      e ? "," : "", e, pdc_evidence_label(e));
+        if (!line_add(line, &n, "%s\"%u\":\"%s\"",
+                      e ? "," : "", e, pdc_evidence_label(e)))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n, "},");
+    if (!line_add(line, &n, "},"))
+        { line_unlock(); return; }
 
-    n += snprintf(line + n, LINE_BUF - n, "\"cluster_evidence_class\":{");
+    if (!line_add(line, &n, "\"cluster_evidence_class\":{"))
+        { line_unlock(); return; }
     for (uint8_t k = 0; k < PDC_CLASS_COUNT; k++) {
-        n += snprintf(line + n, LINE_BUF - n, "%s\"%u\":\"%s\"",
-                      k ? "," : "", k, pdc_class_label(k));
+        if (!line_add(line, &n, "%s\"%u\":\"%s\"",
+                      k ? "," : "", k, pdc_class_label(k)))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n, "}}}");
+    if (!line_add(line, &n, "}}}"))
+        { line_unlock(); return; }
 
     if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
     line_unlock();
@@ -893,89 +962,134 @@ static void capture_emit_ble_device_internal(const ble_device_t *d, uint16_t sca
         n += wr;
     }
 
+    if (d->adv_frames) {
+        if (!line_add(line, &n,
+                ",\"obs\":{\"frames\":%u,\"scan_rsps\":%u,"
+                "\"first_ms\":%lu,\"last_ms\":%lu,"
+                "\"rssi_min\":%d,\"rssi_max\":%d",
+                (unsigned)d->adv_frames, (unsigned)d->adv_scan_rsps,
+                (unsigned long)d->adv_first_ms, (unsigned long)d->adv_last_ms,
+                (int)d->rssi_min, (int)d->rssi_max))
+            { line_unlock(); return; }
+        if (d->adv_frames >= 2) {
+            if (!line_add(line, &n, ",\"rssi_sd\":%u", (unsigned)d->rssi_sd))
+                { line_unlock(); return; }
+        }
+
+        if (d->_itvl_n >= 1) {
+            if (!line_add(line, &n,
+                    ",\"itvl_samples\":%u,\"itvl_mean_ms\":%u,"
+                    "\"itvl_min_ms\":%u,\"itvl_max_ms\":%u",
+                    (unsigned)d->_itvl_n, (unsigned)d->itvl_mean_ms,
+                    (unsigned)d->itvl_min_ms, (unsigned)d->itvl_max_ms))
+                { line_unlock(); return; }
+        }
+        if (d->_itvl_n >= 2) {
+            if (!line_add(line, &n, ",\"itvl_jitter_ms\":%u",
+                          (unsigned)d->itvl_jitter_ms))
+                { line_unlock(); return; }
+        }
+        if (!line_add(line, &n, "}")) { line_unlock(); return; }
+    }
+
     if (d->company_name[0]) {
         char esc[68];
         json_escape(d->company_name, esc, sizeof(esc));
-        n += snprintf(line + n, LINE_BUF - n, ",\"company_name\":\"%s\"", esc);
+        if (!line_add(line, &n, ",\"company_name\":\"%s\"", esc))
+            { line_unlock(); return; }
     }
     if (d->mfg_rule_name) {
         char esc[68];
         json_escape(d->mfg_rule_name, esc, sizeof(esc));
-        n += snprintf(line + n, LINE_BUF - n, ",\"mfg_rule_name\":\"%s\"", esc);
+        if (!line_add(line, &n, ",\"mfg_rule_name\":\"%s\"", esc))
+            { line_unlock(); return; }
     }
     if (d->ms_subtype_name) {
         char esc[68];
         json_escape(d->ms_subtype_name, esc, sizeof(esc));
-        n += snprintf(line + n, LINE_BUF - n, ",\"ms_subtype_name\":\"%s\"", esc);
+        if (!line_add(line, &n, ",\"ms_subtype_name\":\"%s\"", esc))
+            { line_unlock(); return; }
     }
     if (d->fastpair_name || d->fastpair_model_id) {
         char esc[68];
         json_escape(d->fastpair_name ? d->fastpair_name : "", esc, sizeof(esc));
-        n += snprintf(line + n, LINE_BUF - n,
-            ",\"fastpair_name\":%s%s%s,\"fastpair_model_id\":%u",
+        if (!line_add(line, &n, ",\"fastpair_name\":%s%s%s,\"fastpair_model_id\":%u",
             esc[0] ? "\"" : "", esc[0] ? esc : "null", esc[0] ? "\"" : "",
-            (unsigned)d->fastpair_model_id);
+            (unsigned)d->fastpair_model_id))
+            { line_unlock(); return; }
     }
     if (d->uuid16_name) {
         char esc[68];
         json_escape(d->uuid16_name, esc, sizeof(esc));
-        n += snprintf(line + n, LINE_BUF - n, ",\"uuid16_name\":\"%s\"", esc);
+        if (!line_add(line, &n, ",\"uuid16_name\":\"%s\"", esc))
+            { line_unlock(); return; }
     }
     if (d->uuid32_name) {
         char esc[68];
         json_escape(d->uuid32_name, esc, sizeof(esc));
-        n += snprintf(line + n, LINE_BUF - n, ",\"uuid32_name\":\"%s\"", esc);
+        if (!line_add(line, &n, ",\"uuid32_name\":\"%s\"", esc))
+            { line_unlock(); return; }
     }
     if (d->uuid128_name) {
         char esc[68];
         json_escape(d->uuid128_name, esc, sizeof(esc));
-        n += snprintf(line + n, LINE_BUF - n, ",\"uuid128_name\":\"%s\"", esc);
+        if (!line_add(line, &n, ",\"uuid128_name\":\"%s\"", esc))
+            { line_unlock(); return; }
     }
     if (d->name_rule_name) {
         char esc[68];
         json_escape(d->name_rule_name, esc, sizeof(esc));
-        n += snprintf(line + n, LINE_BUF - n, ",\"name_rule_name\":\"%s\"", esc);
+        if (!line_add(line, &n, ",\"name_rule_name\":\"%s\"", esc))
+            { line_unlock(); return; }
     }
-    n += append_phone_model(line + n, LINE_BUF - n, ble_effective_class(d),
+    if (n >= LINE_BUF - 2) { line_unlock(); return; }
+    {
+        int wr = append_phone_model(line + n, LINE_BUF - n, ble_effective_class(d),
                             d->name_rule_name, d->name_rule_kind, d->apple_devcat);
+        if (wr < 0 || n + wr >= LINE_BUF - 2) { line_unlock(); return; }
+        n += wr;
+    }
     if (n >= LINE_BUF - 2) { line_unlock(); return; }
 
     if (d->mfg_company_id != 0xFFFF) {
-        n += snprintf(line + n, LINE_BUF - n,
-                      ",\"mfg_company_id\":%u", d->mfg_company_id);
+        if (!line_add(line, &n, ",\"mfg_company_id\":%u", d->mfg_company_id))
+            { line_unlock(); return; }
     }
     if (d->num_uuids16 > 0) {
-        n += snprintf(line + n, LINE_BUF - n, ",\"uuids16\":[");
+        if (!line_add(line, &n, ",\"uuids16\":["))
+            { line_unlock(); return; }
         for (uint8_t i = 0; i < d->num_uuids16 && n < LINE_BUF - 10; i++) {
-            n += snprintf(line + n, LINE_BUF - n, "%s%u",
-                          i ? "," : "", d->uuids16[i]);
+            if (!line_add(line, &n, "%s%u",
+                          i ? "," : "", d->uuids16[i]))
+                { line_unlock(); return; }
         }
-        n += snprintf(line + n, LINE_BUF - n, "]");
+        if (!line_add(line, &n, "]"))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n,
-                  ",\"num_uuids32\":%u,\"num_uuids128\":%u",
-                  d->num_uuids32, d->num_uuids128);
+    if (!line_add(line, &n, ",\"num_uuids32\":%u,\"num_uuids128\":%u",
+                  d->num_uuids32, d->num_uuids128))
+        { line_unlock(); return; }
 
     if (d->mfg_company_id == 0x004C && d->apple_evidence[0]) {
         char ev_esc[64];
         json_escape(d->apple_evidence, ev_esc, sizeof(ev_esc));
-        n += snprintf(line + n, LINE_BUF - n,
-            ",\"apple\":{\"subtype\":%u,\"state\":%u,\"evidence\":\"%s\"}",
-            d->apple_subtype, d->apple_state, ev_esc);
+        if (!line_add(line, &n, ",\"apple\":{\"subtype\":%u,\"state\":%u,\"evidence\":\"%s\"}",
+            d->apple_subtype, d->apple_state, ev_esc))
+            { line_unlock(); return; }
     }
 
     if (d->apple_devcat) {
         const char *cat = apple_devcat_label((apple_devcat_t)d->apple_devcat);
         if (cat)
-            n += snprintf(line + n, LINE_BUF - n,
-                          ",\"apple_category\":\"%s\"", cat);
+            if (!line_add(line, &n, ",\"apple_category\":\"%s\"", cat))
+                { line_unlock(); return; }
     }
 
-    n += snprintf(line + n, LINE_BUF - n,
-        ",\"scannable\":%s,"
+    if (!line_add(line, &n, ",\"scannable\":%s,"
         "\"identity_score\":%u,\"identity_conf\":%u,\"threat_level\":%u",
         d->scannable ? "true" : "false",
-        d->identity_score, d->identity_conf, d->threat_level);
+        d->identity_score, d->identity_conf, d->threat_level))
+        { line_unlock(); return; }
     if (n <= 0 || n >= LINE_BUF - 2) { line_unlock(); return; }
 
     {
@@ -1004,7 +1118,7 @@ void capture_emit_ble_device_walk(const ble_device_t *d, uint16_t scan_index, ui
 
 void capture_emit_tracker_if_applicable(const ble_device_t *d, uint16_t scan_index)
 {
-    const char *kind = tracker_kind_for(d);
+    const char *kind = capture_tracker_kind(d);
     if (!kind) return;
 
     char addr[24];
@@ -1053,43 +1167,47 @@ static void emit_drone_rid(const uint8_t addr_bytes[6], int rssi,
         id_esc, r->id_type, r->ua_type, ua_esc, r->msg_mask);
 
     if (r->mfr_code[0]) {
-        n += snprintf(line + n, LINE_BUF - n, ",\"mfr_code\":\"%s\"", r->mfr_code);
+        if (!line_add(line, &n, ",\"mfr_code\":\"%s\"", r->mfr_code))
+            { line_unlock(); return; }
         uint16_t mf = 0; uint8_t mc = 0;
         const char *make = eui_lookup_drone_mfr(r->mfr_code, &mf, &mc);
         if (make) {
             char make_esc[44];
             json_escape(make, make_esc, sizeof(make_esc));
-            n += snprintf(line + n, LINE_BUF - n, ",\"make\":\"%s\"", make_esc);
+            if (!line_add(line, &n, ",\"make\":\"%s\"", make_esc))
+                { line_unlock(); return; }
         }
     }
 
     if (r->msg_mask & DRONE_RID_MSG_LOCATION) {
-        n += snprintf(line + n, LINE_BUF - n,
-            ",\"drone\":{\"lat_e7\":%ld,\"lon_e7\":%ld,\"alt_m\":%ld,"
+        if (!line_add(line, &n, ",\"drone\":{\"lat_e7\":%ld,\"lon_e7\":%ld,\"alt_m\":%ld,"
             "\"speed_mps\":%d,\"track_deg\":%d}",
             (long)r->lat, (long)r->lon, (long)r->alt_m,
-            (int)r->speed, (int)r->track);
+            (int)r->speed, (int)r->track))
+            { line_unlock(); return; }
     }
     if (r->has_op_loc) {
-        n += snprintf(line + n, LINE_BUF - n,
-            ",\"operator\":{\"lat_e7\":%ld,\"lon_e7\":%ld}",
-            (long)r->op_lat, (long)r->op_lon);
+        if (!line_add(line, &n, ",\"operator\":{\"lat_e7\":%ld,\"lon_e7\":%ld}",
+            (long)r->op_lat, (long)r->op_lon))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n,
-        ",\"op_separation_m\":%d", drone_op_separation_m(r));
+    if (!line_add(line, &n, ",\"op_separation_m\":%d", drone_op_separation_m(r)))
+        { line_unlock(); return; }
 
     if (r->op_id[0]) {
         char op_esc[44];
         json_escape(r->op_id, op_esc, sizeof(op_esc));
-        n += snprintf(line + n, LINE_BUF - n, ",\"operator_id\":\"%s\"", op_esc);
+        if (!line_add(line, &n, ",\"operator_id\":\"%s\"", op_esc))
+            { line_unlock(); return; }
     }
     if (r->self_id[0]) {
         char self_esc[52];
         json_escape(r->self_id, self_esc, sizeof(self_esc));
-        n += snprintf(line + n, LINE_BUF - n, ",\"self_id\":\"%s\"", self_esc);
+        if (!line_add(line, &n, ",\"self_id\":\"%s\"", self_esc))
+            { line_unlock(); return; }
     }
-    n += snprintf(line + n, LINE_BUF - n,
-        ",\"auth_present\":%s}", r->auth_present ? "true" : "false");
+    if (!line_add(line, &n, ",\"auth_present\":%s}", r->auth_present ? "true" : "false"))
+        { line_unlock(); return; }
 
     if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
     line_unlock();
@@ -1126,16 +1244,17 @@ static void emit_one_cluster(const pdc_cluster_t *cl, uint8_t c,
             const uint8_t      *mac = pdc_node_mac(mb->kind, mb->idx);
             char macs[24] = "";
             if (mac) append_mac(macs, sizeof(macs), mac);
-            n += snprintf(line + n, LINE_BUF - n,
-                "%s{\"layer\":\"%s\",\"index\":%u,\"mac\":\"%s\"}",
+            if (!line_add(line, &n, "%s{\"layer\":\"%s\",\"index\":%u,\"mac\":\"%s\"}",
                 m ? "," : "",
                 mb->kind == PDC_NODE_WIFI ? "wifi" : "ble",
-                mb->idx, macs);
+                mb->idx, macs))
+                { line_unlock(); return; }
         }
-        n += snprintf(line + n, LINE_BUF - n, "],\"edges\":[");
+        if (!line_add(line, &n, "],\"edges\":["))
+            { line_unlock(); return; }
 
-        uint8_t ne = pdc_edge_count(), written = 0;
-        for (uint8_t e = 0; e < ne; e++) {
+        uint16_t ne = pdc_edge_count(), written = 0;
+        for (uint16_t e = 0; e < ne; e++) {
             const pdc_edge_t *ed = pdc_edge_get(e);
             if (!ed) continue;
             if (vehicle) {
@@ -1153,8 +1272,7 @@ static void emit_one_cluster(const pdc_cluster_t *cl, uint8_t c,
                                : ed->conflict_mask ? "conflict"
                                : (ed->evclass == PDC_CLASS_PRODUCT_FAMILY)
                                      ? "product_family" : "candidate";
-            n += snprintf(line + n, LINE_BUF - n,
-                "%s{\"a\":{\"layer\":\"%s\",\"index\":%u},"
+            if (!line_add(line, &n, "%s{\"a\":{\"layer\":\"%s\",\"index\":%u},"
                 "\"b\":{\"layer\":\"%s\",\"index\":%u},"
                 "\"evidence\":\"%s\",\"evidence_class\":\"%s\","
                 "\"match_class\":\"%s\","
@@ -1165,38 +1283,47 @@ static void emit_one_cluster(const pdc_cluster_t *cl, uint8_t c,
                 pdc_evidence_label(ed->evidence),
                 pdc_class_label(ed->evclass), mclass,
                 ed->can_union ? "true" : "false",
-                ed->corroborated ? "true" : "false", ed->confidence);
+                ed->corroborated ? "true" : "false", ed->confidence))
+                { line_unlock(); return; }
             if (ed->cand_mask) {
-                n += snprintf(line + n, LINE_BUF - n, ",\"candidate_evidence\":[");
+                if (!line_add(line, &n, ",\"candidate_evidence\":["))
+                    { line_unlock(); return; }
                 bool first = true;
                 for (uint8_t b = 0; b < 16; b++) {
                     const char *cl = pdc_cand_label((uint16_t)(1u << b));
                     if (cl && (ed->cand_mask & (1u << b))) {
-                        n += snprintf(line + n, LINE_BUF - n, "%s\"%s\"",
-                                      first ? "" : ",", cl);
+                        if (!line_add(line, &n, "%s\"%s\"",
+                                      first ? "" : ",", cl))
+                            { line_unlock(); return; }
                         first = false;
                     }
                 }
-                n += snprintf(line + n, LINE_BUF - n, "]");
+                if (!line_add(line, &n, "]"))
+                    { line_unlock(); return; }
             }
             if (ed->conflict_mask) {
-                n += snprintf(line + n, LINE_BUF - n, ",\"conflicts\":[");
+                if (!line_add(line, &n, ",\"conflicts\":["))
+                    { line_unlock(); return; }
                 bool first = true;
                 for (uint8_t b = 0; b < 16; b++) {
                     const char *cl = pdc_conflict_label((uint16_t)(1u << b));
                     if (cl && (ed->conflict_mask & (1u << b))) {
-                        n += snprintf(line + n, LINE_BUF - n, "%s\"%s\"",
-                                      first ? "" : ",", cl);
+                        if (!line_add(line, &n, "%s\"%s\"",
+                                      first ? "" : ",", cl))
+                            { line_unlock(); return; }
                         first = false;
                     }
                 }
-                n += snprintf(line + n, LINE_BUF - n, "]");
+                if (!line_add(line, &n, "]"))
+                    { line_unlock(); return; }
             }
-            n += snprintf(line + n, LINE_BUF - n, "}");
+            if (!line_add(line, &n, "}"))
+                { line_unlock(); return; }
             written++;
             if (n >= LINE_BUF - 320) break;
         }
-        n += snprintf(line + n, LINE_BUF - n, "]}");
+        if (!line_add(line, &n, "]}"))
+            { line_unlock(); return; }
 
         if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
         line_unlock();
@@ -1297,18 +1424,18 @@ void capture_emit_law_enforcement_presence(const ps_result_t *ps, uint16_t scan_
 
     for (uint16_t i = 0; i < ps->evidence_count && n > 0 && n < LINE_BUF; i++) {
         const ps_evidence_t *e = &ps->evidence[i];
-        n += snprintf(line + n, LINE_BUF - n,
-            "%s{\"layer\":\"%s\",\"target\":\"%s\",\"source\":\"%s\","
+        if (!line_add(line, &n, "%s{\"layer\":\"%s\",\"target\":\"%s\",\"source\":\"%s\","
             "\"label\":\"%s\",\"device_type\":\"%s\",\"confidence\":%u}",
             i ? "," : "", e->layer ? "ble" : "wifi", e->target, e->source,
             e->label, public_safety_device_type_label((ps_device_type_t)e->device_type),
-            e->confidence);
+            e->confidence))
+            { line_unlock(); return; }
     }
 
     if (n > 0 && n < LINE_BUF)
-        n += snprintf(line + n, LINE_BUF - n,
-            "],\"limitations\":[\"public_safety_vendors_have_non_law_enforcement_customers\","
-            "\"passive_identifier_not_operator_identity\"]}");
+        if (!line_add(line, &n, "],\"limitations\":[\"public_safety_vendors_have_non_law_enforcement_customers\","
+            "\"passive_identifier_not_operator_identity\"]}"))
+            { line_unlock(); return; }
     if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
     line_unlock();
 }
@@ -1340,19 +1467,19 @@ void capture_emit_medical_responder_presence(const mr_result_t *mr, uint16_t sca
 
     for (uint16_t i = 0; i < mr->evidence_count && n > 0 && n < LINE_BUF; i++) {
         const mr_evidence_t *e = &mr->evidence[i];
-        n += snprintf(line + n, LINE_BUF - n,
-            "%s{\"layer\":\"%s\",\"target\":\"%s\",\"source\":\"%s\","
+        if (!line_add(line, &n, "%s{\"layer\":\"%s\",\"target\":\"%s\",\"source\":\"%s\","
             "\"label\":\"%s\",\"device_type\":\"%s\",\"confidence\":%u}",
             i ? "," : "", e->layer ? "ble" : "wifi", e->target, e->source,
             e->label, medical_responder_device_type_label((mr_device_type_t)e->device_type),
-            e->confidence);
+            e->confidence))
+            { line_unlock(); return; }
     }
 
     if (n > 0 && n < LINE_BUF)
-        n += snprintf(line + n, LINE_BUF - n,
-            "],\"limitations\":[\"ems_names_can_overlap_with_non_ems_devices\","
+        if (!line_add(line, &n, "],\"limitations\":[\"ems_names_can_overlap_with_non_ems_devices\","
             "\"passive_identifier_not_personnel_identity\","
-            "\"weak_confidence_environment_hint\"]}");
+            "\"weak_confidence_environment_hint\"]}"))
+            { line_unlock(); return; }
     if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
     line_unlock();
 }
@@ -1415,10 +1542,11 @@ void capture_emit_channel_activity(const ap_score_t *scores, uint16_t count,
         "\"count\":%u,\"channels\":[",
         (long long)now_us(), scan_index, nd);
     for (uint8_t i = 0; i < nd && n > 0 && n < LINE_BUF; i++)
-        n += snprintf(line + n, LINE_BUF - n,
-            "%s{\"ch\":%u,\"band\":\"%s\",\"aps\":%u}",
-            i ? "," : "", d[i].ch, d[i].band5 ? "5" : "2.4", d[i].aps);
-    if (n > 0 && n < LINE_BUF) n += snprintf(line + n, LINE_BUF - n, "]}");
+        if (!line_add(line, &n, "%s{\"ch\":%u,\"band\":\"%s\",\"aps\":%u}",
+            i ? "," : "", d[i].ch, d[i].band5 ? "5" : "2.4", d[i].aps))
+            { line_unlock(); return; }
+    if (n > 0 && n < LINE_BUF) if (!line_add(line, &n, "]}"))
+    if (n > 0 && n < LINE_BUF)     { line_unlock(); return; }
     if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
     line_unlock();
 }
@@ -1442,15 +1570,16 @@ void capture_emit_pcap_capture(const pcap_meta_t *m, uint16_t scan_index)
     uint8_t nc = m->channel_count;
     if (nc > PCAP_MAX_CHANNELS) nc = PCAP_MAX_CHANNELS;
     for (uint8_t i = 0; i < nc && n > 0 && n < LINE_BUF; i++)
-        n += snprintf(line + n, LINE_BUF - n, "%s%u", i ? "," : "", m->channels[i]);
+        if (!line_add(line, &n, "%s%u", i ? "," : "", m->channels[i]))
+            { line_unlock(); return; }
     if (n > 0 && n < LINE_BUF)
-        n += snprintf(line + n, LINE_BUF - n,
-            "],\"seconds_per_channel\":%u,\"duration_s\":%u,\"packets\":%u,"
+        if (!line_add(line, &n, "],\"seconds_per_channel\":%u,\"duration_s\":%u,\"packets\":%u,"
             "\"dropped\":%u,\"truncated\":%u,\"bytes\":%u,"
             "\"download\":\"/api/pcap/latest\"}",
             (unsigned)m->seconds_per_channel, (unsigned)m->duration_s,
             (unsigned)m->packets, (unsigned)m->dropped, (unsigned)m->truncated,
-            (unsigned)m->bytes);
+            (unsigned)m->bytes))
+            { line_unlock(); return; }
     if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
     line_unlock();
 }
@@ -1765,7 +1894,8 @@ void capture_emit_probe_req_log(const probe_req_log_aggregate_t *agg,
         agg->counts[SSID_CAT_HIDDEN], agg->counts[SSID_CAT_OTHER]);
 
     if (include_detail) {
-        n += snprintf(line + n, LINE_BUF - n, ",\"detail\":[");
+        if (!line_add(line, &n, ",\"detail\":["))
+            { line_unlock(); return; }
         uint16_t cnt = probe_req_log_entry_count();
         bool first = true;
         for (uint16_t i = 0; i < cnt; i++) {
@@ -1791,7 +1921,8 @@ void capture_emit_probe_req_log(const probe_req_log_aggregate_t *agg,
             n += wr;
             first = false;
         }
-        n += snprintf(line + n, LINE_BUF - n, "]");
+        if (!line_add(line, &n, "]"))
+            { line_unlock(); return; }
     }
 
     if (n >= LINE_BUF - 2) { line_unlock(); return; }
@@ -1824,7 +1955,8 @@ void capture_emit_seq_fingerprint_log(const seq_analyzer_aggregate_t *agg,
     if (n <= 0 || n >= LINE_BUF - 2) { line_unlock(); return; }
 
     if (include_detail) {
-        n += snprintf(line + n, LINE_BUF - n, ",\"detail\":[");
+        if (!line_add(line, &n, ",\"detail\":["))
+            { line_unlock(); return; }
         uint16_t cnt = seq_analyzer_entry_count();
         bool first = true;
         for (uint16_t i = 0; i < cnt; i++) {
@@ -1843,7 +1975,8 @@ void capture_emit_seq_fingerprint_log(const seq_analyzer_aggregate_t *agg,
             n += wr;
             first = false;
         }
-        n += snprintf(line + n, LINE_BUF - n, "]");
+        if (!line_add(line, &n, "]"))
+            { line_unlock(); return; }
     }
 
     if (n >= LINE_BUF - 2) { line_unlock(); return; }
@@ -1871,7 +2004,8 @@ void capture_emit_ie_signature_log(const ie_signature_aggregate_t *agg,
     if (n <= 0 || n >= LINE_BUF - 2) { line_unlock(); return; }
 
     if (include_detail) {
-        n += snprintf(line + n, LINE_BUF - n, ",\"detail\":[");
+        if (!line_add(line, &n, ",\"detail\":["))
+            { line_unlock(); return; }
         uint16_t cnt = ie_signature_entry_count();
         bool first = true;
         for (uint16_t i = 0; i < cnt; i++) {
@@ -1895,7 +2029,8 @@ void capture_emit_ie_signature_log(const ie_signature_aggregate_t *agg,
             n += wr;
             first = false;
         }
-        n += snprintf(line + n, LINE_BUF - n, "]");
+        if (!line_add(line, &n, "]"))
+            { line_unlock(); return; }
     }
 
     if (n >= LINE_BUF - 2) { line_unlock(); return; }
@@ -1921,7 +2056,8 @@ void capture_emit_anqp_log(const anqp_analyzer_aggregate_t *agg,
     if (n <= 0 || n >= LINE_BUF - 2) { line_unlock(); return; }
 
     if (include_detail) {
-        n += snprintf(line + n, LINE_BUF - n, ",\"detail\":[");
+        if (!line_add(line, &n, ",\"detail\":["))
+            { line_unlock(); return; }
         uint16_t cnt = anqp_analyzer_entry_count();
         bool first = true;
         for (uint16_t i = 0; i < cnt; i++) {
@@ -1938,7 +2074,8 @@ void capture_emit_anqp_log(const anqp_analyzer_aggregate_t *agg,
             n += wr;
             first = false;
         }
-        n += snprintf(line + n, LINE_BUF - n, "]");
+        if (!line_add(line, &n, "]"))
+            { line_unlock(); return; }
     }
 
     if (n >= LINE_BUF - 2) { line_unlock(); return; }
@@ -1963,13 +2100,22 @@ void capture_emit_footer(capture_end_reason_t reason,
         "\"session\":{\"session_id\":\"%s\",\"end_us\":%lld,\"end_reason\":\"%s\"},"
         "\"counters\":{\"records_written\":%u,\"events_dropped\":%u,"
         "\"wifi_aps_seen\":%u,\"ble_devices_seen\":%u,\"trackers_seen\":%u,"
-        "\"probe_reqs_seen\":%u,\"alerts_fired\":%u,\"scans_completed\":%u}}",
+        "\"probe_reqs_seen\":%u,\"alerts_fired\":%u,\"scans_completed\":%u},"
+
+        "\"limits\":{"
+        "\"pdc_edges\":%u,\"pdc_edge_cap\":%u,\"pdc_edges_dropped\":%u,"
+        "\"ble_adv_frames\":%u,\"ble_adv_cap\":%u,\"ble_adv_overwrites\":%u,"
+        "\"ble_adv_payload_cap\":%u}}",
         (long long)now_us(),
         s_session_id, (long long)now_us(), end_reason_str(reason),
         (unsigned)st.records_total, (unsigned)st.records_dropped,
         (unsigned)wifi_aps_seen, (unsigned)ble_devices_seen,
         (unsigned)trackers_seen, (unsigned)probe_reqs_seen,
-        (unsigned)alerts_fired, (unsigned)scans_completed);
+        (unsigned)alerts_fired, (unsigned)scans_completed,
+        (unsigned)pdc_edge_count(), (unsigned)PDC_MAX_EDGES,
+        (unsigned)pdc_edges_dropped(),
+        (unsigned)ble_adv_ring_count(), (unsigned)ble_adv_ring_capacity(),
+        (unsigned)ble_adv_ring_overwrites(), (unsigned)BLE_ADV_DATA_MAX);
     if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
     line_unlock();
 }
@@ -2008,7 +2154,8 @@ void capture_emit_station_log(uint16_t scan_index)
         n += wr;
         emitted++;
     }
-    n += snprintf(line + n, LINE_BUF - n, "]}");
+    if (!line_add(line, &n, "]}"))
+        { line_unlock(); return; }
     if (n > 0 && n < LINE_BUF) capture_ring_write(line, (size_t)n);
     line_unlock();
 }

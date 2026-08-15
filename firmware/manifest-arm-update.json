@@ -1,6 +1,6 @@
 {
   "name": "SniffCheck Cluster arm (update)",
-  "version": "cluster-0.4",
+  "version": "cluster-0.5",
   "new_install_prompt_erase": true,
   "builds": [
     {

@@ -28,6 +28,8 @@ typedef enum {
 const char *capture_writer_session_id(void);
 const char *capture_writer_fw_version(void);
 const char *capture_writer_schema_version(void);
+
+bool capture_writer_emits_disabled(void);
 uint16_t    capture_writer_last_scan(void);
 
 void capture_writer_init(uint32_t boot_count);
@@ -66,6 +68,8 @@ void capture_emit_byos_ble(const uint8_t addr[6], uint16_t scan_index,
                            const capture_byos_sight_t *sights, uint8_t n_sight);
 
 void capture_emit_tracker_if_applicable(const ble_device_t *d, uint16_t scan_index);
+
+const char *capture_tracker_kind(const ble_device_t *d);
 
 void capture_emit_drone_rid_if_applicable(const ble_device_t *d, uint16_t scan_index);
 void capture_emit_drone_rid_wifi(const sniffer_rec_t *sr, uint16_t scan_index);

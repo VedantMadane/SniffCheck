@@ -16,21 +16,20 @@
 #include "node_display.h"
 #include "led.h"
 #include "arm_scan.h"
-
-#ifndef ARM_INDEX
-#error "build with -DARM_INDEX=1 or -DARM_INDEX=2 (both sweep half of 2.4+5 GHz + BLE)"
-#endif
-
-#define ARM_BAND   ((ARM_INDEX) == 1 ? CL_BAND_24_BLE : CL_BAND_5_BLE)
-#define ARM_ADDR   CL_ARM_ADDR(ARM_INDEX)
-#define BAND_LABEL ((ARM_INDEX) == 1 ? "2.4+5 A/BLE" : "2.4+5 B/BLE")
+#include "arm_addr.h"
 
 static const char *TAG = "cluster-arm";
+
+static uint8_t       s_addr;
+static uint8_t       s_slot;
+static uint8_t       s_narms = 1;
+static char          s_band_label[20] = "2.4+5 full/BLE";
 
 static cl_status_t   s_status;
 static uint32_t      s_scan_seq;
 
 static volatile bool s_req_scan, s_req_scan_adv, s_req_walk, s_req_walk_stop;
+static volatile bool s_req_readdr;
 
 static volatile bool s_have_plan;
 static cl_plan_t     s_pending_plan;
@@ -50,9 +49,10 @@ static void led_blank_cb(void) { led_off(); }
 
 static void status_publish(uint8_t state, uint16_t wifi_seen, uint16_t ble_seen)
 {
-    s_status.arm_index     = ARM_INDEX;
-    s_status.band          = ARM_BAND;
+    s_status.arm_index     = (uint8_t)(s_slot + 1);
+    s_status.band          = (s_narms > 1 && s_slot > 0) ? CL_BAND_5_BLE : CL_BAND_24_BLE;
     s_status.state         = state;
+    arm_addr_node_id(s_status.node_id);
     s_status.wifi_seen     = wifi_seen;
     s_status.ble_seen      = ble_seen;
     s_status.scan_seq      = s_scan_seq;
@@ -110,6 +110,9 @@ static bool IRAM_ATTR on_receive_cb(i2c_slave_dev_handle_t dev,
         break;
     case CL_CMD_STOP_LOCATE:
         s_req_loc_stop = true;
+        break;
+    case CL_CMD_READDR:
+        s_req_readdr = true;
         break;
     case CL_CMD_GET_LOCATE:
         s_serve_locate = true;
@@ -177,7 +180,7 @@ static void i2c_slave_setup(void)
         .clk_source        = I2C_CLK_SRC_DEFAULT,
         .send_buf_depth    = 512,
         .receive_buf_depth = 128,
-        .slave_addr        = ARM_ADDR,
+        .slave_addr        = s_addr,
         .addr_bit_len      = I2C_ADDR_BIT_LEN_7,
         .flags.enable_internal_pullup = true,
     };
@@ -186,7 +189,7 @@ static void i2c_slave_setup(void)
     ESP_ERROR_CHECK(i2c_slave_register_event_callbacks(s_slave, &cbs, NULL));
     xTaskCreate(arm_tx_task, "arm_tx", 4096, NULL, 7, NULL);
     ESP_LOGI(TAG, "I2C slave up: addr 0x%02x band %s SDA=%d SCL=%d",
-             ARM_ADDR, BAND_LABEL, CL_I2C_SDA_GPIO, CL_I2C_SCL_GPIO);
+             s_addr, s_band_label, CL_I2C_SDA_GPIO, CL_I2C_SCL_GPIO);
 }
 
 static void render_screen(const char *state_txt, uint16_t wifi, uint16_t ble)
@@ -194,11 +197,11 @@ static void render_screen(const char *state_txt, uint16_t wifi, uint16_t ble)
     char l[24];
     display_clear(COLOR_NEARBLACK);
     display_blit_sitting_scaled(2, 2);
-    snprintf(l, sizeof(l), "ARM %d", ARM_INDEX);
+    snprintf(l, sizeof(l), "ARM %u", (unsigned)(s_slot + 1));
     int x = (DISPLAY_W - (int)strlen(l) * 12) / 2;
     display_draw_string(x < 0 ? 0 : x, 40, l, COLOR_HEADER, COLOR_NEARBLACK, 2);
-    int bx = (DISPLAY_W - (int)strlen(BAND_LABEL) * 6) / 2;
-    display_draw_string(bx < 0 ? 0 : bx, 58, BAND_LABEL, COLOR_GREEN, COLOR_NEARBLACK, 1);
+    int bx = (DISPLAY_W - (int)strlen(s_band_label) * 6) / 2;
+    display_draw_string(bx < 0 ? 0 : bx, 58, s_band_label, COLOR_GREEN, COLOR_NEARBLACK, 1);
     display_draw_string(2, 70, state_txt, COLOR_AMBER, COLOR_NEARBLACK, 1);
     snprintf(l, sizeof(l), "W%u B%u", (unsigned)wifi, (unsigned)ble);
     display_draw_string(DISPLAY_W - (int)strlen(l) * 6 - 2, 70, l, COLOR_WHITE,
@@ -213,7 +216,7 @@ static void scan_task(void *arg)
     display_splash_credit();
     vTaskDelay(pdMS_TO_TICKS(1200));
 
-    arm_scan_init(ARM_INDEX);
+    arm_scan_init();
 
     uint16_t wifi = 0, ble = 0;
 
@@ -226,9 +229,24 @@ static void scan_task(void *arg)
     render_screen("ready", wifi, ble);
 
     for (;;) {
+        if (s_req_readdr) {
+            s_req_readdr = false;
+            ESP_LOGW(TAG, "brain reports a shared address at 0x%02X — re-claiming", s_addr);
+            render_screen("re-addressing", wifi, ble);
+            arm_addr_forget();
+            vTaskDelay(pdMS_TO_TICKS(300));
+            esp_restart();
+        }
         if (s_have_plan) {
             s_have_plan = false;
             arm_scan_set_plan(&s_pending_plan);
+
+            s_narms = (s_pending_plan.n_arms < 1) ? 1 : s_pending_plan.n_arms;
+            s_slot  = (s_pending_plan.arm_slot < s_narms) ? s_pending_plan.arm_slot : 0;
+            if (s_narms <= 1) snprintf(s_band_label, sizeof s_band_label, "2.4+5 full/BLE");
+            else              snprintf(s_band_label, sizeof s_band_label, "2.4+5 %u/%u BLE",
+                                       (unsigned)(s_slot + 1), (unsigned)s_narms);
+            render_screen("ready", wifi, ble);
         }
 
         if (s_req_loc_start) { s_req_loc_start = false;
@@ -284,8 +302,8 @@ static void log_task(void *arg)
         if (now - last_log >= 2000000LL) {
             last_log = now;
             uint32_t r = s_reads;
-            ESP_LOGI(TAG, "ARM%d 0x%02x %s st=%u seq=%lu ss=%luB reads=%lu(+%lu)",
-                     ARM_INDEX, ARM_ADDR, BAND_LABEL, s_status.state,
+            ESP_LOGI(TAG, "ARM%u 0x%02x %s st=%u seq=%lu ss=%luB reads=%lu(+%lu)",
+                     (unsigned)(s_slot + 1), s_addr, s_band_label, s_status.state,
                      (unsigned long)s_scan_seq, (unsigned long)arm_scanset_len(),
                      (unsigned long)r, (unsigned long)(r - last_reads));
             last_reads = r;
@@ -296,7 +314,7 @@ static void log_task(void *arg)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "SniffCheck Cluster ARM %d (%s) boot", ARM_INDEX, BAND_LABEL);
+    ESP_LOGI(TAG, "SniffCheck Cluster ARM boot (slot assigned by the brain)");
 
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -316,6 +334,8 @@ void app_main(void)
     ESP_ERROR_CHECK(display_init(CL_LCD_SPI_HOST));
     display_set_post_blit_cb(led_blank_cb);
     led_off();
+
+    s_addr = arm_addr_claim();
 
     memset(&s_status, 0, sizeof(s_status));
     status_publish(CL_STATE_IDLE, 0, 0);

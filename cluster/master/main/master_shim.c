@@ -27,6 +27,8 @@ const char *capture_writer_fw_version(void)      { return s_fw_version; }
 const char *capture_writer_schema_version(void)  { return CL_SCHEMA_VERSION; }
 uint16_t    capture_writer_last_scan(void)       { return s_last_scan; }
 
+bool        capture_writer_emits_disabled(void)  { return false; }
+
 void capture_emit_header(void) {}
 void capture_emit_codebook(void) {}
 void capture_emit_footer(capture_end_reason_t reason, uint32_t a, uint32_t b,

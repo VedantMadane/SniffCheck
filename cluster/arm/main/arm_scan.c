@@ -64,7 +64,6 @@ static const uint8_t CHAN_UNION[] = {
 #define ARM_SCAN_DWELL_LITE_MS 80
 #define ARM_SCAN_DWELL_ADV_MS  160
 
-static uint8_t  s_arm_index    = 1;
 static uint8_t  s_plan_narms   = 2;
 static uint8_t  s_plan_slot    = 0;
 static uint16_t s_dwell_lite   = ARM_SCAN_DWELL_LITE_MS;
@@ -98,10 +97,11 @@ static uint8_t arm_channel_plan(uint8_t *chans)
     return nc;
 }
 
-void arm_scan_init(uint8_t arm_index)
+void arm_scan_init(void)
 {
-    s_arm_index = (arm_index == 2) ? 2 : 1;
-    s_plan_slot = (s_arm_index == 2) ? 1 : 0;
+
+    s_plan_narms = 1;
+    s_plan_slot  = 0;
     ESP_ERROR_CHECK(wifi_scanner_init());
     ESP_ERROR_CHECK(ble_scanner_init());
     probe_req_log_init();

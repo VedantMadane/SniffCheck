@@ -19,6 +19,15 @@ int app_scan_eta_seconds(void);
 
 void app_request_walk_after_download(void);
 
+void app_request_learn_env_after_download(int scans, bool reposition,
+                                          bool fresh, const char *name);
+
+int  app_learn_env_seconds(int scans, bool reposition);
+
+void app_learn_env_status_json(char *buf, size_t buflen);
+bool app_learn_env_running(void);
+void app_learn_env_cancel(void);
+
 void app_request_sta_capture_after_download(uint8_t channel, uint16_t seconds);
 void app_request_csi_after_download(uint8_t channel, uint16_t seconds);
 

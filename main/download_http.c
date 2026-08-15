@@ -3,6 +3,7 @@
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -36,6 +37,16 @@ static const char *TAG = "sc_dlhttp";
 #include "sd_store.h"
 #endif
 
+#define SC_ENV_LEARN (!SC_CLUSTER_HEAD)
+#if SC_ENV_LEARN
+#include "env_learn.h"
+#endif
+
+#define SC_TRACKER_SOUND (!SC_CLUSTER_HEAD)
+#if SC_TRACKER_SOUND
+#include "tracker_sound.h"
+#endif
+
 #ifndef SC_EPUP_BRAIN
 #define SC_EPUP_BRAIN 0
 #endif
@@ -58,7 +69,8 @@ static void *serve_buf_calloc(size_t sz)
     return p;
 }
 
-extern const char _binary_capture_viewer_html_start[];
+#include "viewer_gz.h"
+
 extern const unsigned char _binary_webap_logo_png_start[];
 extern const unsigned char _binary_webap_logo_png_end[];
 extern const unsigned char _binary_webap_favicon_png_start[];
@@ -71,28 +83,12 @@ extern const unsigned char _binary_epup_sprites_png_start[];
 extern const unsigned char _binary_epup_sprites_png_end[];
 #endif
 
-#define ISLAND_MARKER "<!--SC_DATA_ISLAND-->"
+static bool s_gz_open;
 
-static const char *s_view_head;
-static size_t      s_view_head_len;
-static const char *s_view_tail;
-static size_t      s_view_tail_len;
-
-static void viewer_locate_marker(void)
+static esp_err_t rsp_chunk(httpd_req_t *req, const char *buf, size_t len)
 {
-    if (s_view_head) return;
-    const char *blob = _binary_capture_viewer_html_start;
-    const char *mark = strstr(blob, ISLAND_MARKER);
-    if (!mark) {
-        ESP_LOGE(TAG, "viewer asset has no data-island marker — report route off");
-        return;
-    }
-    s_view_head     = blob;
-    s_view_head_len = (size_t)(mark - blob);
-    s_view_tail     = mark + strlen(ISLAND_MARKER);
-    s_view_tail_len = strlen(s_view_tail);
-    ESP_LOGI(TAG, "viewer asset: %u + %u bytes around data island",
-             (unsigned)s_view_head_len, (unsigned)s_view_tail_len);
+    if (s_gz_open) return viewer_gz_island(req, buf, len);
+    return httpd_resp_send_chunk(req, buf, len);
 }
 
 static esp_err_t send_json(httpd_req_t *req, const char *json)
@@ -106,9 +102,9 @@ static esp_err_t send_chunk_escaped(httpd_req_t *req, const char *p, size_t len)
     size_t i = 0, seg = 0;
     while (i + 1 < len) {
         if (p[i] == '<' && p[i + 1] == '/') {
-            if (httpd_resp_send_chunk(req, p + seg, i + 1 - seg) != ESP_OK)
+            if (rsp_chunk(req, p + seg, i + 1 - seg) != ESP_OK)
                 return ESP_FAIL;
-            if (httpd_resp_send_chunk(req, "\\", 1) != ESP_OK)
+            if (rsp_chunk(req, "\\", 1) != ESP_OK)
                 return ESP_FAIL;
             seg = i + 1;
             i += 2;
@@ -116,7 +112,7 @@ static esp_err_t send_chunk_escaped(httpd_req_t *req, const char *p, size_t len)
             i++;
         }
     }
-    if (len > seg && httpd_resp_send_chunk(req, p + seg, len - seg) != ESP_OK)
+    if (len > seg && rsp_chunk(req, p + seg, len - seg) != ESP_OK)
         return ESP_FAIL;
     return ESP_OK;
 }
@@ -140,7 +136,7 @@ static esp_err_t stream_ring(httpd_req_t *req, bool escaped, size_t skip, size_t
         }
         buf[len++] = '\n';
         err = escaped ? send_chunk_escaped(req, buf, len)
-                      : httpd_resp_send_chunk(req, buf, len);
+                      : rsp_chunk(req, buf, len);
         if (err != ESP_OK) { err = ESP_FAIL; break; }
         if (++emitted % 32 == 0) vTaskDelay(1);
     }
@@ -169,7 +165,7 @@ static esp_err_t stream_records(httpd_req_t *req, bool escaped, size_t skip, siz
         if (len == 0) break;
         buf[len++] = '\n';
         err = escaped ? send_chunk_escaped(req, buf, len)
-                      : httpd_resp_send_chunk(req, buf, len);
+                      : rsp_chunk(req, buf, len);
         if (err != ESP_OK) { err = ESP_FAIL; break; }
         if (++emitted % 32 == 0) vTaskDelay(1);
     }
@@ -189,11 +185,18 @@ static const char DASH_HTML[] =
 "<meta name=\"mobile-web-app-capable\" content=\"yes\">"
 "<meta name=\"theme-color\" content=\"#ffd93b\"><style>"
 
-":root{--bg:#ffd93b;--panel:#fff7d6;--ink:#3f2a14;--line:#3f2a14;--muted:#7a5a34;"
-"--sh:#3f2a14;--accent:#ff8a1e;--pname:#e0701a;--safe:#2fa85a;--trk:#fff;"
-"--onacc:#3f2a14}"
-"body.dark{--bg:#241a0e;--panel:#3a2a18;--ink:#f3e4bf;--line:#c8a25a;--muted:#c9ac7e;"
-"--sh:#100a04;--accent:#ffcf4a;--pname:#ffb14a;--safe:#5ec98a;--trk:#0f0a04}"
+":root{--bg:#ffd93b;--panel:#fff7d6;--panelw:#ffc24a;--ink:#3f2a14;--line:#3f2a14;"
+"--muted:#7a5a34;--sh:#3f2a14;--accent:#ff8a1e;--pname:#e0701a;--safe:#2fa85a;"
+"--ok:#e0a500;--caution:#e5701a;--avoid:#d63838;--trk:#fff;--onacc:#3f2a14;"
+
+"--s1:#2f7fd6;--s2:#7a52d6;--s3:#e5701a;--s4:#d6489a;--s5:#2fa85a;--s6:#0f9b9b;"
+
+"--cbs:solid;--cbw:3px;--cardr:12px;--panelop:100%;--panelblur:0px;"
+"--bgsize:cover;--bgpos:center;--bgrep:no-repeat;--bgdim:0;--bgblur:0px}"
+"body.dark{--bg:#241a0e;--panel:#3a2a18;--panelw:#4a3620;--ink:#f3e4bf;--line:#c8a25a;"
+"--muted:#c9ac7e;--sh:#100a04;--accent:#ffcf4a;--pname:#ffb14a;--safe:#5ec98a;"
+"--ok:#ffc94a;--caution:#ff9f5e;--avoid:#ff6b6b;--trk:#0f0a04;"
+"--s1:#6db3f2;--s2:#b79cf0;--s3:#ffab5e;--s4:#f07ac0;--s5:#5ec98a;--s6:#4fd0d0}"
 "body{font:15px/1.35 system-ui,sans-serif;background:var(--bg);color:var(--ink);"
 "margin:0 auto;padding:12px;max-width:480px}"
 "h1{margin:2px 0}h1 img{display:block;height:44px;width:auto;max-width:100%;"
@@ -292,6 +295,18 @@ static const char DASH_HTML[] =
 ".sdmeta{padding:0 10px 8px 36px;font-size:11px;color:var(--muted);margin-top:-4px}"
 ".sdmeta.warn{color:var(--caution,#d99a1e)}"
 "#sdempty{padding:14px 12px;font-size:13px;color:var(--muted);text-align:center}"
+"#sdscans{border:3px solid var(--line);border-radius:12px;background:var(--panel);"
+"box-shadow:4px 4px 0 var(--sh);overflow:hidden;margin-bottom:4px}"
+".sdgrp{padding:6px 10px;font-size:12px;font-weight:900;letter-spacing:.4px;"
+"text-transform:uppercase;color:var(--onacc);background:var(--accent);"
+"border-top:1px solid var(--line)}"
+".sdgrp:first-child{border-top:0}"
+".sdgrp span{font-weight:700;text-transform:none;letter-spacing:0;opacity:.8}"
+"h2.fold{cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none}"
+"h2.fold .tw{width:16px;height:16px;flex:none;transition:transform .15s}"
+"h2.fold .tw.open{transform:rotate(90deg)}"
+
+"h2.fold .cnt{margin-left:auto;font-size:12px;font-weight:700;color:var(--muted)}"
 "#sdsel{position:sticky;bottom:0;margin:8px 0 0;padding:8px;border:3px solid var(--line);"
 "border-radius:12px;background:var(--panel);box-shadow:4px 4px 0 var(--sh);display:none}"
 "#sdsel.on{display:block}"
@@ -300,6 +315,43 @@ static const char DASH_HTML[] =
 "#sdsel button:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}"
 #endif
 
+#if SC_TRACKER_SOUND
+
+"#tkcard{background:var(--panel);border:3px solid var(--line);border-radius:12px;"
+"padding:10px 12px;margin:8px 0;box-shadow:4px 4px 0 var(--sh)}"
+"#tkstate{font-size:15px;font-weight:900;color:var(--accent);margin-bottom:6px}"
+"#tkcard button{width:100%;box-sizing:border-box}"
+"#tkcard button:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}"
+"label.tkarm{display:flex;align-items:center;gap:8px;margin:6px 0;padding:6px 8px;"
+"border:2px dashed var(--caution,#d99a1e);border-radius:9px;font-size:13px;font-weight:700}"
+"label.tkarm input{width:18px;height:18px;flex:none;accent-color:var(--caution,#d99a1e)}"
+"label.tkarm b{color:var(--caution,#d99a1e)}"
+".tkrow{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;"
+"border-top:1px solid var(--line)}"
+".tkrow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+"font-weight:700;color:var(--ink)}"
+".tkrow .sz{color:var(--muted);font-size:11px;white-space:nowrap}"
+".tkrow button{width:auto;margin:0;padding:4px 10px;font-size:12px;font-weight:800;"
+"background:var(--caution,#d99a1e);color:var(--onacc,#3f2a14);box-shadow:2px 2px 0 var(--sh)}"
+"#tkstop{display:none}"
+#endif
+
+#if SC_ENV_LEARN
+
+"#envcard{background:var(--panel);border:3px solid var(--line);border-radius:12px;"
+"padding:10px 12px;margin:8px 0;box-shadow:4px 4px 0 var(--sh)}"
+"#envhere{font-size:16px;font-weight:900;color:var(--accent);margin-bottom:2px}"
+"#envcard button{width:100%;box-sizing:border-box}"
+"#envcard button:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}"
+".envrow{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;"
+"border-top:1px solid var(--line)}"
+".envrow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+"font-weight:700;color:var(--ink)}"
+".envrow.cur .nm{color:var(--safe)}"
+".envrow .sz{color:var(--muted);font-size:12px;white-space:nowrap}"
+".envrow button{width:auto;margin:0;padding:3px 8px;font-size:11px;font-weight:700;"
+"background:var(--panel);color:var(--muted);box-shadow:2px 2px 0 var(--sh)}"
+#endif
 "#themebtn{position:fixed;top:10px;right:10px;z-index:15;width:42px;height:42px;"
 "display:flex;align-items:center;justify-content:center;padding:0;margin:0;cursor:pointer;"
 "color:var(--ink);background:var(--panel);border:3px solid var(--line);border-radius:11px;"
@@ -352,14 +404,59 @@ static const char DASH_HTML[] =
 ".set .si{width:18px;height:18px;color:var(--accent);flex:none}"
 "#customwrap{border:2px dashed var(--line);border-radius:10px;padding:6px 10px;margin:2px 0 8px}"
 "#customwrap label{margin:6px 0}"
-"#customwrap .chd{font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.5px;"
+
+".set .chd{font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.5px;"
 "margin:10px 0 2px;padding-top:6px;border-top:1px solid var(--line);color:var(--muted)}"
 "#customwrap .chd:first-child{border-top:0;padding-top:0;margin-top:2px}"
-"#customwrap input[type=color]{width:46px;height:28px;padding:0;border:2px solid var(--line);"
+".set input[type=color]{width:46px;height:28px;padding:0;border:2px solid var(--line);"
 "border-radius:6px;background:var(--panel);cursor:pointer}"
-"#customwrap input[type=file]{font-size:12px;max-width:172px}"
-"body.hasbg::before{content:'';position:fixed;inset:0;z-index:-1;background-image:var(--bgimg);"
-"background-size:cover;background-position:center;background-attachment:fixed}"
+".set input[type=file]{font-size:12px;max-width:172px}"
+".set input[type=range]{width:150px;accent-color:var(--accent);flex:none}"
+".set label>.lb .ex{font-size:11px;font-weight:700;color:var(--muted);margin:0}"
+
+"#card,#pcard,.wc,#sdwrap,#sdlist,#sdscans,#sdsel,#tkcard,#envcard,#rcbox,"
+"#pgcanvas,#customwrap,.set,.dz{border-style:var(--cbs,solid);"
+"border-width:var(--cbw,3px);border-radius:var(--cardr,12px)}"
+
+".set,.dz{border-color:var(--line);background:var(--panel);padding:10px 12px;"
+"margin:8px 0;box-shadow:3px 3px 0 var(--sh)}"
+".dz{border-color:var(--avoid,#d63838)}"
+
+"#tour{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;"
+"justify-content:center;padding:10px;pointer-events:none}"
+"#tour[hidden]{display:none}"
+"#tourbox{pointer-events:auto;width:100%;max-width:460px;background:var(--panel);"
+"border:3px solid var(--line);border-radius:14px;padding:13px 15px;"
+"box-shadow:0 6px 0 var(--sh),0 0 0 100vmax rgba(0,0,0,.28)}"
+"#tourbox .tstep{font-size:10px;font-weight:800;letter-spacing:.6px;"
+"text-transform:uppercase;color:var(--muted)}"
+"#tourbox h3{margin:3px 0 5px;font-size:17px;color:var(--hdr,var(--accent))}"
+"#tourtxt{font-size:13.5px;line-height:1.45}"
+"#tourtxt b{color:var(--accent)}"
+"#tournav{display:flex;gap:7px;margin-top:12px;align-items:center}"
+"#tournav button{margin:0;padding:9px 13px;font-size:13.5px;font-weight:800;"
+"border:2px solid var(--line);border-radius:9px;background:var(--panel);"
+"color:var(--ink);cursor:pointer;box-shadow:2px 2px 0 var(--sh)}"
+"#tournav button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--sh)}"
+"#tournav .prim{background:var(--accent);color:var(--onacc);margin-left:auto}"
+"#tournav #tourskip{border-color:var(--line2,var(--muted));background:none;"
+"box-shadow:none;font-weight:700;color:var(--muted)}"
+"#tournav button[hidden]{display:none}"
+
+"body.hasbg::before{content:'';position:fixed;inset:-4%;z-index:-2;background-image:var(--bgimg);"
+"background-size:var(--bgsize,cover);background-position:var(--bgpos,center);"
+"background-repeat:var(--bgrep,no-repeat);background-attachment:fixed;"
+"filter:blur(var(--bgblur,0px))}"
+"body.hasbg::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;"
+"background:var(--bg);opacity:calc(var(--bgdim,0)/100)}"
+"body.hasbg{--panelop:92%;--panelblur:7px}"
+"body.hasbg #card,body.hasbg #pcard,body.hasbg .wc,body.hasbg #sdwrap,"
+"body.hasbg #sdlist,body.hasbg #sdscans,body.hasbg #sdsel,body.hasbg #tkcard,"
+"body.hasbg #envcard,body.hasbg #rcbox,body.hasbg .set,body.hasbg #customwrap,"
+"body.hasbg #nav button,body.hasbg h1 img{background:var(--panel);"
+"background:color-mix(in srgb,var(--panel) var(--panelop,92%),transparent);"
+"backdrop-filter:blur(var(--panelblur,7px));"
+"-webkit-backdrop-filter:blur(var(--panelblur,7px))}"
 "</style></head><body>"
 
 "<script>var TH={'sniffcheck':[0],'sniffcheck-dark':[1],"
@@ -377,21 +474,36 @@ static const char DASH_HTML[] =
 "s.removeProperty('--bold');s.removeProperty('--ital');s.removeProperty('--hdr');s.removeProperty('--bgimg');"
 "['caution','avoid','wifi','ble','track','drone'].forEach(function(k){s.removeProperty('--'+k)});"
 "document.body.classList.remove('hasbg');"
-"document.body.classList.toggle('dark',!!t[0]);curth=id;"
+"document.body.classList.toggle('dark',!!t[0]);applyopts();curth=id;"
 "var e=document.getElementById('thm');if(e)e.value=id}"
 "function customGet(){try{var c=JSON.parse(localStorage.getItem('sc-custom'));if(c&&c.v)return c}catch(e){}"
 "return {d:document.body.classList.contains('dark')?1:0,v:{},img:''}}"
 "function customSet(c){try{localStorage.setItem('sc-custom',JSON.stringify(c))}catch(e){}}"
 "function applycustom(){var c=customGet(),s=document.body.style,i,"
-"keys=['bg','panel','ink','line','accent','pname','onacc','sh','bold','ital','hdr','muted',"
-"'safe','caution','avoid','wifi','ble','track','drone'];"
+"keys=['bg','panel','panelw','ink','line','accent','pname','onacc','sh','bold','ital','hdr','muted',"
+"'safe','ok','caution','avoid','wifi','ble','track','drone','s1','s2','s3','s4','s5','s6'];"
 "for(i=0;i<THV.length;i++)s.removeProperty('--'+THV[i]);"
 "document.body.classList.toggle('dark',!!c.d);"
 "for(i=0;i<keys.length;i++){if(c.v[keys[i]])s.setProperty('--'+keys[i],c.v[keys[i]]);"
 "else s.removeProperty('--'+keys[i])}"
 "if(c.img){s.setProperty('--bgimg','url('+c.img+')');document.body.classList.add('hasbg')}"
 "else{s.removeProperty('--bgimg');document.body.classList.remove('hasbg')}"
+"applyopts();"
 "curth='custom';var e=document.getElementById('thm');if(e)e.value='custom'}"
+
+"var OPTD={bs:'solid',bw:2.5,rad:12,op:92,pblur:7,fit:'cover',pos:'center',dim:35,iblur:0};"
+"function optGet(){var c=customGet(),o=(c.o&&typeof c.o==='object')?c.o:{},k,r={};"
+"for(k in OPTD)r[k]=(o[k]===undefined||o[k]===null)?OPTD[k]:o[k];return r}"
+"function applyopts(){var o=optGet(),s=document.body.style;"
+"s.setProperty('--cbs',o.bs);s.setProperty('--cbw',(+o.bw||OPTD.bw)+'px');"
+"s.setProperty('--cardr',(+o.rad||0)+'px');"
+"s.setProperty('--panelop',(+o.op||OPTD.op)+'%');"
+"s.setProperty('--panelblur',(+o.pblur||0)+'px');"
+"s.setProperty('--bgsize',o.fit==='tile'?'auto':o.fit==='contain'?'contain':'cover');"
+"s.setProperty('--bgrep',o.fit==='tile'?'repeat':'no-repeat');"
+"s.setProperty('--bgpos',o.pos||'center');"
+"s.setProperty('--bgdim',String(+o.dim||0));"
+"s.setProperty('--bgblur',(+o.iblur||0)+'px')}"
 "function setthm(id){applyth(id);if(window.custSync)custSync();"
 "try{localStorage.setItem('sc-theme',curth)}catch(e){}}"
 "try{var t0=localStorage.getItem('sc-theme');"
@@ -407,6 +519,7 @@ static const char DASH_HTML[] =
 #if SC_SD_ARCHIVE
 "<symbol id=ic-folder viewBox=\"0 0 24 24\"><path fill=currentColor d=\"M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2l1.8 2h9A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-11Z\"/></symbol>"
 "<symbol id=ic-file viewBox=\"0 0 24 24\"><g fill=none stroke=currentColor stroke-width=1.8 stroke-linejoin=round><path d=\"M6.5 3.5h7l5 5v12h-12v-17Z\"/><path d=\"M13.5 3.5v5h5\"/></g></symbol>"
+"<symbol id=ic-caret viewBox=\"0 0 24 24\"><path fill=currentColor d=\"M9 5.5 16.5 12 9 18.5Z\"/></symbol>"
 "<symbol id=ic-scan viewBox=\"0 0 24 24\"><g fill=none stroke=currentColor stroke-width=2 stroke-linecap=round><path d=\"M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8\"/><path d=\"M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8\"/><path d=\"M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16\"/><path d=\"M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16\"/><path d=\"M7 12h10\"/></g></symbol>"
 #endif
 "<symbol id=ic-tabs viewBox=\"0 0 24 24\"><g fill=currentColor><rect x=3 y=3 width=7.5 height=7.5 rx=1.6/><rect x=13.5 y=3 width=7.5 height=7.5 rx=1.6/><rect x=3 y=13.5 width=7.5 height=7.5 rx=1.6/><rect x=13.5 y=13.5 width=7.5 height=7.5 rx=1.6/></g></symbol>"
@@ -450,6 +563,44 @@ static const char DASH_HTML[] =
 "<a class=\"b dl\" href=\"/api/captures/live.jsonl\">Download data (.jsonl)</a>"
 "<button class=dl onclick=\"savesd(this)\">Save to SD card</button>"
 "<div class=ex id=sdex>Writes the capture to a microSD card in the master T-Dongle.</div>"
+#if SC_TRACKER_SOUND
+"<h2>Trackers nearby</h2>"
+"<div id=tkcard>"
+"<div id=tkstate>Checking\xe2\x80\xa6</div>"
+"<label class=tkarm><input type=checkbox id=tkarm onchange=\"tkArm(this.checked)\">"
+"<span>Allow safety sound <b>(transmits)</b></span></label>"
+"<div class=ex>Off until you turn it on, and off again after a restart. Everything else "
+"SniffCheck does only listens.</div>"
+"<div id=tklist></div>"
+"<button class=dl id=tkhowl onclick=\"tkHowl()\">Howl \xe2\x80\x94 ring them all</button>"
+"<button class=off id=tkstop onclick=\"tkStop()\">Stop</button>"
+"<div class=ex><b>Bark</b> rings one tracker, <b>Howl</b> rings each in turn. This is the "
+"anti-stalking sound the Find My and DULT specs define \xe2\x80\x94 it is what lets you find "
+"something that has been following you. A Find My accessory can only be rung while it is "
+"<i>separated from its owner</i>; tags still with their owner, and Tiles (whose sound is "
+"owner-only), are listed elsewhere but cannot be rung at all. Other trackers are worth "
+"trying but many have no sound command and will simply not answer. A command that is "
+"accepted is <i>not</i> proof the tracker made a noise.</div>"
+"<div class=ex id=tkmsg></div>"
+"</div>"
+#endif
+
+#if SC_ENV_LEARN
+"<h2>Where you are</h2>"
+"<div id=envcard>"
+"<div id=envhere>Checking\xe2\x80\xa6</div>"
+"<div class=ex id=envnote></div>"
+"<div id=envlist></div>"
+"<button class=ext id=envname onclick=\"envName()\">Name this place</button>"
+"<button class=dl id=envlearn onclick=\"envLearn(true)\">Learn this place (walk around)</button>"
+"<button class=ext id=envlearn2 onclick=\"envLearn(false)\">Learn from here (stay put)</button>"
+"<div class=ex>A learn run takes several scans in a row and folds them into one place. "
+"Walking a few steps between them is what separates the fixtures that define a room from "
+"whatever happened to be passing. The AP closes while it scans and comes back when it "
+"finishes.</div>"
+"</div>"
+#endif
+
 "<h2>Session</h2>"
 "<button class=ext onclick=\"post('/api/download/extend')\">Keep awake +15 min</button>"
 "<button class=off onclick=\"arm(this,'/api/download/disable')\">Close AP</button>"
@@ -517,16 +668,31 @@ static const char DASH_HTML[] =
 "</div></div>"
 "<div class=ex id=sdnote></div>"
 
-"<h2>Files</h2>"
+"<h2 class=fold id=sdscansh onclick=\"sdScansFold()\">"
+"<svg class=\"si tw\" id=sdstw><use href=\"#ic-caret\"/></svg>Saved scans"
+"<span class=cnt id=sdscnt></span></h2>"
+"<div id=sdscanswrap hidden>"
+"<div id=sdscans><div id=sdempty>Loading\xe2\x80\xa6</div></div>"
+"<div class=ex>Tick one to open it in the report, or tick two to compare them. "
+"Rename a scan and the file on the card is renamed too, so the card still makes sense "
+"on a computer.</div>"
+"</div>"
+
+"<h2 class=fold id=sdfoldh onclick=\"sdFold()\">"
+"<svg class=\"si tw\" id=sdtw><use href=\"#ic-caret\"/></svg>Browse the whole card</h2>"
+"<div id=sdbrowse hidden>"
 "<div id=sdcrumb></div>"
 "<div id=sdlist><div id=sdempty>Loading\xe2\x80\xa6</div></div>"
-"<div class=ex>Saved scans live in <b>/sniffcheck/sessions</b>. Tick one to open it in the "
-"report, or tick two to compare them.</div>"
+"<div class=ex>Everything on the card, read-only. Saved scans live in "
+"<b>/sniffcheck/sessions</b>.</div>"
+"</div>"
 
 "<div id=sdsel>"
 "<div class=cnt id=sdcnt></div>"
 "<button class=rep id=sdopen onclick=\"sdOpen()\">Open in report</button>"
 "<button class=dl id=sdcmp onclick=\"sdCompare()\">Compare the two</button>"
+"<button class=ext id=sdren onclick=\"sdRename()\">Rename</button>"
+"<button class=ext id=sdser onclick=\"sdSeries()\">Group as a series\xe2\x80\xa6</button>"
 "<button class=ext onclick=\"sdClear()\">Clear selection</button>"
 "<button class=cl id=sddel onclick=\"armfn(this,'sddel',sdDelete)\">Delete selected</button>"
 "</div>"
@@ -580,6 +746,7 @@ static const char DASH_HTML[] =
 "<div class=chd>Core</div>"
 "<label><span class=lb>Background</span><input type=color id=cc-bg oninput=\"cust('bg',this.value)\"></label>"
 "<label><span class=lb>Panels</span><input type=color id=cc-panel oninput=\"cust('panel',this.value)\"></label>"
+"<label><span class=lb>Panel tint</span><input type=color id=cc-panelw oninput=\"cust('panelw',this.value)\"></label>"
 "<label><span class=lb>Body text</span><input type=color id=cc-ink oninput=\"cust('ink',this.value)\"></label>"
 "<label><span class=lb>Headings</span><input type=color id=cc-hdr oninput=\"cust('hdr',this.value)\"></label>"
 "<label><span class=lb>Descriptions</span><input type=color id=cc-muted oninput=\"cust('muted',this.value)\"></label>"
@@ -594,6 +761,7 @@ static const char DASH_HTML[] =
 "<label><span class=lb>Italic text</span><input type=color id=cc-ital oninput=\"cust('ital',this.value)\"></label>"
 "<div class=chd>Status</div>"
 "<label><span class=lb>Success</span><input type=color id=cc-safe oninput=\"cust('safe',this.value)\"></label>"
+"<label><span class=lb>Notice</span><input type=color id=cc-ok oninput=\"cust('ok',this.value)\"></label>"
 "<label><span class=lb>Caution</span><input type=color id=cc-caution oninput=\"cust('caution',this.value)\"></label>"
 "<label><span class=lb>Danger</span><input type=color id=cc-avoid oninput=\"cust('avoid',this.value)\"></label>"
 "<div class=chd>Device (report page)</div>"
@@ -601,12 +769,51 @@ static const char DASH_HTML[] =
 "<label><span class=lb>BLE</span><input type=color id=cc-ble oninput=\"cust('ble',this.value)\"></label>"
 "<label><span class=lb>Tracker</span><input type=color id=cc-track oninput=\"cust('track',this.value)\"></label>"
 "<label><span class=lb>Drone</span><input type=color id=cc-drone oninput=\"cust('drone',this.value)\"></label>"
+
+"<div class=chd>Chart series (report page)</div>"
+"<label><span class=lb>Series 1</span><input type=color id=cc-s1 oninput=\"cust('s1',this.value)\"></label>"
+"<label><span class=lb>Series 2</span><input type=color id=cc-s2 oninput=\"cust('s2',this.value)\"></label>"
+"<label><span class=lb>Series 3</span><input type=color id=cc-s3 oninput=\"cust('s3',this.value)\"></label>"
+"<label><span class=lb>Series 4</span><input type=color id=cc-s4 oninput=\"cust('s4',this.value)\"></label>"
+"<label><span class=lb>Series 5</span><input type=color id=cc-s5 oninput=\"cust('s5',this.value)\"></label>"
+"<label><span class=lb>Series 6</span><input type=color id=cc-s6 oninput=\"cust('s6',this.value)\"></label>"
 "<div class=chd>Base</div>"
 "<label><span class=lb>Dark base</span><input type=checkbox id=cc-dark onchange=\"custDark(this.checked)\"></label>"
-"<label><span class=lb>Background image</span><input type=file id=cc-img accept=image/* onchange=\"custImg(this)\"></label>"
-"<button class=off onclick=\"custClearImg()\">Remove background image</button>"
-"<div class=ex>Custom colors, fonts and background are saved in this browser.</div>"
 "</div>"
+
+"<div class=chd>Blocks</div>"
+"<label><span class=lb>Border style</span><select id=co-bs onchange=\"custO('bs',this.value)\">"
+"<option value=solid>Solid</option><option value=dashed>Dashed</option>"
+"<option value=dotted>Dotted</option><option value=double>Double</option></select></label>"
+"<label><span class=lb>Border weight</span><select id=co-bw onchange=\"custO('bw',+this.value)\">"
+"<option value=1.5>Hairline</option><option value=2.5>Normal</option>"
+"<option value=3>Bold</option><option value=4>Heavy</option></select></label>"
+"<label><span class=lb>Corners</span><select id=co-rad onchange=\"custO('rad',+this.value)\">"
+"<option value=0>Square</option><option value=6>Slight</option>"
+"<option value=12>Rounded</option><option value=20>Pill</option></select></label>"
+"<div class=ex>Applies to every card and block here and on the report page.</div>"
+
+"<div class=chd>Background image</div>"
+"<label><span class=lb>Image</span><input type=file id=cc-img accept=image/* onchange=\"custImg(this)\"></label>"
+"<label><span class=lb>Fit</span><select id=co-fit onchange=\"custO('fit',this.value)\">"
+"<option value=cover>Fill screen</option><option value=contain>Fit whole image</option>"
+"<option value=tile>Tile</option></select></label>"
+"<label><span class=lb>Position</span><select id=co-pos onchange=\"custO('pos',this.value)\">"
+"<option value=center>Center</option><option value=\"center top\">Top</option>"
+"<option value=\"center bottom\">Bottom</option><option value=\"left center\">Left</option>"
+"<option value=\"right center\">Right</option></select></label>"
+"<label><span class=lb>Fade image <span id=co-dimv class=ex></span></span>"
+"<input type=range id=co-dim min=0 max=90 step=5 oninput=\"custO('dim',+this.value)\"></label>"
+"<label><span class=lb>Blur image <span id=co-iblurv class=ex></span></span>"
+"<input type=range id=co-iblur min=0 max=12 step=1 oninput=\"custO('iblur',+this.value)\"></label>"
+"<label><span class=lb>Text panel opacity <span id=co-opv class=ex></span></span>"
+"<input type=range id=co-op min=60 max=100 step=2 oninput=\"custO('op',+this.value)\"></label>"
+"<label><span class=lb>Frost behind panels <span id=co-pblurv class=ex></span></span>"
+"<input type=range id=co-pblur min=0 max=16 step=1 oninput=\"custO('pblur',+this.value)\"></label>"
+"<button class=off onclick=\"custClearImg()\">Remove background image</button>"
+"<div class=ex>Fade and blur push the picture back; panel opacity and frost keep "
+"results and body text readable on top of it. Saved in this browser and shared "
+"with the report page.</div>"
 
 "<div class=hot><span class=hotlbl><svg class=si style=\"color:var(--accent);vertical-align:-3px\"><use href=\"#ic-tabs\"/></svg> Quick tabs</span>"
 "<label class=hotck><input type=checkbox value=s-wifi onchange=\"savehot()\">Wi-Fi</label>"
@@ -621,6 +828,11 @@ static const char DASH_HTML[] =
 "<label class=hotck><input type=checkbox value=s-drones onchange=\"savehot()\">Drones</label>"
 "</div>"
 "<div class=ex>The report page's apps-grid button jumps to these tabs. Saved in this browser and shared with the report page.</div>"
+
+"<div class=chd>Walkthrough</div>"
+"<button class=off onclick=\"tourStart()\">Show the walkthrough again</button>"
+"<div class=ex>The first-boot tour of this dashboard. It is dismissed per browser, "
+"so a phone that has never seen it still gets it.</div>"
 "</div>"
 "</div>"
 "<script>"
@@ -636,6 +848,14 @@ static const char DASH_HTML[] =
 "rem=j.seconds_remaining;el('rem').textContent=fmt(rem)})"
 ".catch(function(){})}"
 "refresh();setInterval(refresh,5000);"
+#if SC_ENV_LEARN
+
+"setTimeout(function(){envPoll();setInterval(envPoll,5000)},0);"
+#endif
+#if SC_TRACKER_SOUND
+
+"setTimeout(function(){tkPoll();setInterval(tkPoll,3000)},0);"
+#endif
 "setInterval(function(){if(rem>0){rem--;el('rem').textContent=fmt(rem)}},1000);"
 "function post(u){fetch(u,{method:'POST'}).then(refresh)}"
 "function applyset(j){if(!j)return;var e;"
@@ -770,8 +990,12 @@ static const char DASH_HTML[] =
 "throw 0}).catch(function(){b.disabled=false;b.className='ready';"
 "b.textContent='Not back yet \\u2014 rejoin the Wi-Fi, then tap'})}"
 "var rcTk=null;"
-"function rcStart(eta){var total=Math.max(1,eta|0)+10,left=total;"
-"el('rcmsg').innerHTML='The SniffCheck AP drops while the radio scans, then relaunches with the '"
+
+"function rcStart(eta,title,msg){var total=Math.max(1,eta|0)+10,left=total;"
+"el('rctitle').textContent=title||'Scan running';"
+"if(msg)el('rcmsg').textContent=msg+' It relaunches with the same Wi-Fi password \\u2014 when "
+"the timer ends, rejoin the AP and tap below.';"
+"else el('rcmsg').innerHTML='The SniffCheck AP drops while the radio scans, then relaunches with the '"
 "+'<b>same Wi-Fi password</b>. When the timer ends, rejoin the AP and tap below to load the new results.';"
 "var b=el('rcbtn');b.disabled=true;b.className='';b.textContent='Reconnect \\u0026 refresh';"
 "el('rcov').classList.add('on');"
@@ -834,17 +1058,33 @@ static const char DASH_HTML[] =
 
 "function cust(k,v){var c=customGet();c.v[k]=v;customSet(c);setthm('custom')}"
 "function custDark(on){var c=customGet();c.d=on?1:0;customSet(c);setthm('custom')}"
+
 "function custImg(inp){var f=inp.files&&inp.files[0];if(!f)return;var r=new FileReader();"
-"r.onload=function(){var c=customGet();c.img=String(r.result||'');customSet(c);setthm('custom')};r.readAsDataURL(f)}"
+"r.onload=function(){var c=customGet();c.img=String(r.result||'');"
+"if(!c.o)c.o={dim:35,op:92,pblur:7,fit:'cover',pos:'center'};"
+"customSet(c);setthm('custom');optSeed()};r.readAsDataURL(f)}"
 "function custClearImg(){var c=customGet();c.img='';customSet(c);setthm('custom');var e=el('cc-img');if(e)e.value=''}"
+"function custO(k,v){var c=customGet();if(!c.o)c.o={};c.o[k]=v;customSet(c);"
+"applyopts();optSeed()}"
 "function custSeed(){var c=customGet(),"
-"D={bg:'#ffd93b',panel:'#fff7d6',ink:'#3f2a14',line:'#3f2a14',hdr:'#ff8a1e',muted:'#7a5a34',"
-"accent:'#ff8a1e',pname:'#e0701a',onacc:'#3f2a14',sh:'#3f2a14',bold:'#ff8a1e',ital:'#e0701a',"
-"safe:'#2fa85a',caution:'#d99a1e',avoid:'#d64545',wifi:'#2a6cd6',ble:'#6a4ce0',track:'#d98a1e',drone:'#1ea6a6'};"
+"D={bg:'#ffd93b',panel:'#fff7d6',panelw:'#ffc24a',ink:'#3f2a14',line:'#3f2a14',hdr:'#ff8a1e',"
+"muted:'#7a5a34',accent:'#ff8a1e',pname:'#e0701a',onacc:'#3f2a14',sh:'#3f2a14',"
+"bold:'#ff8a1e',ital:'#e0701a',safe:'#2fa85a',ok:'#e0a500',caution:'#d99a1e',avoid:'#d64545',"
+"wifi:'#2a6cd6',ble:'#6a4ce0',track:'#d98a1e',drone:'#1ea6a6',"
+"s1:'#2f7fd6',s2:'#7a52d6',s3:'#e5701a',s4:'#d6489a',s5:'#2fa85a',s6:'#0f9b9b'};"
 "Object.keys(D).forEach(function(k){var e=el('cc-'+k);if(e)e.value=(c.v[k]||D[k])});"
 "var d=el('cc-dark');if(d)d.checked=!!c.d}"
+
+"function optSeed(){var o=optGet(),k,e,"
+"S={bs:'co-bs',bw:'co-bw',rad:'co-rad',fit:'co-fit',pos:'co-pos',dim:'co-dim',"
+"iblur:'co-iblur',op:'co-op',pblur:'co-pblur'};"
+"for(k in S){e=el(S[k]);if(e)e.value=o[k]}"
+"e=el('co-dimv');if(e)e.textContent=o.dim+'%';"
+"e=el('co-iblurv');if(e)e.textContent=o.iblur+'px';"
+"e=el('co-opv');if(e)e.textContent=o.op+'%';"
+"e=el('co-pblurv');if(e)e.textContent=o.pblur+'px'}"
 "function custSync(){var cw=el('customwrap');if(!cw)return;cw.style.display=(curth==='custom')?'':'none';if(curth==='custom')custSeed()}"
-"custSync();"
+"custSync();optSeed();"
 
 #if SC_SD_ARCHIVE
 
@@ -953,15 +1193,95 @@ static const char DASH_HTML[] =
 ".catch(function(){SDBUSY=false;"
 "el('sdlist').innerHTML='<div id=sdempty>Could not read the card.</div>'})}"
 
+"var SDROWS=[];"
+"function sdScans(){return fetch('/api/captures',{cache:'no-store'})"
+".then(function(r){return r.json()}).then(function(j){"
+"SDROWS=(j||[]).filter(function(e){return e.kind==='archive'});"
+"var box=el('sdscans'),c=el('sdscnt');"
+"if(c)c.textContent=SDROWS.length?SDROWS.length+(SDROWS.length===1?' scan':' scans'):'';"
+"if(!SDROWS.length){box.innerHTML='<div id=sdempty>No saved scans yet. Finish a scan with the "
+"card in and it lands here.</div>';sdSelBar();return}"
+
+"var gs={},order=[];"
+"SDROWS.slice().sort(function(a,b){return String(b.id).localeCompare(String(a.id))})"
+".forEach(function(e){var s=(e.meta&&e.meta.series)||'';"
+"if(!gs[s]){gs[s]=[];order.push(s)}gs[s].push(e)});"
+"var h='';"
+"order.forEach(function(s){"
+"if(s)h+='<div class=sdgrp>'+sdEsc(s)+' <span>'+gs[s].length+' scans</span></div>';"
+"gs[s].forEach(function(e){h+=sdScanRow(e)})});"
+"box.innerHTML=h;sdSelBar()})"
+".catch(function(){el('sdscans').innerHTML="
+"'<div id=sdempty>Could not read the archive.</div>'})}"
+
+"function sdScanRow(e){var m=e.meta;"
+"var h='<div class=\"sdrow'+(SDSEL[e.id]?' pick':'')+'\">';"
+"h+='<input type=checkbox '+(SDSEL[e.id]?'checked ':'')"
+"+'onclick=\"sdPick(\\''+sdEsc(e.id)+'\\',this.checked)\" '"
+"+'aria-label=\"Select '+sdEsc(e.id)+'\">';"
+"h+='<svg class=si><use href=\"#ic-scan\"/></svg>';"
+"h+='<span class=nm>'+sdEsc(e.id)+(e.current?' (saving now)':'')+'</span>';"
+"h+='<span class=sz>'+sdB(e.bytes)+'</span>';"
+"h+='</div>';"
+"h+=sdMeta({session:true,meta:m});return h}"
+
+"function sdFold(){var b=el('sdbrowse'),open=b.hasAttribute('hidden');"
+"if(open){b.removeAttribute('hidden');el('sdtw').classList.add('open');"
+"if(!SDBROWSED){SDBROWSED=true;sdLs(SDPATH)}}"
+"else{b.setAttribute('hidden','');el('sdtw').classList.remove('open')}}"
+"var SDBROWSED=false;"
+
+"function sdScansSet(on){var w=el('sdscanswrap'),t=el('sdstw');if(!w)return;"
+"if(on){w.removeAttribute('hidden');if(t)t.classList.add('open')}"
+"else{w.setAttribute('hidden','');if(t)t.classList.remove('open')}"
+"try{localStorage.setItem('sc-sd-scans',on?'1':'0')}catch(e){}}"
+"function sdScansFold(){sdScansSet(el('sdscanswrap').hasAttribute('hidden'))}"
+
+"function sdRenameOne(id,name,series){"
+"var b={id:id};if(name!=null)b.name=name;if(series!=null)b.series=series;"
+"return fetch('/api/archive/rename',{method:'POST',"
+"headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})"
+".then(function(r){return r.json()})}"
+
+"function sdRename(){var k=sdKeys();"
+"if(k.length!==1){alert('Pick exactly one scan to rename.');return}"
+"var cur=k[0],name=prompt('Name for this scan',cur);"
+"if(name===null)return;name=name.trim();if(!name)return;"
+"sdRenameOne(cur,name,null).then(function(j){"
+"if(!j.ok){alert(j.error||'Rename failed.');return}"
+"SDSEL={};if(j.id&&j.id!==name)"
+"alert('Saved as \\u201c'+j.id+'\\u201d \\u2014 the name was adjusted to fit a filename.');"
+"sdSelBar();sdScans();if(SDBROWSED)sdLs(SDPATH)})"
+".catch(function(){alert('Rename failed.')})}"
+
+"function sdSeries(){var k=sdKeys();"
+"if(!k.length){alert('Pick the scans to group first.');return}"
+"var s=prompt('Series name for '+k.length+' scan'+(k.length===1?'':'s'),'');"
+"if(s===null)return;s=s.trim();"
+"var ord=SDROWS.filter(function(e){return SDSEL[e.id]})"
+".map(function(e){return e.id}).reverse();"
+"if(!ord.length)ord=k;"
+"var i=0,fail=0;(function step(){"
+"if(i>=ord.length){SDSEL={};sdSelBar();sdScans();if(SDBROWSED)sdLs(SDPATH);"
+"if(fail)alert(fail+' scan'+(fail===1?'':'s')+' could not be renamed.');return}"
+"var n=s?s+'-'+('0'+(i+1)).slice(-2):null;"
+"sdRenameOne(ord[i],n,s).then(function(j){if(!j.ok)fail++})"
+".catch(function(){fail++}).then(function(){i++;step()})})()}"
+
 "function sdGo(p){sdLs(p)}"
-"function sdPick(id,on){if(on)SDSEL[id]=1;else delete SDSEL[id];sdSelBar();sdLs(SDPATH)}"
-"function sdClear(){SDSEL={};sdSelBar();sdLs(SDPATH)}"
+"function sdPick(id,on){if(on)SDSEL[id]=1;else delete SDSEL[id];sdSelBar();"
+"sdScans();if(SDBROWSED)sdLs(SDPATH)}"
+"function sdClear(){SDSEL={};sdSelBar();sdScans();if(SDBROWSED)sdLs(SDPATH)}"
 "function sdKeys(){return Object.keys(SDSEL)}"
 "function sdSelBar(){var k=sdKeys(),bar=el('sdsel');"
 "bar.classList.toggle('on',k.length>0);if(!k.length)return;"
 "el('sdcnt').textContent=k.length+(k.length===1?' scan selected':' scans selected');"
 "el('sdcmp').disabled=(k.length!==2);"
 "el('sdcmp').textContent=k.length===2?'Compare the two':'Compare (pick exactly 2)';"
+"el('sdren').disabled=(k.length!==1);"
+"el('sdren').textContent=k.length===1?'Rename':'Rename (pick exactly 1)';"
+"el('sdser').textContent=k.length===1?'Put in a series\\u2026'"
+":'Group these '+k.length+' as a series\\u2026';"
 "el('sdopen').textContent=k.length===1?'Open in report':'Open all '+k.length+' together'}"
 
 "function sdOpen(){var k=sdKeys();if(!k.length)return;"
@@ -970,12 +1290,13 @@ static const char DASH_HTML[] =
 "location.href='/report.html?compare='+encodeURIComponent(k.join(','))}"
 
 "function sdDelete(){var k=sdKeys();if(!k.length)return;"
-"var n=0;(function step(i){if(i>=k.length){SDSEL={};sdSelBar();sdStat();sdLs(SDPATH);return}"
+"var n=0;(function step(i){if(i>=k.length){SDSEL={};sdSelBar();sdStat();sdScans();"
+"if(SDBROWSED)sdLs(SDPATH);return}"
 "fetch('/api/archive/delete',{method:'POST',headers:{'Content-Type':'application/json'},"
 "body:JSON.stringify({id:k[i]})}).then(function(){n++}).catch(function(){})"
 ".then(function(){step(i+1)})})(0)}"
 "function sdWipe(){fetch('/api/archive/wipe',{method:'POST'}).then(function(){"
-"SDSEL={};sdSelBar();sdStat();sdLs(SDPATH)}).catch(function(){})}"
+"SDSEL={};sdSelBar();sdStat();sdScans();if(SDBROWSED)sdLs(SDPATH)}).catch(function(){})}"
 
 "function armfn(b,k,fn){if(b.getAttribute('data-armed')){clearTimeout(tm[k]);disarm(b);fn();return}"
 "b.setAttribute('data-armed','1');b.setAttribute('data-l',b.textContent);"
@@ -983,9 +1304,131 @@ static const char DASH_HTML[] =
 "tm[k]=setTimeout(function(){disarm(b)},3000)}"
 
 "var sdSeen=false;"
-"function sdShow(){sdStat();sdLs(SDPATH);"
+"function sdShow(){sdStat();sdScans();if(SDBROWSED)sdLs(SDPATH);"
+"var o=false;try{o=localStorage.getItem('sc-sd-scans')==='1'}catch(e){}"
+"sdScansSet(o);"
 "if(!sdSeen){sdSeen=true;setInterval(function(){"
 "if(el('v-sd').classList.contains('act'))sdStat()},5000)}}"
+#endif
+
+#if SC_TRACKER_SOUND
+
+"function tkEsc(s){return String(s==null?'':s).replace(/[&<>\"']/g,function(c){"
+"return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]})}"
+
+"function tkDraw(j){"
+"var st=el('tkstate'),n=(j.targets||[]).length;"
+"el('tkarm').checked=!!j.armed;"
+"var howl=(j.howl||{});"
+"if(howl.active)st.textContent='Ringing \\u2014 '+(howl.done|0)+' of '+(howl.total|0);"
+"else if(!n)st.textContent='Nothing ringable nearby';"
+"else st.textContent=n+' tracker'+(n===1?'':'s')+' can be rung';"
+"var h='';"
+"(j.targets||[]).forEach(function(t){"
+"h+='<div class=tkrow><span class=nm>'+tkEsc(t.name||t.mac)+'</span>'"
+"+'<span class=sz>'+tkEsc(t.kind==='find_my_other'?'separated Find My'"
+":t.kind==='generic'?'unknown tracker \\u2014 may not respond':t.kind)"
+"+' \\u00b7 '+(t.rssi|0)+' dBm</span>'"
+"+'<button onclick=\"tkBark(\\''+tkEsc(t.mac)+'\\')\"'+(j.armed?'':' disabled')"
+"+'>Bark</button></div>';"
+"if(!t.name)return});"
+"el('tklist').innerHTML=h;"
+"el('tkhowl').disabled=(!j.armed||!n||!!howl.active);"
+"el('tkstop').style.display=howl.active?'':'none'}"
+
+"function tkPoll(){return fetch('/api/trackers',{cache:'no-store'})"
+".then(function(r){return r.json()}).then(tkDraw).catch(function(){})}"
+
+"function tkArm(on){"
+
+"if(on&&!confirm('Allow SniffCheck to transmit?\\n\\nIt will connect to a tracker that is "
+"separated from its owner and send the documented anti-stalking sound command. It never "
+"pairs and never reads owner data. Turning this on is the only way SniffCheck transmits.'))"
+"{el('tkarm').checked=false;return}"
+"fetch('/api/trackers/arm',{method:'POST',headers:{'Content-Type':'application/json'},"
+"body:JSON.stringify({armed:!!on})}).then(tkPoll).catch(function(){})}"
+
+"function tkSay(m){var e=el('tkmsg');if(e)e.textContent=m||''}"
+
+"function tkBark(mac){"
+"if(!confirm('Bark at '+mac+'?\\n\\nThis transmits a sound command. Best effort \\u2014 an "
+"accepted command is not proof the tracker made a noise.'))return;"
+"tkSay('Sending\\u2026');"
+"fetch('/api/trackers/bark',{method:'POST',headers:{'Content-Type':'application/json'},"
+"body:JSON.stringify({mac:mac})}).then(function(r){return r.json()})"
+".then(function(j){tkSay((j&&(j.message||j.error))||'');tkPoll()})"
+".catch(function(){tkSay('Could not send.')})}"
+
+"function tkHowl(){"
+"if(!confirm('Ring every tracker that can be rung, one at a time?\\n\\nThis transmits. You "
+"can stop at any point.'))return;"
+"fetch('/api/trackers/howl',{method:'POST'}).then(function(r){return r.json()})"
+".then(function(j){tkSay((j&&(j.message||j.error))||'');tkPoll()})"
+".catch(function(){tkSay('Could not start.')})}"
+
+"function tkStop(){fetch('/api/trackers/stop',{method:'POST'})"
+".then(function(){tkSay('Stopping after the current tracker.');tkPoll()})"
+".catch(function(){})}"
+#endif
+
+#if SC_ENV_LEARN
+
+"function envEsc(s){return String(s==null?'':s).replace(/[&<>\"']/g,function(c){"
+"return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]})}"
+"var ENV={cur:-1,count:0,envs:[]};"
+
+"function envDraw(j){ENV=j||ENV;"
+"var here=el('envhere'),note=el('envnote'),run=(j&&j.run)||{};"
+"if(run.active){"
+"here.textContent='Learning \\u2014 scan '+((run.done|0)+1)+' of '+(run.want|0);"
+"note.textContent=run.waiting?('Move a few steps. Next scan in '+(run.next_in|0)+'s.')"
+":'Scanning. The AP is down until the run finishes.';"
+"}else if(j.cur<0){"
+"here.textContent='Not placed yet';"
+"note.textContent='Run a scan first \\u2014 a place is recognised from the Wi-Fi "
+"infrastructure around it.';"
+"}else{"
+"here.textContent=j.label||('Place '+(j.cur+1));"
+"var bits=[];"
+"bits.push(j.known?'recognised':'not seen enough times to be sure');"
+"bits.push(j.similarity+'% match');"
+"if(j.quality)bits.push(j.quality+'% spatial confidence');"
+"if(j.is_new)bits.push('this looks like somewhere new');"
+"note.textContent=bits.join(' \\u00b7 ')+'.';"
+"}"
+"var h='';(j.envs||[]).forEach(function(e){"
+"h+='<div class=\"envrow'+(e.current?' cur':'')+'\">'"
+"+'<span class=nm>'+envEsc(e.label||('Place '+(e.idx+1)))+'</span>'"
+"+'<span class=sz>'+e.scans+' scans \\u00b7 '+e.landmarks+' fixtures</span>'"
+"+'<button onclick=\"envForget('+e.idx+')\" aria-label=\"Forget\">forget</button></div>'});"
+"el('envlist').innerHTML=h;"
+"var busy=!!run.active;"
+"['envname','envlearn','envlearn2'].forEach(function(id){el(id).disabled=busy})}"
+
+"function envPoll(){return fetch('/api/env',{cache:'no-store'})"
+".then(function(r){return r.json()}).then(envDraw).catch(function(){})}"
+
+"function envName(){var cur=ENV.label||'';"
+"var n=prompt('What is this place called?',cur);"
+"if(n===null)return;n=n.trim();if(!n)return;"
+"fetch('/api/env/label',{method:'POST',headers:{'Content-Type':'application/json'},"
+"body:JSON.stringify({idx:ENV.cur,label:n})}).then(envPoll).catch(function(){})}"
+
+"function envForget(i){if(!confirm('Forget this place? Its landmarks are deleted.'))return;"
+"fetch('/api/env/forget',{method:'POST',headers:{'Content-Type':'application/json'},"
+"body:JSON.stringify({idx:i})}).then(envPoll).catch(function(){})}"
+
+"function envLearn(move){"
+"var n=prompt('Name this place (optional)','');"
+"if(n===null)return;"
+"fetch('/api/env/learn/start',{method:'POST',headers:{'Content-Type':'application/json'},"
+"body:JSON.stringify({scans:move?4:3,reposition:!!move,name:n.trim()})})"
+".then(function(r){return r.json()}).then(function(j){"
+"if(!j.ok){alert(j.error||'Could not start.');return}"
+"rcStart(j.eta_seconds||120,'Learning this place',"
+"(move?'Walk a few steps between scans. ':'')+'The AP is closed while it scans and will "
+"come back when the run finishes.')})"
+".catch(function(){alert('Could not start.')})}"
 #endif
 
 "function savesd(b){var o=b.textContent;b.disabled=true;b.textContent='Saving to SD\\u2026';"
@@ -1000,7 +1443,77 @@ static const char DASH_HTML[] =
 "<div id=rcnum>\xe2\x80\x93</div>"
 "<button id=rcbtn disabled onclick=\"rcReconnect()\">Reconnect &amp; refresh</button>"
 "</div></div>"
-"<div id=dig>SniffCheck is digging<span>Decoding and scoring uploaded MACs on-device...</span></div></body></html>";
+"<div id=dig>SniffCheck is digging<span>Decoding and scoring uploaded MACs on-device...</span></div>"
+
+"<div id=tour hidden><div id=tourbox>"
+"<div class=tstep id=tourstep></div>"
+"<h3 id=tourttl></h3>"
+"<div id=tourtxt></div>"
+"<div id=tournav>"
+"<button id=tourskip onclick=\"tourEnd()\">Skip</button>"
+"<button id=tourback onclick=\"tourGo(-1)\">Back</button>"
+"<button id=tournext class=prim onclick=\"tourGo(1)\">Next</button>"
+"</div></div></div>"
+
+"<script>"
+
+"var TOUR=["
+"{v:'home',t:'Welcome to SniffCheck',"
+"b:'This stick <b>listens</b> to the Wi-Fi and Bluetooth around you and tells you what it hears. "
+"It never transmits at anything and never phones home \\u2014 there is no account, no cloud, no uplink. "
+"Everything you are about to see was worked out on the device itself.'},"
+"{v:'home',t:'The Home tab',"
+"b:'The card at the top is the live state: how long this access point stays up, how many records "
+"have been captured, how many scans have run. <b>Time remaining</b> is a battery-saving timeout \\u2014 "
+"when it runs out the AP closes and scanning carries on without it.'},"
+"{v:'home',t:'Getting your results out',"
+"b:'<b>View report</b> opens the full analysis in your browser. <b>Save report</b> writes that same page "
+"to a file you can keep or send on, and <b>Download data</b> gives you the raw capture as JSONL. "
+"Nothing is uploaded anywhere \\u2014 these all save to whatever device you are reading this on.'},"
+"{v:'home',t:'The report is the real tool',"
+"b:'The report page opens on the <b>RF Env Summary</b>: a verdict, count tiles, and blocks for spectrum, "
+"security posture, vendors and device mix. Tap any number to drill into the exact records behind it. "
+"<b>Customize</b> lets you group those blocks into your own tabs.'},"
+"{v:'pup',t:'The Pup',"
+"b:'Your pup levels up as the stick sees new things, and earns trophies for the unusual ones. "
+"A <b>Sniff Walk</b> is a walking survey \\u2014 start one, carry the stick around, and end it when you are "
+"done. It is saved on its own so you can open just that walk later.'},"
+#if SC_SD_ARCHIVE
+"{v:'sd',t:'The SD card',"
+"b:'With a FAT32 card in the slot, every scan and walk is written to it as it happens \\u2014 so a capture "
+"survives being unplugged. <b>Saved scans</b> starts folded; open it to pick a run and view it in the "
+"report, or tick two to compare them. Scans that captured nothing are cleaned up on their own.'},"
+#endif
+"{v:'settings',t:'Make it yours',"
+"b:'Settings holds the display mode, brightness and screen timeout, plus themes and a <b>Custom</b> palette "
+"where every colour is yours to set. <b>Blocks</b> changes the frame around every card, and you can drop in "
+"a background image and fade it until the text on top stays readable.'},"
+"{v:'home',t:'That is the tour',"
+"b:'Everything here works with no internet and no app. If you want this walkthrough again it is at the "
+"bottom of <b>Settings</b>.'}"
+"];"
+"var tourAt=0;"
+"function tourPaint(){var s=TOUR[tourAt];if(!s)return tourEnd();"
+"if(s.v)nav(s.v);"
+"el('tourstep').textContent='Step '+(tourAt+1)+' of '+TOUR.length;"
+"el('tourttl').textContent=s.t;"
+"el('tourtxt').innerHTML=s.b;"
+"el('tourback').hidden=(tourAt===0);"
+"var last=(tourAt===TOUR.length-1);"
+"el('tournext').textContent=last?'Got it \\u2014 hide this':'Next';"
+"el('tourskip').hidden=last;"
+"window.scrollTo(0,0)}"
+"function tourGo(d){"
+
+"if(d>0&&tourAt===TOUR.length-1)return tourEnd();"
+"tourAt=Math.max(0,tourAt+d);tourPaint()}"
+"function tourEnd(){el('tour').hidden=true;"
+"try{localStorage.setItem('sc-tour','1')}catch(e){}}"
+"function tourStart(){tourAt=0;el('tour').hidden=false;tourPaint()}"
+
+"try{if(localStorage.getItem('sc-tour')!=='1')tourStart()}catch(e){}"
+"</script>"
+"</body></html>";
 
 static esp_err_t root_get(httpd_req_t *req)
 {
@@ -1049,11 +1562,13 @@ static esp_err_t status_get(httpd_req_t *req)
     capture_ring_stats_t st;
     capture_ring_get_stats(&st);
 
-    char json[360];
+    char json[400];
+
     snprintf(json, sizeof(json),
         "{\"records\":%u,\"bytes\":%u,\"dropped\":%u,\"scans\":%u,"
         "\"session_id\":\"%s\",\"fw_version\":\"%s\",\"schema_version\":\"%s\","
         "\"seconds_remaining\":%u,\"clients\":%u,\"timeout_min\":%u,"
+        "\"capture_disabled\":%s,"
         "\"ssid\":\"%s\"}",
         (unsigned)st.records_current, (unsigned)st.bytes_used,
         (unsigned)st.records_dropped, (unsigned)capture_writer_last_scan(),
@@ -1062,8 +1577,65 @@ static esp_err_t status_get(httpd_req_t *req)
         (unsigned)download_mode_get_seconds_remaining(),
         (unsigned)download_mode_get_client_count(),
         (unsigned)download_mode_get_timeout_minutes(),
+        capture_writer_emits_disabled() ? "true" : "false",
         download_mode_get_ssid());
     return send_json(req, json);
+}
+
+static const char *const k_stack_probe[] = {
+    "sc_wdog", "httpd", "sc_sttwin",
+    "sc_scan", "sc_capture", "sc_btn", "sc_anim", "sc_echo", "sc_dl", "sc_tsnd",
+    "brain_bus", "brain_menu", "brain_web", "brain_log",
+    "s3_ui", "s3_ingest", "s3_sniff", "s3_status", "s3_tx",
+    "main", "tiT", "wifi", "IDLE",
+};
+
+static esp_err_t system_memory_get(httpd_req_t *req)
+{
+
+    char json[320];
+    int n = snprintf(json, sizeof(json),
+        "{\"heap_free\":%u,\"heap_min\":%u,"
+        "\"internal_free\":%u,\"internal_largest\":%u,\"internal_total\":%u,"
+        "\"psram_free\":%u,\"psram_largest\":%u,\"psram_total\":%u,"
+        "\"stack_unit\":\"bytes_free_min\",\"stacks\":{",
+        (unsigned)esp_get_free_heap_size(),
+        (unsigned)esp_get_minimum_free_heap_size(),
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+        (unsigned)heap_caps_get_total_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM),
+        (unsigned)heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
+
+    if (n < 0 || n >= (int)sizeof(json))
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "memory json overflow");
+
+    httpd_resp_set_type(req, "application/json");
+    if (httpd_resp_send_chunk(req, json, n) != ESP_OK) return ESP_FAIL;
+
+    char row[64];
+    const char *sep = "";
+    for (size_t i = 0; i < sizeof(k_stack_probe) / sizeof(k_stack_probe[0]); i++) {
+        TaskHandle_t h = xTaskGetHandle(k_stack_probe[i]);
+        if (!h) continue;
+        n = snprintf(row, sizeof(row), "%s\"%s\":%u", sep, k_stack_probe[i],
+                     (unsigned)uxTaskGetStackHighWaterMark(h));
+        if (httpd_resp_send_chunk(req, row, n) != ESP_OK) return ESP_FAIL;
+        sep = ",";
+    }
+
+    if (httpd_resp_send_chunk(req, "},\"stacks_absent\":[", 19) != ESP_OK) return ESP_FAIL;
+    sep = "";
+    for (size_t i = 0; i < sizeof(k_stack_probe) / sizeof(k_stack_probe[0]); i++) {
+        if (xTaskGetHandle(k_stack_probe[i])) continue;
+        n = snprintf(row, sizeof(row), "%s\"%s\"", sep, k_stack_probe[i]);
+        if (httpd_resp_send_chunk(req, row, n) != ESP_OK) return ESP_FAIL;
+        sep = ",";
+    }
+
+    if (httpd_resp_send_chunk(req, "]}", 2) != ESP_OK) return ESP_FAIL;
+    return httpd_resp_send_chunk(req, NULL, 0);
 }
 
 #if SC_SD_ARCHIVE
@@ -1486,13 +2058,10 @@ static esp_err_t live_json_get(httpd_req_t *req)
 
 static esp_err_t report_get(httpd_req_t *req)
 {
-    if (!s_view_head) {
+    if (!viewer_gz_ready()) {
         httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "viewer asset missing");
         return ESP_FAIL;
     }
-
-    httpd_resp_set_type(req, "text/html");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
 
     char query[192], dl[4];
     char disp[80];
@@ -1505,30 +2074,37 @@ static esp_err_t report_get(httpd_req_t *req)
         httpd_resp_set_hdr(req, "Content-Disposition", disp);
     }
 
-    if (httpd_resp_send_chunk(req, s_view_head, s_view_head_len) != ESP_OK)
+    if (viewer_gz_begin(req, true) != ESP_OK)
         return ESP_FAIL;
 
+    s_gz_open = true;
     size_t emitted = 0;
     esp_err_t err = stream_records(req, true, 0, &emitted);
+    s_gz_open = false;
+
     if (err != ESP_OK) {
+
         if (err == ESP_ERR_NO_MEM)
-            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "no mem");
+            ESP_LOGE(TAG, "report.html: out of memory mid-stream");
         return ESP_FAIL;
     }
 
-    if (httpd_resp_send_chunk(req, s_view_tail, s_view_tail_len) != ESP_OK)
+    if (viewer_gz_finish(req) != ESP_OK)
         return ESP_FAIL;
-    httpd_resp_send_chunk(req, NULL, 0);
-    ESP_LOGI(TAG, "report.html: %u records spliced", (unsigned)emitted);
+    ESP_LOGI(TAG, "report.html: %u records spliced (gzip)", (unsigned)emitted);
     return ESP_OK;
 }
 
 static esp_err_t viewer_get(httpd_req_t *req)
 {
-    httpd_resp_set_type(req, "text/html");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    return httpd_resp_send(req, _binary_capture_viewer_html_start,
-                           strlen(_binary_capture_viewer_html_start));
+
+    if (!viewer_gz_ready()) {
+        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "viewer asset missing");
+        return ESP_FAIL;
+    }
+    if (viewer_gz_begin(req, true) != ESP_OK)
+        return ESP_FAIL;
+    return viewer_gz_finish(req);
 }
 
 static esp_err_t clear_post(httpd_req_t *req)
@@ -1612,7 +2188,7 @@ static esp_err_t send_bad(httpd_req_t *req, const char *err)
     return httpd_resp_sendstr(req, j);
 }
 
-#if SC_SD_ARCHIVE
+#if SC_SD_ARCHIVE || SC_ENV_LEARN
 
 static bool json_str(const char *body, const char *key, char *out, size_t outsz)
 {
@@ -1631,7 +2207,9 @@ static bool json_str(const char *body, const char *key, char *out, size_t outsz)
     out[i] = '\0';
     return i > 0;
 }
+#endif
 
+#if SC_SD_ARCHIVE
 static esp_err_t archive_delete_post(httpd_req_t *req)
 {
     char body[160];
@@ -1652,6 +2230,43 @@ static esp_err_t archive_delete_post(httpd_req_t *req)
     }
     ESP_LOGI(TAG, "archive session deleted via WebAP: %s", id);
     return send_json(req, "{\"ok\":true}");
+}
+
+static esp_err_t archive_rename_post(httpd_req_t *req)
+{
+    char body[320];
+    int n = read_body(req, body, sizeof(body));
+    if (n <= 0) return send_bad(req, "Empty request.");
+
+    char id[SD_SESSION_ID_MAX] = {0};
+    char name[96] = {0};
+    char series[SD_SERIES_MAX] = {0};
+    if (!json_str(body, "id", id, sizeof(id))) return send_bad(req, "No session id.");
+    json_str(body, "name", name, sizeof(name));
+
+    bool has_series = json_str(body, "series", series, sizeof(series)) ||
+                      strstr(body, "\"series\"") != NULL;
+
+    char final_id[SD_SESSION_ID_MAX] = {0};
+    esp_err_t rc = sd_store_rename_session(id, name, has_series ? series : NULL,
+                                           final_id, sizeof(final_id));
+    if (rc != ESP_OK) {
+        char json[200];
+        snprintf(json, sizeof(json), "{\"ok\":false,\"error\":\"%s\"}",
+                 rc == ESP_ERR_INVALID_ARG
+                     ? "That name has no letters or numbers in it."
+                     : rc == ESP_ERR_NOT_FOUND   ? "No such session."
+                     : rc == ESP_ERR_TIMEOUT     ? "The card is busy. Try again."
+                     : rc == ESP_ERR_INVALID_STATE ? "No SD card."
+                                                   : "The card refused the rename.");
+        return send_json(req, json);
+    }
+
+    char json[160];
+    snprintf(json, sizeof(json), "{\"ok\":true,\"id\":\"%s\",\"series\":\"%s\"}",
+             final_id, series);
+    ESP_LOGI(TAG, "archive session renamed via WebAP: %s -> %s", id, final_id);
+    return send_json(req, json);
 }
 
 static esp_err_t archive_wipe_post(httpd_req_t *req)
@@ -1848,6 +2463,181 @@ static esp_err_t pup_walk_start_post(httpd_req_t *req)
     app_request_walk_after_download();
     return rc;
 }
+
+#if SC_ENV_LEARN
+static esp_err_t env_get(httpd_req_t *req)
+{
+
+    char json[1200];
+    app_learn_env_status_json(json, sizeof(json));
+    return send_json(req, json);
+}
+
+static int env_json_int(const char *body, const char *key, int def)
+{
+    char pat[24];
+    snprintf(pat, sizeof(pat), "\"%s\"", key);
+    const char *p = strstr(body, pat);
+    if (!p) return def;
+    p = strchr(p + strlen(pat), ':');
+    if (!p) return def;
+    p++;
+    while (*p == ' ') p++;
+    if (*p < '0' || *p > '9') return def;
+    return atoi(p);
+}
+
+static bool env_json_bool(const char *body, const char *key, bool def)
+{
+    char pat[24];
+    snprintf(pat, sizeof(pat), "\"%s\"", key);
+    const char *p = strstr(body, pat);
+    if (!p) return def;
+    p = strchr(p + strlen(pat), ':');
+    if (!p) return def;
+    p++;
+    while (*p == ' ') p++;
+    if (strncmp(p, "true", 4) == 0)  return true;
+    if (strncmp(p, "false", 5) == 0) return false;
+    return def;
+}
+
+static esp_err_t env_learn_start_post(httpd_req_t *req)
+{
+    char body[256] = {0};
+    read_body(req, body, sizeof(body));
+
+    int  scans      = env_json_int(body, "scans", 4);
+    bool reposition = env_json_bool(body, "reposition", true);
+    bool fresh      = env_json_bool(body, "fresh", false);
+    char name[32]   = {0};
+    json_str(body, "name", name, sizeof(name));
+
+    if (scans < 1) scans = 1;
+    if (scans > 8) scans = 8;
+
+    if (app_learn_env_running())
+        return send_bad(req, "A Learn Environment run is already going.");
+
+    char json[220];
+    snprintf(json, sizeof(json),
+        "{\"ok\":true,\"disconnecting\":true,\"reason\":\"learn_start\","
+        "\"scans\":%d,\"reposition\":%s,\"eta_seconds\":%d,"
+        "\"message\":\"Learning this place. This AP will close while it scans.\"}",
+        scans, reposition ? "true" : "false",
+        app_learn_env_seconds(scans, reposition));
+    esp_err_t rc = send_json(req, json);
+
+    ESP_LOGI(TAG, "learn-env requested by client: %d scans, %s, \"%s\"",
+             scans, reposition ? "repositioning" : "stationary", name);
+    app_request_learn_env_after_download(scans, reposition, fresh, name);
+    return rc;
+}
+
+static esp_err_t env_learn_cancel_post(httpd_req_t *req)
+{
+    if (!app_learn_env_running())
+        return send_json(req, "{\"ok\":true,\"active\":false}");
+    app_learn_env_cancel();
+    return send_json(req, "{\"ok\":true,\"active\":false}");
+}
+
+static esp_err_t env_label_post(httpd_req_t *req)
+{
+    char body[160] = {0};
+    if (read_body(req, body, sizeof(body)) <= 0) return send_bad(req, "Empty request.");
+
+    int  idx = env_json_int(body, "idx", -1);
+    char label[ENV_LABEL_MAX] = {0};
+    json_str(body, "label", label, sizeof(label));
+    if (!label[0]) return send_bad(req, "No name given.");
+
+    env_learn_label(idx, label);
+    return send_json(req, "{\"ok\":true}");
+}
+
+static esp_err_t env_forget_post(httpd_req_t *req)
+{
+    char body[120] = {0};
+    if (read_body(req, body, sizeof(body)) <= 0) return send_bad(req, "Empty request.");
+
+    int idx = env_json_int(body, "idx", -1);
+    if (idx < 0) return send_bad(req, "Which environment?");
+
+    env_learn_forget(idx);
+    ESP_LOGW(TAG, "environment %d forgotten via WebAP", idx);
+    return send_json(req, "{\"ok\":true}");
+}
+#endif
+
+#if SC_TRACKER_SOUND
+static esp_err_t trackers_get(httpd_req_t *req)
+{
+    char json[1400];
+    tracker_sound_status_json(json, sizeof(json));
+    return send_json(req, json);
+}
+
+static esp_err_t trackers_arm_post(httpd_req_t *req)
+{
+    char body[96] = {0};
+    read_body(req, body, sizeof(body));
+    bool on = env_json_bool(body, "armed", false);
+    tracker_sound_set_armed(on);
+
+    char json[96];
+    snprintf(json, sizeof(json), "{\"ok\":true,\"armed\":%s}", on ? "true" : "false");
+    return send_json(req, json);
+}
+
+static esp_err_t trackers_bark_post(httpd_req_t *req)
+{
+    char body[128] = {0};
+    if (read_body(req, body, sizeof(body)) <= 0) return send_bad(req, "Empty request.");
+
+    char mac_s[24] = {0};
+    if (!json_str(body, "mac", mac_s, sizeof(mac_s))) return send_bad(req, "No address.");
+
+    unsigned m[6];
+    if (sscanf(mac_s, "%2x:%2x:%2x:%2x:%2x:%2x",
+               &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]) != 6)
+        return send_bad(req, "That is not a Bluetooth address.");
+    uint8_t mac[6];
+    for (int i = 0; i < 6; i++) mac[i] = (uint8_t)m[i];
+
+    if (!tracker_sound_armed())
+        return send_bad(req, "Safety sound is off. Turn it on first — it transmits.");
+    if (!tracker_sound_bark(mac))
+        return send_bad(req, "That tracker is not in the latest scan, or one is already "
+                             "being rung. Rescan and try again.");
+
+    return send_json(req, "{\"ok\":true,\"message\":\"Sound command sent. Only the "
+                          "tracker decides whether it makes a noise.\"}");
+}
+
+static esp_err_t trackers_howl_post(httpd_req_t *req)
+{
+    if (!tracker_sound_armed())
+        return send_bad(req, "Safety sound is off. Turn it on first — it transmits.");
+
+    int n = tracker_sound_howl_start();
+    if (n <= 0)
+        return send_bad(req, "Nothing ringable nearby. Only trackers separated from "
+                             "their owner can be rung — run a scan first.");
+
+    char json[160];
+    snprintf(json, sizeof(json),
+             "{\"ok\":true,\"queued\":%d,\"message\":\"Ringing %d tracker(s), "
+             "one at a time.\"}", n, n);
+    return send_json(req, json);
+}
+
+static esp_err_t trackers_stop_post(httpd_req_t *req)
+{
+    tracker_sound_howl_stop();
+    return send_json(req, "{\"ok\":true}");
+}
+#endif
 
 static esp_err_t sta_get(httpd_req_t *req)
 {
@@ -2359,6 +3149,7 @@ static void register_handlers(void)
         { .uri = "/report.html",               .method = HTTP_GET,  .handler = report_get },
         { .uri = "/viewer",                    .method = HTTP_GET,  .handler = viewer_get },
         { .uri = "/api/status",                .method = HTTP_GET,  .handler = status_get },
+        { .uri = "/api/system/memory",         .method = HTTP_GET,  .handler = system_memory_get },
         { .uri = "/api/captures",              .method = HTTP_GET,  .handler = captures_get },
         { .uri = "/api/captures/live.jsonl",   .method = HTTP_GET,  .handler = live_jsonl_get },
         { .uri = "/api/captures/live.json",    .method = HTTP_GET,  .handler = live_json_get },
@@ -2369,6 +3160,7 @@ static void register_handlers(void)
         { .uri = "/api/captures/session/*",     .method = HTTP_GET,  .handler = session_jsonl_get },
         { .uri = "/api/archive",               .method = HTTP_GET,  .handler = archive_get },
         { .uri = "/api/archive/delete",        .method = HTTP_POST, .handler = archive_delete_post },
+        { .uri = "/api/archive/rename",        .method = HTTP_POST, .handler = archive_rename_post },
         { .uri = "/api/archive/wipe",          .method = HTTP_POST, .handler = archive_wipe_post },
         { .uri = "/api/sd/ls",                 .method = HTTP_GET,  .handler = sd_ls_get },
         { .uri = "/api/sd/file",               .method = HTTP_GET,  .handler = sd_file_get },
@@ -2389,6 +3181,20 @@ static void register_handlers(void)
         { .uri = "/api/pup/reset",             .method = HTTP_POST, .handler = pup_reset_post },
         { .uri = "/api/pup/walk/last",         .method = HTTP_GET,  .handler = pup_walk_last_get },
         { .uri = "/api/pup/walk/start",        .method = HTTP_POST, .handler = pup_walk_start_post },
+#if SC_ENV_LEARN
+        { .uri = "/api/env",                   .method = HTTP_GET,  .handler = env_get },
+        { .uri = "/api/env/learn/start",       .method = HTTP_POST, .handler = env_learn_start_post },
+        { .uri = "/api/env/learn/cancel",      .method = HTTP_POST, .handler = env_learn_cancel_post },
+        { .uri = "/api/env/label",             .method = HTTP_POST, .handler = env_label_post },
+        { .uri = "/api/env/forget",            .method = HTTP_POST, .handler = env_forget_post },
+#endif
+#if SC_TRACKER_SOUND
+        { .uri = "/api/trackers",              .method = HTTP_GET,  .handler = trackers_get },
+        { .uri = "/api/trackers/arm",          .method = HTTP_POST, .handler = trackers_arm_post },
+        { .uri = "/api/trackers/bark",         .method = HTTP_POST, .handler = trackers_bark_post },
+        { .uri = "/api/trackers/howl",         .method = HTTP_POST, .handler = trackers_howl_post },
+        { .uri = "/api/trackers/stop",         .method = HTTP_POST, .handler = trackers_stop_post },
+#endif
         { .uri = "/api/sta",                   .method = HTTP_GET,  .handler = sta_get },
         { .uri = "/api/sta/capture",           .method = HTTP_POST, .handler = sta_capture_post },
         { .uri = "/api/csi",                   .method = HTTP_GET,  .handler = csi_get },
@@ -2407,8 +3213,6 @@ static void register_handlers(void)
 esp_err_t download_http_start(void)
 {
     if (s_server) return ESP_OK;
-
-    viewer_locate_marker();
 
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
 

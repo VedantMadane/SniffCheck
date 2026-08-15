@@ -8,6 +8,7 @@ idf_component_register(
         "../../../main/led.c"
 
         "../../../main/download_http.c"
+        "../../../main/viewer_gz.c"
         "../../../main/download_mode.c"
         "../../../main/capture_ring.c"
         "../../../main/virtual_pup.c"
@@ -30,9 +31,33 @@ set_source_files_properties(
     "../../../main/download_http.c"
     PROPERTIES COMPILE_DEFINITIONS "SC_CLUSTER_HEAD=1")
 
+set(VIEWER_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/viewer_gen")
+set(VIEWER_SRC     "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/capture_viewer/index.html")
+set(VIEWER_GEN
+    "${VIEWER_GEN_DIR}/viewer_head.deflate"
+    "${VIEWER_GEN_DIR}/viewer_tail.deflate"
+    "${VIEWER_GEN_DIR}/viewer_gz_meta.h")
+
+add_custom_command(
+    OUTPUT ${VIEWER_GEN}
+    COMMAND ${CMAKE_COMMAND} -E env python3
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/gen_viewer_gz.py"
+            "${VIEWER_SRC}" "${VIEWER_GEN_DIR}"
+    DEPENDS "${VIEWER_SRC}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/gen_viewer_gz.py"
+    COMMENT "Pre-compressing capture viewer (gzip, split at data island)"
+    VERBATIM)
+
+add_custom_target(viewer_gz_gen DEPENDS ${VIEWER_GEN})
+add_dependencies(${COMPONENT_LIB} viewer_gz_gen)
+target_include_directories(${COMPONENT_LIB} PRIVATE "${VIEWER_GEN_DIR}")
+
 target_add_binary_data(${COMPONENT_LIB}
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/capture_viewer/index.html" TEXT
-    RENAME_TO capture_viewer_html)
+    "${VIEWER_GEN_DIR}/viewer_head.deflate" BINARY
+    RENAME_TO viewer_head_deflate)
+target_add_binary_data(${COMPONENT_LIB}
+    "${VIEWER_GEN_DIR}/viewer_tail.deflate" BINARY
+    RENAME_TO viewer_tail_deflate)
 target_add_binary_data(${COMPONENT_LIB}
     "${CMAKE_CURRENT_SOURCE_DIR}/dogpark_dashboard.html" TEXT
     RENAME_TO dogpark_dashboard_html)

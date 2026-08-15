@@ -3,10 +3,10 @@
 #include <stdbool.h>
 #include "cluster_proto.h"
 
-void head_ui_init(void);
+#define HEAD_UI_PAGES 3
 
-void head_ui_push_frame(const cl_uiframe_t *f);
+typedef void (*head_ui_page_fn)(int page, cl_uiframe_t *f);
 
-void head_ui_fill_event(cl_uievent_t *out);
+void head_ui_init(head_ui_page_fn compose);
 
-bool head_ui_linked(void);
+void head_ui_mark_dirty(void);

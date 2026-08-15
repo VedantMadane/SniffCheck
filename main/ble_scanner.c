@@ -74,6 +74,16 @@ static uint16_t estimate_distance_dm(int8_t tx_power, int8_t rssi)
     return (uint16_t)(dm + 0.5f);
 }
 
+const char *ble_phy_name(uint8_t phy)
+{
+    switch (phy) {
+    case BLE_HCI_LE_PHY_1M:    return "1M";
+    case BLE_HCI_LE_PHY_2M:    return "2M";
+    case BLE_HCI_LE_PHY_CODED: return "Coded";
+    default:                   return "?";
+    }
+}
+
 const char *ble_proximity_label(uint16_t distance_dm)
 {
     if (distance_dm == 0xFFFF) return "Dist unknown";
@@ -491,22 +501,138 @@ static void apply_adv_fields(ble_device_t *d, const uint8_t *data, uint8_t len)
     }
 }
 
-static void ring_push_adv(const uint8_t be[6], int8_t rssi, int8_t tx_power,
-                          uint8_t prim_phy, uint8_t props,
-                          const uint8_t *data, uint8_t len)
+static void ring_push_adv(const uint8_t be[6], uint8_t addr_subtype,
+                          const struct ble_gap_ext_disc_desc *disc)
 {
     ble_adv_frame_t f = {
-        .rssi     = rssi,
-        .tx_power = tx_power,
-        .prim_phy = prim_phy,
-        .props    = props,
-        .ts_ms    = (uint32_t)(esp_timer_get_time() / 1000),
+        .rssi          = disc->rssi,
+        .tx_power      = disc->tx_power,
+        .prim_phy      = disc->prim_phy,
+        .sec_phy       = disc->sec_phy,
+        .props         = (uint8_t)disc->props,
+        .addr_subtype  = addr_subtype,
+        .sid           = disc->sid,
+        .data_status   = disc->data_status,
+        .periodic_itvl = disc->periodic_adv_itvl,
+        .data_full_len = disc->length_data,
+        .ts_ms         = (uint32_t)(esp_timer_get_time() / 1000),
     };
     memcpy(f.addr, be, 6);
-    if (len > BLE_ADV_DATA_MAX) len = BLE_ADV_DATA_MAX;
-    if (data && len) memcpy(f.data, data, len);
+
+    if (disc->props & BLE_HCI_ADV_LEGACY_MASK)   f.flags |= BLE_ADV_F_LEGACY;
+    if (disc->props & BLE_HCI_ADV_CONN_MASK)     f.flags |= BLE_ADV_F_CONNECTABLE;
+    if (disc->props & BLE_HCI_ADV_SCAN_MASK)     f.flags |= BLE_ADV_F_SCANNABLE;
+    if (disc->props & BLE_HCI_ADV_DIRECT_MASK)   f.flags |= BLE_ADV_F_DIRECTED;
+    if (disc->props & BLE_HCI_ADV_SCAN_RSP_MASK) f.flags |= BLE_ADV_F_SCAN_RSP;
+
+    uint8_t len = disc->length_data;
+    if (len > BLE_ADV_DATA_MAX) {
+        len = BLE_ADV_DATA_MAX;
+        f.flags |= BLE_ADV_F_CLIPPED;
+    }
+    if (disc->data && len) memcpy(f.data, disc->data, len);
     f.data_len = len;
+
     ble_adv_ring_add(&f);
+}
+
+static void ring_push_legacy(const uint8_t be[6], uint8_t addr_subtype,
+                             const struct ble_gap_disc_desc *disc)
+{
+    ble_adv_frame_t f = {
+        .rssi          = disc->rssi,
+        .tx_power      = 127,
+        .prim_phy      = BLE_HCI_LE_PHY_1M,
+        .sid           = 0xFF,
+        .addr_subtype  = addr_subtype,
+        .flags         = BLE_ADV_F_LEGACY,
+        .data_full_len = disc->length_data,
+        .ts_ms         = (uint32_t)(esp_timer_get_time() / 1000),
+    };
+    memcpy(f.addr, be, 6);
+
+    switch (disc->event_type) {
+    case BLE_HCI_ADV_RPT_EVTYPE_ADV_IND:
+        f.flags |= BLE_ADV_F_CONNECTABLE | BLE_ADV_F_SCANNABLE; break;
+    case BLE_HCI_ADV_RPT_EVTYPE_DIR_IND:
+        f.flags |= BLE_ADV_F_CONNECTABLE | BLE_ADV_F_DIRECTED;  break;
+    case BLE_HCI_ADV_RPT_EVTYPE_SCAN_IND:
+        f.flags |= BLE_ADV_F_SCANNABLE;                         break;
+    case BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP:
+        f.flags |= BLE_ADV_F_SCAN_RSP;                          break;
+    default:         break;
+    }
+
+    uint8_t len = disc->length_data;
+    if (len > BLE_ADV_DATA_MAX) { len = BLE_ADV_DATA_MAX; f.flags |= BLE_ADV_F_CLIPPED; }
+    if (disc->data && len) memcpy(f.data, disc->data, len);
+    f.data_len = len;
+
+    ble_adv_ring_add(&f);
+}
+
+static void obs_accumulate(ble_device_t *d, int8_t rssi, uint32_t now_ms,
+                           bool scan_rsp)
+{
+    if (d->adv_frames == 0) {
+        d->adv_first_ms = now_ms;
+        d->rssi_min     = rssi;
+        d->rssi_max     = rssi;
+        d->_rssi_mean   = (float)rssi;
+        d->_rssi_m2     = 0.0f;
+        d->itvl_min_ms  = 0xFFFF;
+        d->itvl_max_ms  = 0;
+        d->_itvl_mean   = 0.0f;
+        d->_itvl_m2     = 0.0f;
+        d->_itvl_n      = 0;
+        d->_have_adv    = false;
+    } else {
+        if (rssi < d->rssi_min) d->rssi_min = rssi;
+        if (rssi > d->rssi_max) d->rssi_max = rssi;
+        float delta   = (float)rssi - d->_rssi_mean;
+        d->_rssi_mean += delta / (float)(d->adv_frames + 1);
+        d->_rssi_m2   += delta * ((float)rssi - d->_rssi_mean);
+    }
+
+    if (scan_rsp) {
+        if (d->adv_scan_rsps != 0xFFFF) d->adv_scan_rsps++;
+    } else {
+        if (d->_have_adv) {
+            uint32_t gap = now_ms - d->_last_adv_ms;
+            if (gap > 0xFFFF) gap = 0xFFFF;
+            if (gap < d->itvl_min_ms) d->itvl_min_ms = (uint16_t)gap;
+            if (gap > d->itvl_max_ms) d->itvl_max_ms = (uint16_t)gap;
+
+            d->_itvl_n++;
+            float gd      = (float)gap - d->_itvl_mean;
+            d->_itvl_mean += gd / (float)d->_itvl_n;
+            d->_itvl_m2   += gd * ((float)gap - d->_itvl_mean);
+        }
+        d->_last_adv_ms = now_ms;
+        d->_have_adv    = true;
+    }
+
+    d->adv_last_ms = now_ms;
+    if (d->adv_frames != 0xFFFF) d->adv_frames++;
+}
+
+static void obs_finalize(ble_device_t *d)
+{
+    if (d->adv_frames >= 2 && d->_rssi_m2 > 0.0f) {
+        float sd = sqrtf(d->_rssi_m2 / (float)(d->adv_frames - 1));
+        d->rssi_sd = (sd > 255.0f) ? 255 : (uint8_t)(sd + 0.5f);
+    }
+
+    if (d->_itvl_n >= 1) {
+        float m = d->_itvl_mean;
+        d->itvl_mean_ms = (m > 65535.0f) ? 65535 : (uint16_t)(m + 0.5f);
+    }
+    if (d->_itvl_n >= 2 && d->_itvl_m2 > 0.0f) {
+        float j = sqrtf(d->_itvl_m2 / (float)(d->_itvl_n - 1));
+        d->itvl_jitter_ms = (j > 65535.0f) ? 65535 : (uint16_t)(j + 0.5f);
+    }
+
+    if (d->_itvl_n == 0) d->itvl_min_ms = 0;
 }
 
 static int gap_event_cb(struct ble_gap_event *event, void *arg)
@@ -521,12 +647,17 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
         const uint8_t *v = disc->addr.val;
         uint8_t be[6]    = { v[5], v[4], v[3], v[2], v[1], v[0] };
 
-        ring_push_adv(be, disc->rssi, disc->tx_power, disc->prim_phy,
-                      (uint8_t)disc->props, disc->data, disc->length_data);
+        uint8_t addr_subtype = (uint8_t)classify_addr(disc->addr.type, be);
+
+        ring_push_adv(be, addr_subtype, disc);
+
+        uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
 
         int idx = find_device(s_results, be);
         if (idx >= 0) {
             ble_device_t *d = &s_results->devices[idx];
+            obs_accumulate(d, disc->rssi, now_ms,
+                           (disc->props & BLE_HCI_ADV_SCAN_RSP_MASK) != 0);
             d->_rssi_sum += disc->rssi;
             d->_rssi_count++;
             if (d->tx_power == 127 && disc->tx_power != 127)
@@ -548,6 +679,8 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
         d->mfg_company_id = 0xFFFF;
         d->_rssi_sum      = disc->rssi;
         d->_rssi_count    = 1;
+        obs_accumulate(d, disc->rssi, now_ms,
+                       (disc->props & BLE_HCI_ADV_SCAN_RSP_MASK) != 0);
 
         d->scannable      = (disc->props & 0x02) != 0;
 
@@ -578,12 +711,15 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
         const uint8_t *v = disc->addr.val;
         uint8_t be[6]    = { v[5], v[4], v[3], v[2], v[1], v[0] };
 
-        ring_push_adv(be, disc->rssi, 127, 1, (uint8_t)disc->event_type,
-                      disc->data, disc->length_data);
+        ring_push_legacy(be, (uint8_t)classify_addr(disc->addr.type, be), disc);
+
+        uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
 
         int idx = find_device(s_results, be);
         if (idx >= 0) {
             ble_device_t *d = &s_results->devices[idx];
+            obs_accumulate(d, disc->rssi, now_ms,
+                           disc->event_type == BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP);
             d->_rssi_sum += disc->rssi;
             d->_rssi_count++;
             apply_adv_fields(d, disc->data, disc->length_data);
@@ -603,6 +739,9 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
         d->mfg_company_id = 0xFFFF;
         d->_rssi_sum      = disc->rssi;
         d->_rssi_count    = 1;
+
+        obs_accumulate(d, disc->rssi, now_ms,
+                       disc->event_type == BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP);
 
         d->scannable = (disc->event_type == 0 || disc->event_type == 2);
 
@@ -794,9 +933,10 @@ esp_err_t ble_scan_finish(ble_results_t *out)
         if (d->_rssi_count > 0)
             d->rssi = (int8_t)(d->_rssi_sum / (int32_t)d->_rssi_count);
         d->distance_dm = estimate_distance_dm(d->tx_power, d->rssi);
+        obs_finalize(d);
         score_ble_device(d);
         ESP_LOGI(TAG,
-                 "BLE[%u] name=\"%s\" airtag=%u addr=%02X:%02X:%02X:%02X:%02X:%02X vendor=\"%s\" company=\"%s\" rssi=%d tx=%d dist_dm=%u uuids=%u mfg=0x%04X flags_eui=0x%04X flags_bt=0x%04X ident=%u/%u threat=%u",
+                 "BLE[%u] name=\"%s\" airtag=%u addr=%02X:%02X:%02X:%02X:%02X:%02X vendor=\"%s\" company=\"%s\" rssi=%d tx=%d dist_dm=%u uuids=%u mfg=0x%04X flags_eui=0x%04X flags_bt=0x%04X ident=%u/%u threat=%u frames=%u(+%ursp) rssi=[%d..%d]sd=%u itvl=%u/%u/%ums jit=%u n=%u",
                  (unsigned)i,
                  d->name[0] ? d->name : "(no local name)",
                  d->is_airtag ? 1u : 0u,
@@ -807,9 +947,15 @@ esp_err_t ble_scan_finish(ble_results_t *out)
                  (unsigned)d->num_uuids16, (unsigned)d->mfg_company_id,
                  (unsigned)d->eui_flags, (unsigned)d->bt_company_flags,
                  (unsigned)d->identity_score, (unsigned)d->identity_conf,
-                 (unsigned)d->threat_level);
+                 (unsigned)d->threat_level,
+                 (unsigned)d->adv_frames, (unsigned)d->adv_scan_rsps,
+                 (int)d->rssi_min, (int)d->rssi_max,
+                 (unsigned)d->rssi_sd, (unsigned)d->itvl_min_ms,
+                 (unsigned)d->itvl_mean_ms, (unsigned)d->itvl_max_ms,
+                 (unsigned)d->itvl_jitter_ms, (unsigned)d->_itvl_n);
     }
 
     ESP_LOGI(TAG, "BLE scan complete: %u devices", out->count);
+    ble_adv_ring_log_summary();
     return ESP_OK;
 }

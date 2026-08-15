@@ -26,10 +26,10 @@ static EXT_RAM_BSS_ATTR int8_t        s_vcluster_of[PDC_MAX_NODES];
 
 static uint16_t s_ap_count;
 static uint16_t s_node_count;
-static uint8_t  s_edge_count;
+static uint16_t s_edge_count;
 static uint8_t  s_cluster_count;
 static uint8_t  s_vcluster_count;
-static uint8_t  s_edges_dropped;
+static uint16_t s_edges_dropped;
 
 static uint32_t mac_suffix(const uint8_t *m)
 {
@@ -124,7 +124,7 @@ static void add_edge(uint8_t kind_a, uint8_t idx_a,
                      uint8_t evidence, uint8_t conf, bool can_union)
 {
     if (conf == 0) return;
-    for (uint8_t e = 0; e < s_edge_count; e++) {
+    for (uint16_t e = 0; e < s_edge_count; e++) {
         pdc_edge_t *ed = &s_edges[e];
         bool same = (ed->kind_a == kind_a && ed->idx_a == idx_a &&
                      ed->kind_b == kind_b && ed->idx_b == idx_b) ||
@@ -157,7 +157,7 @@ static void add_edge(uint8_t kind_a, uint8_t idx_a,
 static void edge_or_facts(uint8_t ka, uint8_t ia, uint8_t kb, uint8_t ib,
                           uint16_t cand, uint16_t conflict)
 {
-    for (uint8_t e = 0; e < s_edge_count; e++) {
+    for (uint16_t e = 0; e < s_edge_count; e++) {
         pdc_edge_t *ed = &s_edges[e];
         bool same = (ed->kind_a == ka && ed->idx_a == ia &&
                      ed->kind_b == kb && ed->idx_b == ib) ||
@@ -179,7 +179,7 @@ static bool cand_corroborates(uint16_t m)
 
 static void pdc_corroborate(void)
 {
-    for (uint8_t e = 0; e < s_edge_count; e++) {
+    for (uint16_t e = 0; e < s_edge_count; e++) {
         pdc_edge_t *ed = &s_edges[e];
         if (ed->can_union) continue;
         if (ed->conflict_mask) continue;
@@ -191,7 +191,7 @@ static void pdc_corroborate(void)
 
 static bool corroborated_edge_between(uint16_t na, uint16_t nb)
 {
-    for (uint8_t e = 0; e < s_edge_count; e++) {
+    for (uint16_t e = 0; e < s_edge_count; e++) {
         const pdc_edge_t *ed = &s_edges[e];
         if (!ed->corroborated) continue;
         uint16_t a = node_of(ed->kind_a, ed->idx_a);
@@ -207,7 +207,7 @@ static void pdc_resolve_ambiguity(void)
         uint16_t peers[12];
         uint8_t  np = 0;
         bool     overflow = false;
-        for (uint8_t e = 0; e < s_edge_count; e++) {
+        for (uint16_t e = 0; e < s_edge_count; e++) {
             const pdc_edge_t *ed = &s_edges[e];
             if (!ed->corroborated) continue;
             uint16_t a = node_of(ed->kind_a, ed->idx_a);
@@ -225,7 +225,7 @@ static void pdc_resolve_ambiguity(void)
                 if (!corroborated_edge_between(peers[x], peers[y])) clique = false;
         if (clique) continue;
 
-        for (uint8_t e = 0; e < s_edge_count; e++) {
+        for (uint16_t e = 0; e < s_edge_count; e++) {
             pdc_edge_t *ed = &s_edges[e];
             if (!ed->corroborated) continue;
             uint16_t a = node_of(ed->kind_a, ed->idx_a);
@@ -671,7 +671,7 @@ void pdc_build(const ap_score_t *scores, uint16_t ap_count,
         s_cluster_of[i] = -1;
     }
 
-    for (uint8_t e = 0; e < s_edge_count; e++)
+    for (uint16_t e = 0; e < s_edge_count; e++)
         if (s_edges[e].can_union)
             uf_union(node_of(s_edges[e].kind_a, s_edges[e].idx_a),
                      node_of(s_edges[e].kind_b, s_edges[e].idx_b));
@@ -703,7 +703,7 @@ void pdc_build(const ap_score_t *scores, uint16_t ap_count,
         }
     }
 
-    for (uint8_t e = 0; e < s_edge_count; e++) {
+    for (uint16_t e = 0; e < s_edge_count; e++) {
         if (!s_edges[e].can_union) continue;
         int8_t cid = s_cluster_of[node_of(s_edges[e].kind_a, s_edges[e].idx_a)];
         if (cid >= 0 && s_edges[e].confidence > s_clusters[(uint8_t)cid].confidence)
@@ -714,7 +714,7 @@ void pdc_build(const ap_score_t *scores, uint16_t ap_count,
 
         uint8_t by_class[PDC_CLASS_COUNT] = {0};
         uint8_t unionable = 0, corroborated = 0;
-        for (uint8_t e = 0; e < s_edge_count; e++) {
+        for (uint16_t e = 0; e < s_edge_count; e++) {
             if (s_edges[e].evclass < PDC_CLASS_COUNT) by_class[s_edges[e].evclass]++;
             if (s_edges[e].can_union) unionable++;
             if (s_edges[e].corroborated) corroborated++;
@@ -757,9 +757,10 @@ int8_t pdc_vehicle_cluster_of(uint8_t kind, uint8_t idx)
     return s_vcluster_of[node];
 }
 
-uint8_t pdc_edge_count(void) { return s_edge_count; }
+uint16_t pdc_edge_count(void) { return s_edge_count; }
+uint16_t pdc_edges_dropped(void) { return s_edges_dropped; }
 
-const pdc_edge_t *pdc_edge_get(uint8_t i)
+const pdc_edge_t *pdc_edge_get(uint16_t i)
 {
     return i < s_edge_count ? &s_edges[i] : NULL;
 }
@@ -797,7 +798,7 @@ uint8_t pdc_peers_of_mac(uint8_t kind, const uint8_t mac[6],
                                              : (uint8_t)(self - s_ap_count);
 
     uint8_t written = 0, total = 0;
-    for (uint8_t e = 0; e < s_edge_count; e++) {
+    for (uint16_t e = 0; e < s_edge_count; e++) {
         const pdc_edge_t *ed = &s_edges[e];
         uint8_t pk, pi;
         if (ed->kind_a == kind && ed->idx_a == self_idx) {

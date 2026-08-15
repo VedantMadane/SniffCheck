@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "arm_main.c"
         "arm_scan.c"
+        "arm_addr.c"
         "../../common/cluster_proto.c"
         "../../../dogpark-node/main/node_display.c"
         "../../../main/led.c"
@@ -61,13 +62,3 @@ idf_component_register(
         lcd_st7735
         opendroneid
 )
-
-if(NOT DEFINED ARM_INDEX)
-    if(DEFINED ENV{ARM_INDEX})
-        set(ARM_INDEX $ENV{ARM_INDEX})
-    else()
-        set(ARM_INDEX 1)
-    endif()
-endif()
-target_compile_definitions(${COMPONENT_LIB} PRIVATE ARM_INDEX=${ARM_INDEX})
-message(STATUS "cluster arm index = ${ARM_INDEX}")

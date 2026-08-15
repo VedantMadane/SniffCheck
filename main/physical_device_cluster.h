@@ -2,6 +2,7 @@
 
 #include "analyzer.h"
 #include "ble_scanner.h"
+#include "sc_profile.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -57,7 +58,7 @@ typedef struct {
     uint8_t idx;
 } pdc_member_t;
 
-#define PDC_MAX_EDGES     96
+#define PDC_MAX_EDGES     SC_PDC_MAX_EDGES
 #define PDC_MAX_CLUSTERS  24
 #define PDC_MAX_MEMBERS    8
 
@@ -91,8 +92,10 @@ uint8_t             pdc_vehicle_cluster_count(void);
 const pdc_cluster_t *pdc_vehicle_cluster_get(uint8_t i);
 int8_t              pdc_vehicle_cluster_of(uint8_t kind, uint8_t idx);
 
-uint8_t             pdc_edge_count(void);
-const pdc_edge_t    *pdc_edge_get(uint8_t i);
+uint16_t            pdc_edge_count(void);
+const pdc_edge_t    *pdc_edge_get(uint16_t i);
+
+uint16_t            pdc_edges_dropped(void);
 
 int8_t pdc_cluster_of(uint8_t kind, uint8_t idx);
 

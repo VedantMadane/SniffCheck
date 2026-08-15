@@ -6,10 +6,11 @@
 #define CL_I2C_HZ       100000
 
 #define CL_BRAIN_ADDR   0x10
-#define CL_ARM1_ADDR    0x11
-#define CL_ARM2_ADDR    0x12
 #define CL_S3_ADDR      0x13
-#define CL_ARM_ADDR(idx) ((idx) == 1 ? CL_ARM1_ADDR : CL_ARM2_ADDR)
+
+#define CL_ARM_POOL     { 0x11, 0x12, 0x14, 0x15, 0x16, 0x17 }
+#define CL_ARM_POOL_N   6
+#define CL_ARM1_ADDR    0x11
 
 #define CL_LCD_SPI_HOST 1
 #define CL_LCD_MOSI     2
