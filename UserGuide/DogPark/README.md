@@ -4,8 +4,7 @@ DogPark is the SniffCheck firmware family for on-device packet inspection demos.
 
 ## Firmware family
 
-- Board firmware lives under the DogPark-related directories in this repository.
-- Use the DogPark board profile so pin maps and radio settings match the kit.
+Board firmware lives under the DogPark-related directories in this repository. Use the DogPark board profile so pin maps and radio settings match the kit.
 
 ## Build
 
